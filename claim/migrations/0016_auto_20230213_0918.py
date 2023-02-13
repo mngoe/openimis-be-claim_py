@@ -10,7 +10,6 @@ import uuid
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim_batch', '0006_capitationpayment'),
         ('program', '0001_initial'),
         ('insuree', '0013_auto_20211103_1023'),
         ('core', '0016_add_last_login_on_interactive_user'),
