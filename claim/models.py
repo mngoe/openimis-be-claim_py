@@ -11,6 +11,7 @@ from insuree import models as insuree_models
 from location import models as location_models
 from location.models import UserDistrict
 from medical import models as medical_models
+from program import models as program_models
 from policy import models as policy_models
 from product import models as product_models
 from django.utils import timezone as django_tz 
@@ -208,6 +209,12 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         medical_models.Diagnosis, models.DO_NOTHING, db_column='ICDID4',
         related_name="claim_icd4s",
         blank=True, null=True)
+
+    program = models.ForeignKey(
+        program_models.Program, models.DO_NOTHING, db_column='program',
+        related_name="claim_program",
+        blank=True, 
+        null=True)
 
     visit_type = models.CharField(
         db_column='VisitType', max_length=1, blank=True, null=True)
