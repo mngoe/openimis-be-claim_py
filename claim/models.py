@@ -229,7 +229,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     # row_id = models.BinaryField(db_column='RowID', blank=True, null=True)
 
     class Meta:
-        managed = True
+        managed = False
         db_table = 'tblClaim'
 
     STATUS_REJECTED = 1
