@@ -211,9 +211,10 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         blank=True, null=True)
 
     program = models.ForeignKey(
-        program_models.Program, models.DO_NOTHING, db_column='program',
-        related_name="claim_program",
-        blank=True, 
+        program_models.Program, 
+        models.DO_NOTHING, 
+        db_column='program',
+        related_name="claim_program", 
         null=True)
 
     visit_type = models.CharField(
@@ -228,7 +229,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     # row_id = models.BinaryField(db_column='RowID', blank=True, null=True)
 
     class Meta:
-        managed = False
+        managed = True
         db_table = 'tblClaim'
 
     STATUS_REJECTED = 1
