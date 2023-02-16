@@ -11,9 +11,9 @@ from insuree import models as insuree_models
 from location import models as location_models
 from location.models import UserDistrict
 from medical import models as medical_models
-from program import models as program_models
 from policy import models as policy_models
 from product import models as product_models
+from program import models as program_models
 from django.utils import timezone as django_tz 
 
 
