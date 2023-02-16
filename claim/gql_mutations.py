@@ -225,6 +225,7 @@ class ClaimInputType(OpenIMISMutation.Input):
     icd_2_id = graphene.Int(required=False)
     icd_3_id = graphene.Int(required=False)
     icd_4_id = graphene.Int(required=False)
+    program = graphene.Int(required=False)
     review_status = TinyInt(required=False)
     date_claimed = graphene.Date(required=True)
     date_processed = graphene.Date(required=False)
