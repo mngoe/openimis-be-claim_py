@@ -25,6 +25,7 @@ from claim.models import Claim, Feedback, ClaimAttachment, ClaimDedRem
 from claim.models import ClaimItem, ClaimService, ClaimDetail, ClaimServiceItem ,ClaimServiceService
 from medical.models import Item, Service
 from product.models import ProductItemOrService
+from program import models as program_models
 
 from claim.utils import process_items_relations, process_services_relations
 
@@ -305,6 +306,15 @@ def update_or_create_claim(data, user):
     if "client_mutation_label" in data:
         data.pop('client_mutation_label')
     claim_uuid = data.pop('uuid') if 'uuid' in data else None
+    print("Data --- ")
+    print(data)
+    print("Data Progra")
+    print(data["program"])
+    print("object")
+    data["program"] = program_models.Program.objects.filter(idProgram=data["program"]).first()
+    print("Data Programe")
+    print(data["program"])
+
     # update_or_create(uuid=claim_uuid, ...)
     # doesn't work because of explicit attempt to set null to uuid!
     if claim_uuid:
