@@ -281,19 +281,39 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
             user = user.context.user
         if settings.ROW_SECURITY and user.is_anonymous:
             return queryset.filter(id=-1)
+        programs = []
+        if hasattr(user._u, 'id'):
+            print("ID ", user._u.id)
+            programs = program_models.Program.objects.filter(user__id=user._u.id)
+        else:
+            print("Error on Id non existing")
+        print("progran list: ", programs)
         if settings.ROW_SECURITY:
             # TechnicalUsers don't have health_facility_id attribute
             if hasattr(user._u, 'health_facility_id') and user._u.health_facility_id:
-                return queryset.filter(
-                    health_facility_id=user._u.health_facility_id
-                )
+                if not programs:
+                    return queryset.filter(
+                        health_facility_id=user._u.health_facility_id
+                    )
+                else:
+                    return queryset.filter(
+                        health_facility_id=user._u.health_facility_id
+                    ).filter(program_id__in=programs)
             else:
                 if not isinstance(user._u, core_models.TechnicalUser):
                     dist = UserDistrict.get_user_districts(user._u)
-                    return queryset.filter(
-                        health_facility__location_id__in=dist.values_list("location_id", flat=True)
-                    )
-        return queryset
+                    if not programs:
+                        return queryset.filter(
+                            health_facility__location_id__in=dist.values_list("location_id", flat=True)
+                        )
+                    else:
+                        return queryset.filter(
+                            health_facility__location_id__in=dist.values_list("location_id", flat=True)
+                        ).filter(program_id__in=programs)
+        if not programs:
+            return queryset
+        else:
+            return queryset.filter(program_id__in=programs)
 
 
 class ClaimAttachmentsCount(models.Model):
