@@ -286,7 +286,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         if hasattr(user._u, 'id'):
             today = datetime.datetime.now()
             programs = program_models.Program.objects.filter(user__id=user._u.id).filter(
-                validityDate__gte=today)
+                validityDate__lte=today)
         else:
             print("Id non existing")
         if settings.ROW_SECURITY:
