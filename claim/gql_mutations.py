@@ -15,20 +15,21 @@ from core.schema import TinyInt, SmallInt, OpenIMISMutation
 from core.gql.gql_mutations import mutation_on_uuids_from_filter
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
-from django.core.exceptions import ValidationError, PermissionDenied
+from django.core.exceptions import ValidationError, PermissionDenied, ObjectDoesNotExist
 from django.utils.translation import gettext as _
 from graphene import InputObjectType
 from location.schema import UserDistrict
 
 from claim.gql_queries import ClaimGQLType
-from claim.models import Claim, Feedback, ClaimAttachment, ClaimDedRem
-from claim.models import ClaimItem, ClaimService, ClaimDetail, ClaimServiceItem ,ClaimServiceService
+from claim.models import Claim, Feedback, FeedbackPrompt, ClaimDetail, ClaimItem, ClaimService, ClaimAttachment, \
+    ClaimDedRem, ClaimServiceItem ,ClaimServiceService
 from medical.models import Item, Service
+
 from product.models import ProductItemOrService
 from program import models as program_models
 
 from claim.utils import process_items_relations, process_services_relations
-
+from .services import check_unique_claim_code
 logger = logging.getLogger(__name__)
 
 
@@ -301,6 +302,13 @@ def create_attachments(claim_id, attachments):
 def update_or_create_claim(data, user):
     items = data.pop('items') if 'items' in data else []
     services = data.pop('services') if 'services' in data else []
+    incoming_code = data.get('code')
+    claim_uuid = data.pop("uuid", None)
+    current_claim = Claim.objects.filter(uuid=claim_uuid).first()
+    current_code = current_claim.code if current_claim else None
+    if current_code != incoming_code \
+            and check_unique_claim_code(incoming_code):
+        raise ValidationError(_("mutation.code_name_duplicated"))
     if "client_mutation_id" in data:
         data.pop('client_mutation_id')
     if "client_mutation_label" in data:
@@ -355,8 +363,6 @@ class CreateClaimMutation(OpenIMISMutation):
                 return [{
                     'message': _("claim.mutation.duplicated_claim_code") % {'code': data['code']},
                 }]
-            print("Async Mutate")
-            print(data)
             data['audit_user_id'] = user.id_for_audit
             data['status'] = Claim.STATUS_ENTERED
             from core.utils import TimeUtils
@@ -576,7 +582,7 @@ class SubmitClaimsMutation(OpenIMISMutation):
         return errors
 
 
-def set_claims_status(uuids, field, status, audit_data=None):
+def set_claims_status(uuids, field, status, audit_data=None, user=None):
     errors = []
     for claim_uuid in uuids:
         claim = Claim.objects \
@@ -590,6 +596,12 @@ def set_claims_status(uuids, field, status, audit_data=None):
         try:
             claim.save_history()
             setattr(claim, field, status)
+            # creating/cancelling feedback prompts
+            if field == 'feedback_status':
+                if status == Claim.FEEDBACK_SELECTED:
+                    create_feedback_prompt(claim_uuid, user)
+                elif status in [Claim.FEEDBACK_NOT_SELECTED, Claim.FEEDBACK_BYPASSED]:
+                    set_feedback_prompt_validity_to_to_current_date(claim_uuid)
             if audit_data:
                 for k, v in audit_data.items():
                     setattr(claim, k, v)
@@ -600,6 +612,32 @@ def set_claims_status(uuids, field, status, audit_data=None):
                             {'code': claim.code}}]
 
     return errors
+
+
+def create_feedback_prompt(claim_uuid, user):
+    current_claim = Claim.objects.get(uuid=claim_uuid)
+    feedback_prompt = {}
+    from core.utils import TimeUtils
+    feedback_prompt['feedback_prompt_date'] = TimeUtils.date()
+    feedback_prompt['validity_from'] = TimeUtils.now()
+    feedback_prompt['claim_id'] = current_claim
+    feedback_prompt['officer_id'] = current_claim.admin_id
+    feedback_prompt['audit_user_id'] = user.id_for_audit
+    FeedbackPrompt.objects.create(
+        **feedback_prompt
+    )
+
+
+def set_feedback_prompt_validity_to_to_current_date(claim_uuid):
+    try:
+        claim_id = Claim.objects.get(uuid=claim_uuid).id
+        feedback_prompt_id = FeedbackPrompt.objects.get(claim_id=claim_id, validity_to=None).id
+        from core.utils import TimeUtils
+        current_feedback_prompt = FeedbackPrompt.objects.get(id=feedback_prompt_id)
+        current_feedback_prompt.validity_to = TimeUtils.now()
+        current_feedback_prompt.save()
+    except ObjectDoesNotExist:
+        return "No such feedback prompt exist."
 
 
 def update_claims_dedrems(uuids, user):
@@ -626,7 +664,7 @@ class SelectClaimsForFeedbackMutation(OpenIMISMutation):
     def async_mutate(cls, user, **data):
         if not user.has_perms(ClaimConfig.gql_mutation_select_claim_feedback_perms):
             raise PermissionDenied(_("unauthorized"))
-        return set_claims_status(data['uuids'], 'feedback_status', Claim.FEEDBACK_SELECTED)
+        return set_claims_status(data['uuids'], 'feedback_status', Claim.FEEDBACK_SELECTED, user=user)
 
 
 class BypassClaimsFeedbackMutation(OpenIMISMutation):
@@ -702,6 +740,7 @@ class DeliverClaimFeedbackMutation(OpenIMISMutation):
             claim.feedback_status = Claim.FEEDBACK_DELIVERED
             claim.feedback_available = True
             claim.save()
+            set_feedback_prompt_validity_to_to_current_date(claim.uuid)
             return None
         except Exception as exc:
             return [{

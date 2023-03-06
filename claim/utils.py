@@ -5,7 +5,6 @@ def process_child_relation(user, data_children, claim_id, children, create_hook)
     claimed = 0
     from core.utils import TimeUtils
     for data_elt in data_children:
-        print("Process_child_relation")
         if create_hook==service_create_hook :
             claimed += calcul_amount_service(data_elt)
         else:
@@ -20,7 +19,6 @@ def process_child_relation(user, data_children, claim_id, children, create_hook)
             elt.audit_user_id = user.id_for_audit
             elt.claim_id = claim_id
             elt.validity_to = None
-            print("Update Child Relation")
             if create_hook==service_create_hook :
                 service_update_hook(elt.claim_id, data_elt)
 

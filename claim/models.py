@@ -77,6 +77,22 @@ class ClaimAdmin(core_models.VersionedModel):
     def check_password(self, raw_password):
         return False
 
+    @property
+    def officer_allowed_locations(self):
+        """
+        Returns uuid of all locations allowed for given officer
+        """
+        district = self.health_facility.location
+        all_allowed_uuids = [district.parent.uuid, district.uuid]
+        child_locations = location_models.Location.objects.filter(parent=district).values_list('uuid', flat=True)
+        while child_locations:
+            all_allowed_uuids.extend(child_locations)
+            child_locations = location_models.Location.objects\
+                .filter(parent__uuid__in=child_locations)\
+                .values_list('uuid', flat=True)
+
+        return location_models.Location.objects.filter(uuid__in=all_allowed_uuids)
+
     class Meta:
         managed = False
         db_table = 'tblClaimAdmin'
@@ -100,6 +116,39 @@ class Feedback(core_models.VersionedModel):
     class Meta:
         managed = False
         db_table = 'tblFeedback'
+
+    @classmethod
+    def get_queryset(cls, queryset, user):
+        queryset = cls.filter_queryset(queryset)
+        # GraphQL calls with an info object while Rest calls with the user itself
+        if isinstance(user, ResolveInfo):
+            user = user.context.user
+        if settings.ROW_SECURITY and user.is_anonymous:
+            return queryset.filter(id=-1)
+        if settings.ROW_SECURITY:
+            dist = UserDistrict.get_user_districts(user._u)
+            return queryset.filter(
+                claim__health_facility__location_id__in=[l.location_id for l in dist]
+            )
+        return queryset
+
+
+class FeedbackPrompt(core_models.VersionedModel):
+    id = models.AutoField(db_column='FeedbackPromptID', primary_key=True)
+    feedback_prompt_date = fields.DateField(db_column='FeedbackPromptDate', blank=True, null=True)
+    claim_id = models.OneToOneField(
+        "Claim", models.DO_NOTHING, db_column='ClaimID', blank=True, null=True, related_name="+")
+    officer_id = models.IntegerField(db_column='OfficerID', blank=True, null=True)
+    phone_number = models.CharField(db_column='PhoneNumber', max_length=36, unique=True)
+    sms_status = models.IntegerField(db_column='SMSStatus', blank=True, null=True)
+    validity_from = fields.DateTimeField(db_column='ValidityFrom', blank=True, null=True)
+    validity_to = fields.DateTimeField(db_column='ValidityTo', blank=True, null=True)
+    legacy_id = models.IntegerField(db_column='LegacyID', blank=True, null=True)
+    audit_user_id = models.IntegerField(db_column='AuditUserID', blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'tblFeedbackPrompt'
 
     @classmethod
     def get_queryset(cls, queryset, user):
