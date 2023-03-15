@@ -16,6 +16,7 @@ from policy import models as policy_models
 from product import models as product_models
 from program import models as program_models
 from django.utils import timezone as django_tz 
+from django.db.models import Q
 
 
 class ClaimAdmin(core_models.VersionedModel):
@@ -335,7 +336,8 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         if hasattr(user._u, 'id'):
             today = datetime.datetime.now()
             programs = program_models.Program.objects.filter(user__id=user._u.id).filter(
-                validityDate__lte=today)
+                validityDateFrom__lte=today).filter(
+                Q(validityDateTo__isnull=True) | Q(validityDateTo__gte=today))
         else:
             print("Id non existing")
         if settings.ROW_SECURITY:
