@@ -14,7 +14,7 @@ from medical.models import Service
 from medical_pricelist.models import ItemsPricelistDetail, ServicesPricelistDetail
 from policy.models import Policy
 from product.models import Product, ProductItem, ProductService, ProductItemOrService
-
+from core import datetime, datetimedelta as tdt
 from .apps import ClaimConfig
 
 logger = logging.getLogger(__name__)
@@ -37,6 +37,9 @@ REJECTION_REASON_MAX_DELIVERIES = 15
 REJECTION_REASON_QTY_OVER_LIMIT = 16
 REJECTION_REASON_WAITING_PERIOD_FAIL = 17
 REJECTION_REASON_MAX_ANTENATAL = 19
+REJECTION_REASON_MIN_1YEAR_INJECTABLE = 20
+REJECTION_REASON_MIN_3MONTHS_IMPLANT = 21
+REJECTION_REASON_MIN_1YEAR_IMPLANT = 22
 
 
 def validate_claim(claim, check_max):
@@ -50,7 +53,9 @@ def validate_claim(claim, check_max):
     if ClaimConfig.default_validations_disabled:
         return []
     errors = []
-    errors += validate_target_date(claim)
+    errors += validate_previous_traitements(claim)
+    if len(errors) == 0:
+        errors += validate_target_date(claim)
     if len(errors) == 0:
         errors += validate_family(claim, claim.insuree)
     if len(errors) == 0:
@@ -276,6 +281,61 @@ def validate_target_date(claim):
                     'detail': claim.uuid}]
     return errors
 
+
+def validate_previous_traitements(claim):
+    errors = []
+    claim_items = ClaimItem.objects.filter(claim=claim.id)
+    for claim_item in claim_items:
+        if claim_item.item and claim_item.item.itemcategory:
+            # implant: au moins 1 ans sans injectable
+            if claim_item.item.itemcategory == 'IM':
+                last_year = datetime.date.today() + tdt(years=-1)
+                claims = Claim.objects.filter(status=16).filter(
+                    insuree=claim.insuree.id).filter(
+                        date_claimed__gt=last_year).exclude(id=claim.id)
+                for foundclaim in claims:
+                    found_claim_items = ClaimItem.objects.filter(
+                        claim=foundclaim.id).filter(item__itemcategory='IN')
+                    if found_claim_items:
+                        errors += [{'code': REJECTION_REASON_MIN_1YEAR_INJECTABLE,
+                        'message': ("This insuree got an injectable in less than 1 year") % {
+                            'code': claim.code
+                        },
+                        'detail': claim.uuid}]
+
+            # Injectable ou pillile, au mois 3 mois sans implant
+            elif claim_item.item.itemcategory in ['IN', 'P']:
+                last_three_months = datetime.date.today() + tdt(months=-3)
+                claims = Claim.objects.filter(status=16).filter(
+                    insuree=claim.insuree.id).filter(
+                        date_claimed__gt=last_three_months).exclude(id=claim.id)
+                for foundclaim in claims:
+                    found_claim_items = ClaimItem.objects.filter(
+                        claim=foundclaim.id).filter(item__itemcategory='IM')
+                    if found_claim_items:
+                        errors += [{'code': REJECTION_REASON_MIN_3MONTHS_IMPLANT,
+                        'message': ("This insuree got an implant in less than 3 months") % {
+                            'code': claim.code
+                        },
+                        'detail': claim.uuid}]
+            
+            # DIU: au moins un an sans implant
+            elif claim_item.item.itemcategory == 'DIU':
+                last_year = datetime.date.today() + tdt(years=-1)
+                claims = Claim.objects.filter(status=16).filter(
+                    insuree=claim.insuree.id).filter(
+                        date_claimed__gt=last_year).exclude(id=claim.id)
+                for foundclaim in claims:
+                    found_claim_items = ClaimItem.objects.filter(
+                        claim=foundclaim.id).filter(item__itemcategory='IM')
+                    if found_claim_items:
+                        errors += [{'code': REJECTION_REASON_MIN_1YEAR_IMPLANT,
+                        'message': ("This insuree got an implant in less than 1 year") % {
+                            'code': claim.code
+                        },
+                        'detail': claim.uuid}]
+    logger.debug("All errors: %s", errors)
+    return errors
 
 def validate_family(claim, insuree):
     errors = []
