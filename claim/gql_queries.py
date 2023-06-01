@@ -7,7 +7,7 @@ from insuree.schema import InsureeGQLType
 from location.schema import HealthFacilityGQLType
 from medical.schema import DiagnosisGQLType
 from claim_batch.schema import BatchRunGQLType
-from .models import ClaimDedRem, Claim, ClaimAdmin, Feedback, ClaimItem, ClaimService, ClaimAttachment
+from .models import ClaimDedRem, Claim, ClaimAdmin, Feedback, ClaimItem, ClaimService, ClaimAttachment, ClaimServiceService, ClaimServiceItem
 
 
 class ClaimDedRemGQLType(DjangoObjectType):
@@ -158,3 +158,19 @@ class ClaimServiceGQLType(DjangoObjectType):
 
     class Meta:
         model = ClaimService
+
+class ClaimServiceServiceGQLType(DjangoObjectType):
+    """
+    Contains the Claim services within a specific Claim
+    """
+
+    class Meta:
+        model = ClaimServiceService
+
+class ClaimServiceItemGQLType(DjangoObjectType):
+    """
+    Contains the Claim services within a specific Claim
+    """
+
+    class Meta:
+        model = ClaimServiceItem

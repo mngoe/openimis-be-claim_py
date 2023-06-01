@@ -373,3 +373,9 @@ class ClaimCreateService:
         claimed += process_items_relations(self.user, claim, items)
         claimed += process_services_relations(self.user, claim, services)
         claim.claimed = claimed
+
+
+def check_unique_claim_code(code):
+    if Claim.objects.filter(code=code, validity_to__isnull=True).exists():
+        return [{"message": "Claim code %s already exists" % code}]
+    return []

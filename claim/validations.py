@@ -253,7 +253,6 @@ def frequency_check(qs, claim, elt):
                 claim__status__gt=Claim.STATUS_ENTERED
                 ) \
         .exclude(claim__uuid=claim.uuid) \
-        .order_by('-claim__date_from') \
         .exists()
 
 
