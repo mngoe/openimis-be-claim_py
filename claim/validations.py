@@ -1087,6 +1087,13 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
             else:
                 if claim_detail.price_origin == ProductItemOrService.ORIGIN_CLAIM:
                     set_price_adjusted = claim_detail.price_asked
+                    try:
+                        if claim_detail.service.packagetype == 'F':
+                            service_price = claim_detail.service.price
+                            if claim_detail.price_approved > service_price:
+                                set_price_adjusted = service_price
+                    except:
+                        print("This it an item element")
                 else:
                     set_price_adjusted = pl_price
 
