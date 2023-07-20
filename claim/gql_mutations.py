@@ -313,7 +313,6 @@ def update_or_create_claim(data, user):
         data.pop('client_mutation_id')
     if "client_mutation_label" in data:
         data.pop('client_mutation_label')
-    claim_uuid = data.pop('uuid') if 'uuid' in data else None
     data["program"] = program_models.Program.objects.filter(idProgram=data["program"]).first()
 
     # update_or_create(uuid=claim_uuid, ...)
