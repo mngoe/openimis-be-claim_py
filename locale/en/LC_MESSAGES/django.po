@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-06-05 10:25+0200\n"
+"POT-Creation-Date: 2023-03-13 16:38+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -29,132 +29,193 @@ msgstr ""
 #: claim/gql_mutations.py:859 claim/gql_mutations.py:907 claim/views.py:16
 #: claim/views.py:37 claim/schema.py:31 claim/schema.py:58 claim/schema.py:62
 #: claim/schema.py:66 claim/schema.py:75 claim/schema.py:57 claim/schema.py:61
-#: claim/schema.py:65 claim/schema.py:74 claim/gql_mutations.py:377
-#: claim/gql_mutations.py:416 claim/gql_mutations.py:437
-#: claim/gql_mutations.py:452 claim/gql_mutations.py:472
-#: claim/gql_mutations.py:486 claim/gql_mutations.py:512
-#: claim/gql_mutations.py:526 claim/gql_mutations.py:551
-#: claim/gql_mutations.py:639 claim/gql_mutations.py:656
-#: claim/gql_mutations.py:674 claim/gql_mutations.py:693
-#: claim/gql_mutations.py:735 claim/gql_mutations.py:753
-#: claim/gql_mutations.py:771 claim/gql_mutations.py:793
-#: claim/gql_mutations.py:814 claim/gql_mutations.py:859
-#: claim/gql_mutations.py:907 claim/schema.py:31 claim/schema.py:57
-#: claim/schema.py:61 claim/schema.py:65 claim/schema.py:74 claim/views.py:16
-#: claim/views.py:37 claim/services.py:221
+#: claim/schema.py:65 claim/schema.py:74 claim/schema.py:56 claim/schema.py:77
+#: claim/schema.py:132 claim/schema.py:143 claim/schema.py:161
+#: claim/views.py:19 claim/views.py:48 claim/services.py:226
+#: claim/services.py:296 claim/services.py:348 claim/gql_mutations.py:331
+#: claim/gql_mutations.py:370 claim/gql_mutations.py:392
+#: claim/gql_mutations.py:407 claim/gql_mutations.py:427
+#: claim/gql_mutations.py:441 claim/gql_mutations.py:467
+#: claim/gql_mutations.py:481 claim/gql_mutations.py:637
+#: claim/gql_mutations.py:654 claim/gql_mutations.py:672
+#: claim/gql_mutations.py:692 claim/gql_mutations.py:794
+#: claim/gql_mutations.py:816 claim/gql_mutations.py:862
+#: claim/gql_mutations.py:911 claim/schema.py:56 claim/schema.py:65
+#: claim/schema.py:77 claim/schema.py:132 claim/schema.py:143
+#: claim/schema.py:161 claim/views.py:19 claim/views.py:48
+#: claim/services.py:226 claim/services.py:296 claim/services.py:348
+#: claim/gql_mutations.py:331 claim/gql_mutations.py:370
+#: claim/gql_mutations.py:392 claim/gql_mutations.py:407
+#: claim/gql_mutations.py:427 claim/gql_mutations.py:441
+#: claim/gql_mutations.py:467 claim/gql_mutations.py:481
+#: claim/gql_mutations.py:512 claim/gql_mutations.py:637
+#: claim/gql_mutations.py:654 claim/gql_mutations.py:672
+#: claim/gql_mutations.py:692 claim/gql_mutations.py:735
+#: claim/gql_mutations.py:753 claim/gql_mutations.py:771
+#: claim/gql_mutations.py:794 claim/gql_mutations.py:816
+#: claim/gql_mutations.py:862 claim/gql_mutations.py:911
 msgid "unauthorized"
 msgstr "User not authorized for this operation"
 
-#: claim/gql_mutations.py:375 claim/gql_mutations.py:414
-#: claim/gql_mutations.py:375 claim/gql_mutations.py:414
+#: claim/gql_mutations.py:375 claim/gql_mutations.py:414 claim/services.py:224
+#: claim/services.py:346 claim/gql_mutations.py:329 claim/gql_mutations.py:368
+#: claim/services.py:224 claim/services.py:346 claim/gql_mutations.py:329
+#: claim/gql_mutations.py:368
 msgid "mutation.authentication_required"
 msgstr "User needs to be authenticated for this operation"
 
-#: claim/gql_mutations.py:381 claim/gql_mutations.py:381
+#: claim/gql_mutations.py:381 claim/gql_mutations.py:335
+#: claim/gql_mutations.py:335
 msgid "claim.mutation.duplicated_claim_code"
 msgstr "Claim with %(code) already exists"
 
-#: claim/gql_mutations.py:394 claim/gql_mutations.py:394
+#: claim/gql_mutations.py:394 claim/gql_mutations.py:348
+#: claim/gql_mutations.py:348
 msgid "claim.mutation.failed_to_create_claim"
 msgstr "Failed create claim %(code)s"
 
 #: claim/gql_mutations.py:422 claim/gql_mutations.py:718
-#: claim/gql_mutations.py:842 claim/gql_mutations.py:422
-#: claim/gql_mutations.py:718 claim/gql_mutations.py:842
+#: claim/gql_mutations.py:842 claim/gql_mutations.py:376
+#: claim/gql_mutations.py:845 claim/gql_mutations.py:376
+#: claim/gql_mutations.py:718 claim/gql_mutations.py:845
 msgid "claim.mutation.failed_to_update_claim"
 msgstr "Failed to update claim %(code)s"
 
-#: claim/gql_mutations.py:457 claim/gql_mutations.py:457
+#: claim/gql_mutations.py:457 claim/gql_mutations.py:412
+#: claim/gql_mutations.py:412
 msgid "claim.mutation.failed_to_attach_document"
 msgstr "Failed to attach document to claim %(code)s"
 
-#: claim/gql_mutations.py:494 claim/gql_mutations.py:494
+#: claim/gql_mutations.py:494 claim/gql_mutations.py:449
+#: claim/gql_mutations.py:449
 msgid "claim.mutation.failed_to_update_claim_attachment"
 msgstr "Failed to update attachment from claim %(code)s"
 
-#: claim/gql_mutations.py:531 claim/gql_mutations.py:531
+#: claim/gql_mutations.py:531 claim/gql_mutations.py:486
+#: claim/gql_mutations.py:486
 msgid "claim.mutation.failed_to_delete_claim_attachment"
 msgstr "Failed to delete attachment from claim %(code)s"
 
 #: claim/gql_mutations.py:566 claim/gql_mutations.py:602
 #: claim/gql_mutations.py:819 claim/gql_mutations.py:873
-#: claim/gql_mutations.py:919 claim/gql_mutations.py:566
-#: claim/gql_mutations.py:602 claim/gql_mutations.py:819
-#: claim/gql_mutations.py:873 claim/gql_mutations.py:919
+#: claim/gql_mutations.py:919 claim/gql_mutations.py:529
+#: claim/gql_mutations.py:565 claim/gql_mutations.py:821
+#: claim/gql_mutations.py:876 claim/gql_mutations.py:923
+#: claim/gql_mutations.py:529 claim/gql_mutations.py:565
+#: claim/gql_mutations.py:821 claim/gql_mutations.py:876
+#: claim/gql_mutations.py:923
 msgid "claim.validation.id_does_not_exist"
 msgstr "Claim with id %(id)s does not exist"
 
 #: claim/gql_mutations.py:610 claim/gql_mutations.py:945
 #: claim/gql_mutations.py:958 claim/gql_mutations.py:987
-#: claim/gql_mutations.py:610 claim/gql_mutations.py:945
-#: claim/gql_mutations.py:958 claim/gql_mutations.py:987
+#: claim/gql_mutations.py:582 claim/gql_mutations.py:949
+#: claim/gql_mutations.py:962 claim/gql_mutations.py:991
+#: claim/gql_mutations.py:582 claim/gql_mutations.py:949
+#: claim/gql_mutations.py:962 claim/gql_mutations.py:991
 msgid "claim.mutation.failed_to_change_status_of_claim"
 msgstr "Failed to change status of claim %(code)s"
 
-#: claim/validations.py:97 claim/validations.py:97
+#: claim/validations.py:97 claim/validations.py:98 claim/validations.py:98
 msgid "claim.validation.all_items_and_services_rejected"
 msgstr "%(code)s: All claim items/services are rejected"
 
-#: claim/validations.py:273 claim/validations.py:273
+#: claim/validations.py:273 claim/validations.py:333 claim/validations.py:333
 msgid "claim.validation.target_date"
 msgstr "%(code)s: Neither date_from nor date_to is specified"
 
-#: claim/validations.py:284 claim/validations.py:284
+#: claim/validations.py:284 claim/validations.py:344 claim/validations.py:344
 msgid "claim.validation.family.insuree_validity"
 msgstr "%(code)s: Insuree %(insuree)s validity expired"
 
-#: claim/validations.py:290 claim/validations.py:290
+#: claim/validations.py:290 claim/validations.py:350 claim/validations.py:350
 msgid "claim.validation.family.no_family"
 msgstr ""
 "%(code)s: Insuree %(insuree)s should have a family, even if only one member"
 
-#: claim/validations.py:296 claim/validations.py:296
+#: claim/validations.py:296 claim/validations.py:356 claim/validations.py:356
 msgid "claim.validation.family.family_validity"
 msgstr "%(code)s: Insuree %(insuree)s family validity expired"
 
-#: claim/validations.py:328 claim/validations.py:398 claim/validations.py:328
-#: claim/validations.py:398
+#: claim/validations.py:328 claim/validations.py:398 claim/validations.py:388
+#: claim/validations.py:459 claim/validations.py:388 claim/validations.py:459
 msgid "claim.validation.product_family.waiting_period"
 msgstr "%(code)s: Item/service %(element)s waiting period violation"
 
-#: claim/validations.py:357 claim/validations.py:427 claim/validations.py:357
-#: claim/validations.py:427
+#: claim/validations.py:357 claim/validations.py:427 claim/validations.py:418
+#: claim/validations.py:489 claim/validations.py:418 claim/validations.py:489
 msgid "claim.validation.product_family.max_nb_allowed"
 msgstr ""
 "%(code)s: Item/service %(element)s, provided %(provided)s over maximum "
 "number allowed %(max)s"
 
-#: claim/validations.py:366 claim/validations.py:524 claim/validations.py:366
-#: claim/validations.py:524
+#: claim/validations.py:366 claim/validations.py:524 claim/validations.py:427
+#: claim/validations.py:592 claim/validations.py:427 claim/validations.py:592
 msgid "claim.validation.product_family.no_product_found"
 msgstr "%(code)s: No product item/service found for %(element)s"
 
-#: claim/validations.py:444 claim/validations.py:444
+#: claim/validations.py:444 claim/validations.py:507 claim/validations.py:507
 msgid "claim.validation.product_family.max_nb_consultation"
 msgstr "%(code)s: %(count)s is over maximum consultations %(max)s"
 
-#: claim/validations.py:458 claim/validations.py:458
+#: claim/validations.py:458 claim/validations.py:522 claim/validations.py:522
 msgid "claim.validation.product_family.max_nb_surgeries"
 msgstr "%(code)s: %(count)s is over maximum surgeries %(max)s"
 
-#: claim/validations.py:472 claim/validations.py:472
+#: claim/validations.py:472 claim/validations.py:537 claim/validations.py:537
 msgid "claim.validation.product_family.max_nb_deliveries"
 msgstr "%(code)s: %(count)s is over maximum deliveries %(max)s"
 
-#: claim/validations.py:486 claim/validations.py:486
+#: claim/validations.py:486 claim/validations.py:552 claim/validations.py:552
 msgid "claim.validation.product_family.max_nb_antenatal"
 msgstr "%(code)s: %(count)s is over maximum antenatal services %(max)s"
 
-#: claim/validations.py:500 claim/validations.py:500
+#: claim/validations.py:500 claim/validations.py:567 claim/validations.py:567
 msgid "claim.validation.product_family.max_nb_hospitalizations"
 msgstr "%(code)s: %(count)s is over maximum hospitalizations %(max)s"
 
-#: claim/validations.py:514 claim/validations.py:514
+#: claim/validations.py:514 claim/validations.py:582 claim/validations.py:582
 msgid "claim.validation.product_family.max_nb_visits"
 msgstr "%(code)s: %(count)s is over maximum visits %(max)s"
 
-#: claim/validations.py:673 claim/validations.py:673
+#: claim/validations.py:673 claim/validations.py:773 claim/validations.py:773
 msgid "claim.validation.assign_prod.elt.no_product_code"
 msgstr ""
 "%(code)s: Claim service/item %(elt)s doesn't seem to have a valid Policy-"
 ">Product"
+
+#: claim/validations.py:187 claim/validations.py:187
+msgid "claim.validation.claimitem_validity"
+msgstr "%(code)s: Claim item validity_to is not null"
+
+#: claim/validations.py:200 claim/validations.py:200
+msgid "claim.validation.claimservice_validity"
+msgstr "%(code)s: Claim service validity_to is not null"
+
+#: claim/validations.py:218 claim/validations.py:218
+msgid "claim.validation.claimitem_in_price_list_validity"
+msgstr "%(code)s: Claim item not in the price list"
+
+#: claim/validations.py:237 claim/validations.py:237
+msgid "claim.validation.claimservice_in_price_list_validity"
+msgstr "%(code)s: Claim service not in the price list"
+
+#: claim/validations.py:261 claim/validations.py:261
+msgid "claim.validation.claimdetail_care_type_validity"
+msgstr "%(code)s: Claim item/service invalid care type"
+
+#: claim/validations.py:277 claim/validations.py:277
+msgid "claim.validation.claimdetail_limitation_validity"
+msgstr "%(code)s: Claim item/service passed its limit"
+
+#: claim/validations.py:307 claim/validations.py:307
+msgid "claim.validation.claimitem_frequency_validity"
+msgstr "%(code)s: Claim item invalid frequency"
+
+#: claim/validations.py:320 claim/validations.py:320
+msgid "claim.validation.claimservice_frequency_validity"
+msgstr "%(code)s: Claim service invalid frequency"
+
+#: claim/gql_mutations.py:284 claim/gql_mutations.py:284
+msgid "mutation.code_name_duplicated"
+msgstr "Code name duplicate"
