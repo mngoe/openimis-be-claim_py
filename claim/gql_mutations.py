@@ -854,6 +854,8 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                 if item['status'] == ClaimItem.STATUS_PASSED:
                     all_rejected = False
             services = data.pop('services') if 'services' in data else []
+            claimed = 0
+            ClaimServiceElts = []
             for service in services:
                 service_id = service.pop('id')
                 service.pop('serviceLinked', None)
@@ -862,6 +864,7 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                 serviceserviceSet = service.serviceserviceSet
                 claim.services.filter(id=service_id).update(**service)
                 ClaimServiceId = ClaimService.objects.filter(claim=claim.id, service=service.service_id).first()
+                ClaimServiceElts.append(ClaimServiceId)
                 if(serviceLinked):
                     for serviceL in serviceLinked:
                         serviceL.pop('subItemCode', None)
@@ -874,6 +877,10 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                         ).first()
                         claimServiceItemId.qty_displayed=serviceL.qty_asked
                         claimServiceItemId.save()
+                        if serviceL.price_asked.is_nan():
+                            serviceL.price_asked = 0
+                        prix = serviceL.qty_asked * serviceL.price_asked
+                        claimed += prix
                 
                 if(serviceserviceSet):
                     for serviceserviceS in serviceserviceSet:
@@ -887,10 +894,19 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                         ).first()
                         claimServiceServiceId.qty_displayed=serviceserviceS.qty_asked
                         claimServiceServiceId.save()
+                        if serviceserviceS.price_asked.is_nan():
+                            serviceserviceS.price_asked = 0
+                        price = serviceserviceS.qty_asked * serviceserviceS.price_asked
+                        claimed += price
+                        
 
                 if service['status'] == ClaimService.STATUS_PASSED:
                     all_rejected = False
             claim.approved = approved_amount(claim)
+            claim.claimed = claimed
+            for claimservice in ClaimServiceElts:
+                claimservice.price_adjusted = claimed
+                claimservice.save()
             claim.audit_user_id_review = user.id_for_audit
             if all_rejected:
                 claim.status = Claim.STATUS_REJECTED
