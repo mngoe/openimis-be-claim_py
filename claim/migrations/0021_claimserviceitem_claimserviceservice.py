@@ -8,7 +8,7 @@ import django.utils.timezone
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0012_item_service_jsonExtField'),
+        ('claim', '0020_alter_claim_code'),
     ]
 
     operations = [
@@ -20,7 +20,7 @@ class Migration(migrations.Migration):
                 ('qty_displayed', models.IntegerField(blank=True, db_column='qty_displayed', null=True)),
                 ('pcpDate', models.DateTimeField(blank=True, db_column='created_date', default=django.utils.timezone.now, null=True)),
                 ('price_asked', models.DecimalField(blank=True, db_column='price', decimal_places=2, max_digits=18, null=True)),
-                ('claimlinkedService', models.ForeignKey(db_column='claimlinkedService', on_delete=django.db.models.deletion.DO_NOTHING, to='claim.ClaimService')),
+                ('claimlinkedService', models.ForeignKey(db_column='claimlinkedService', on_delete=django.db.models.deletion.DO_NOTHING, related_name='claimlinkedService', to='claim.ClaimService')),
                 ('service', models.ForeignKey(db_column='ServiceId', on_delete=django.db.models.deletion.DO_NOTHING, related_name='claimServices', to='medical.Service')),
             ],
             options={

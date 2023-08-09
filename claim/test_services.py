@@ -115,6 +115,8 @@ class ClaimSubmitServiceTestCase(TestCase):
 
     @mock.patch('django.db.connections')
     def test_claim_submit_error(self, mock_connections):
+        if connection.vendor != 'mssql':
+            self.skipTest("This test can only be executed for MSSQL database")
         with mock.patch("claim.services.ClaimSubmitService.hf_scope_check") as mock_security:
             mock_security.return_value = None
             query_result = [2]
