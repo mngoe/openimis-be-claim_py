@@ -1,9 +1,4 @@
-import graphene
-from enum import Enum
-
 from core.models import Officer
-from insuree.models import Insuree
-from location.models import HealthFacility, Location
 from .services import check_unique_claim_code
 import django
 from core.schema import signal_mutation_module_validate
@@ -32,7 +27,6 @@ class Query(graphene.ObjectType):
         items=graphene.List(of_type=graphene.String),
         services=graphene.List(of_type=graphene.String),
         json_ext=graphene.JSONString(),
-        attachment_status=graphene.Int(required=False)
     )
 
     claim = graphene.Field(
@@ -45,15 +39,10 @@ class Query(graphene.ObjectType):
     claim_admins = DjangoFilterConnectionField(
         ClaimAdminGQLType,
         search=graphene.String(),
-        region_uuid=graphene.String(),
-        district_uuid=graphene.String()
+        user_health_facility=graphene.String()
     )
     claim_officers = DjangoFilterConnectionField(
         OfficerGQLType, search=graphene.String()
-    )
-
-    insuree_name_by_chfid = graphene.String(
-        chfId=graphene.String(required=True)
     )
 
     validate_claim_code = graphene.Field(
@@ -61,21 +50,6 @@ class Query(graphene.ObjectType):
         claim_code=graphene.String(required=True),
         description="Checks that the specified claim code is unique."
     )
-
-    def resolve_insuree_name_by_chfid(self, info, **kwargs):
-        if not info.context.user.has_perms(ClaimConfig.gql_mutation_create_claims_perms)\
-                and not info.context.user.has_perms(ClaimConfig.gql_mutation_update_claims_perms):
-            raise PermissionDenied(_("unauthorized"))
-        chf_id = kwargs.get('chfId')
-        insuree = Insuree.objects\
-            .filter(validity_to__isnull=True, chf_id=chf_id)\
-            .values('last_name', 'other_names')\
-            .first()
-        if insuree:
-            insuree_name = f"{insuree['other_names']} {insuree['last_name']}"
-        else:
-            insuree_name = ""
-        return insuree_name
 
     def resolve_validate_claim_code(self, info, **kwargs):
         if not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms):
@@ -115,18 +89,6 @@ class Query(graphene.ObjectType):
 
         if services:
             query = query.filter(services__service__code__in=services)
-
-        attachment_status = kwargs.get("attachment_status", 0)
-
-        class AttachmentStatusEnum(Enum):
-            NONE = 0
-            WITH = 1
-            WITHOUT = 2
-
-        if attachment_status == AttachmentStatusEnum.WITH.value:
-            query = query.filter(attachments__isnull=False)
-        elif attachment_status == AttachmentStatusEnum.WITHOUT.value:
-            query = query.filter(attachments__isnull=True)
 
         json_ext = kwargs.get("json_ext", None)
 
@@ -179,29 +141,20 @@ class Query(graphene.ObjectType):
                 ClaimConfig.gql_query_claim_admins_perms
         ):
             raise PermissionDenied(_("unauthorized"))
-
-        hf_filters = [*filter_validity(**kwargs)]
-        district_uuid = kwargs.get('district_uuid', None)
-        region_uuid = kwargs.get('region_uuid', None)
-        if district_uuid is not None:
-            hf_filters += [Q(location__uuid=district_uuid)]
-        if region_uuid is not None:
-            hf_filters += [Q(location__parent__uuid=region_uuid)]
-        if settings.ROW_SECURITY:
-            dist = UserDistrict.get_user_districts(info.context.user._u)
-            hf_filters += [Q(location__id__in=[l.location_id for l in dist])]
-        user_health_facility = HealthFacility.objects.filter(*hf_filters)
-
-        filters = [*filter_validity(**kwargs)]
+        queryset = ClaimAdmin.objects.all()
+        user_health_facility = kwargs.get("user_health_facility", None)
         if user_health_facility:
-            filters += [Q(health_facility__in=user_health_facility)]
-
+            user_health_facility = ast.literal_eval(user_health_facility)
+            queryset = queryset.filter(
+                health_facility__uuid__in=user_health_facility
+            )
         if search:
-            filters += [Q(code__icontains=search) |
-                        Q(last_name__icontains=search) |
-                        Q(other_names__icontains=search)]
-
-        return ClaimAdmin.objects.filter(*filters)
+            queryset = queryset.filter(
+                Q(code__icontains=search)
+                | Q(last_name__icontains=search)
+                | Q(other_names__icontains=search)
+            )
+        return queryset
 
     def resolve_claim_officers(self, info, search=None, **kwargs):
         if not info.context.user.has_perms(ClaimConfig.gql_query_claim_officers_perms):
