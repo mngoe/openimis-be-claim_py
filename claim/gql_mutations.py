@@ -857,6 +857,8 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                 if item['status'] == ClaimItem.STATUS_PASSED:
                     all_rejected = False
             services = data.pop('services') if 'services' in data else []
+            claimed = 0
+            ClaimServiceElts = []
             for service in services:
                 service_id = service.pop('id')
                 service_linked = service.pop('serviceLinked', [])
