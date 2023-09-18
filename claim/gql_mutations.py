@@ -137,13 +137,18 @@ class FeedbackInputType(InputObjectType):
     payment_asked = graphene.Boolean(required=False)
     drug_prescribed = graphene.Boolean(required=False)
     drug_received = graphene.Boolean(required=False)
-    asessment = SmallInt(
+    asessment = graphene.Int(
         required=False,
         description="Be careful, this field name has a typo")
     officer_id = graphene.Int(required=False)
     feedback_date = graphene.DateTime(required=False)
     validity_from = graphene.DateTime(required=False)
     validity_to = graphene.DateTime(required=False)
+    sexe = graphene.String(max_length=15, required=False)
+    age = graphene.Int(required=False)
+    policy_national = graphene.Boolean(required=False)
+    pregnant = graphene.Boolean(required=False)
+    means_information = graphene.String(required=False)
 
 
 class ClaimCodeInputType(graphene.String):
@@ -731,6 +736,7 @@ class DeliverClaimFeedbackMutation(OpenIMISMutation):
             feedback['validity_from'] = TimeUtils.now()
             feedback['audit_user_id'] = user.id_for_audit
             # The legacy model has a Foreign key on both sides of this one-to-one relationship
+            print("the feeback ", feedback)
             f, created = Feedback.objects.update_or_create(
                 claim=claim,
                 defaults=feedback

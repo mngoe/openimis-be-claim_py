@@ -109,14 +109,19 @@ class Feedback(core_models.VersionedModel):
     payment_asked = models.BooleanField(db_column='PaymentAsked', blank=True, null=True)
     drug_prescribed = models.BooleanField(db_column='DrugPrescribed', blank=True, null=True)
     drug_received = models.BooleanField(db_column='DrugReceived', blank=True, null=True)
-    asessment = models.SmallIntegerField(db_column='Asessment', blank=True, null=True)
+    asessment = models.IntegerField(db_column='Asessment', blank=True, null=True)
     # No FK in database (so value may not be an existing officer.id !)
     officer_id = models.IntegerField(db_column='CHFOfficerCode', blank=True, null=True)
     feedback_date = fields.DateTimeField(db_column='FeedbackDate', blank=True, null=True)
     audit_user_id = models.IntegerField(db_column='AuditUserID')
+    sexe = models.CharField(db_column='Sexe', max_length=15, blank=True, null=True)
+    age = models.SmallIntegerField(db_column='Age', blank=True, null=True)
+    policy_national = models.BooleanField(db_column='PolicyNational', blank=True, null=True)
+    pregnant = models.BooleanField(db_column='Pregnant', blank=True, null=True)
+    means_information = models.CharField(db_column='MeansInformation', max_length=25, blank=True, null=True)
 
     class Meta:
-        managed = False
+        managed = True
         db_table = 'tblFeedback'
 
     @classmethod
