@@ -1084,7 +1084,6 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
 
             if claim_detail.price_approved is not None:
                 set_price_adjusted = claim_detail.price_approved
-            print("packagetype Type: ", claim_detail.service.packagetype)
             if claim_detail.price_origin == ProductItemOrService.ORIGIN_CLAIM:
                 set_price_adjusted = claim_detail.price_asked
                 try:
