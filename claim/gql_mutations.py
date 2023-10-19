@@ -857,44 +857,46 @@ class SaveClaimReviewMutation(OpenIMISMutation):
             services = data.pop('services') if 'services' in data else []
             claimed = 0
             ClaimServiceElts = []
+            print("Configuration", ClaimConfig.compute_prices_and_check_validation)
             for service in services:
                 service_id = service.pop('id')
                 service_linked = service.pop('serviceLinked', [])
                 print("service_linked ", service_linked)
                 serviceserviceSet = service.pop('serviceserviceSet', [])
                 print("serviceserviceSet ", serviceserviceSet)
-                for claim_service_service in serviceserviceSet:
-                    claim_service_code = claim_service_service.pop('subServiceCode')
-                    print("ICI ", claim.services.filter(id=service_id))
-                    claim_service = claim.services.filter(id=service_id).first()
-                    if claim_service:
-                        service_elt = Service.objects.filter(code=claim_service_code).first()
-                        if service_elt:
-                            claim_service_to_update = claim_service.claimlinkedService.filter(service=service_elt.id)
-                            print("claim_service_to_update ", claim_service_to_update)
-                            if claim_service_to_update:
-                                qty_asked = claim_service_service.pop('qty_asked', 0)
-                                price_asked = claim_service_service.pop('price_asked', 0)
-                                claim_service_service['qty_displayed'] = qty_asked
-                                price = qty_asked * price_asked
-                                claimed += price
-                                claim_service_to_update.update(**claim_service_service)
-                        ClaimServiceElts.append(claim_service)
-                for claim_service_item in service_linked:
-                    claim_item_code = claim_service_item.pop('subItemCode')
-                    claim_service = claim.services.filter(id=service_id).first()
-                    if claim_service:
-                        item_elt = Item.objects.filter(code=claim_item_code).first()
-                        if item_elt:
-                            claim_item_to_update = claim_service.claimlinkedItem.filter(item=item_elt.id)
-                            print("claim_item_to_update ", claim_item_to_update)
-                            if claim_item_to_update:
-                                qty_asked = claim_service_item.pop('qty_asked', 0)
-                                price_asked = claim_service_item.pop('price_asked', 0)
-                                claim_service_item['qty_displayed'] = qty_asked
-                                price = qty_asked * price_asked
-                                claimed += price
-                                claim_item_to_update.update(**claim_service_item)
+                if ClaimConfig.compute_prices_and_check_validation:
+                    for claim_service_service in serviceserviceSet:
+                        claim_service_code = claim_service_service.pop('subServiceCode')
+                        print("ICI ", claim.services.filter(id=service_id))
+                        claim_service = claim.services.filter(id=service_id).first()
+                        if claim_service:
+                            service_elt = Service.objects.filter(code=claim_service_code).first()
+                            if service_elt:
+                                claim_service_to_update = claim_service.claimlinkedService.filter(service=service_elt.id)
+                                print("claim_service_to_update ", claim_service_to_update)
+                                if claim_service_to_update:
+                                    qty_asked = claim_service_service.pop('qty_asked', 0)
+                                    price_asked = claim_service_service.pop('price_asked', 0)
+                                    claim_service_service['qty_displayed'] = qty_asked
+                                    price = qty_asked * price_asked
+                                    claimed += price
+                                    claim_service_to_update.update(**claim_service_service)
+                            ClaimServiceElts.append(claim_service)
+                    for claim_service_item in service_linked:
+                        claim_item_code = claim_service_item.pop('subItemCode')
+                        claim_service = claim.services.filter(id=service_id).first()
+                        if claim_service:
+                            item_elt = Item.objects.filter(code=claim_item_code).first()
+                            if item_elt:
+                                claim_item_to_update = claim_service.claimlinkedItem.filter(item=item_elt.id)
+                                print("claim_item_to_update ", claim_item_to_update)
+                                if claim_item_to_update:
+                                    qty_asked = claim_service_item.pop('qty_asked', 0)
+                                    price_asked = claim_service_item.pop('price_asked', 0)
+                                    claim_service_item['qty_displayed'] = qty_asked
+                                    price = qty_asked * price_asked
+                                    claimed += price
+                                    claim_item_to_update.update(**claim_service_item)
                 if service['status'] == ClaimService.STATUS_PASSED:
                     all_rejected = False
             claim.approved = approved_amount(claim)
