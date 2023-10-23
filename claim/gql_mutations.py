@@ -857,14 +857,14 @@ class SaveClaimReviewMutation(OpenIMISMutation):
             services = data.pop('services') if 'services' in data else []
             claimed = 0
             ClaimServiceElts = []
-            print("Configuration", ClaimConfig.compute_prices_and_check_validation)
+            print("Configuration", ClaimConfig.compute_prices_and_check_validation == True)
             for service in services:
                 service_id = service.pop('id')
                 service_linked = service.pop('serviceLinked', [])
                 print("service_linked ", service_linked)
                 serviceserviceSet = service.pop('serviceserviceSet', [])
                 print("serviceserviceSet ", serviceserviceSet)
-                if ClaimConfig.compute_prices_and_check_validation:
+                if ClaimConfig.compute_prices_and_check_validation == True:
                     for claim_service_service in serviceserviceSet:
                         claim_service_code = claim_service_service.pop('subServiceCode')
                         print("ICI ", claim.services.filter(id=service_id))
