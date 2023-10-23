@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0017_set_managed_to_true'),
+        ('claim', '0018_auto_20230926_1712'),
     ]
 
     operations = [
