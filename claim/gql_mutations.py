@@ -901,9 +901,10 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                 if service['status'] == ClaimService.STATUS_PASSED:
                     all_rejected = False
             claim.approved = approved_amount(claim)
-            claim.claimed = claimed
-            for claimservice in ClaimServiceElts:
-                setattr(claimservice, 'price_adjusted', claimed)
+            if ClaimConfig.compute_prices_and_check_validation == True:
+                claim.claimed = claimed
+                for claimservice in ClaimServiceElts:
+                    setattr(claimservice, 'price_adjusted', claimed)
             claim.audit_user_id_review = user.id_for_audit
             if all_rejected:
                 claim.status = Claim.STATUS_REJECTED
