@@ -1,14 +1,18 @@
 import math
 from claim.models import ClaimItem, ClaimService, ClaimDetail, ClaimServiceItem ,ClaimServiceService
 from medical.models import Item, Service
+from .apps import ClaimConfig
 
 def process_child_relation(user, data_children, claim_id, children, create_hook):
     claimed = 0
     from core.utils import TimeUtils
     for data_elt in data_children:
         print("Process_child_relation")
-        if create_hook==service_create_hook :
-            claimed += calcul_amount_service(data_elt)
+        if ClaimConfig.compute_prices_and_check_validation == True:
+            if create_hook==service_create_hook :
+                claimed += calcul_amount_service(data_elt)
+            else:
+                claimed += data_elt['qty_provided'] * data_elt['price_asked']
         else:
             claimed += data_elt['qty_provided'] * data_elt['price_asked']
 
@@ -43,10 +47,10 @@ def calcul_amount_service(elt):
     if len(elt['serviceLinked'])!=0 and len(elt['serviceserviceSet'])!=0:
         totalClaimed = 0
         for serviceLinked in elt['serviceLinked']:
-            if serviceLinked['qty_asked'].is_nan() == False:
+            if not (math.isnan(serviceLinked["qty_asked"])):
                 totalClaimed += serviceLinked['qty_asked'] * serviceLinked['price_asked']
         for serviceserviceSet in elt['serviceserviceSet']:
-            if serviceserviceSet['qty_asked'].is_nan() == False:
+            if not (math.isnan(serviceserviceSet["qty_asked"])):
                 totalClaimed += serviceserviceSet['qty_asked'] * serviceserviceSet['price_asked']
     return totalClaimed
         
