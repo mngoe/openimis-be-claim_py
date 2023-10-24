@@ -52,6 +52,7 @@ class ClaimConfig(AppConfig):
     gql_mutation_delete_claims_perms = []
     claim_print_perms = []
     claim_attachments_root_path = None
+    compute_prices_and_check_validation = True
 
     def _configure_perms(self, cfg):
         ClaimConfig.default_validations_disabled = cfg["default_validations_disabled"]
@@ -78,6 +79,7 @@ class ClaimConfig(AppConfig):
         ClaimConfig.claim_attachments_root_path = cfg["claim_attachments_root_path"]
         ClaimConfig.claim_uspUpdateClaimFromPhone_intermediate_sets = \
             cfg["claim_uspUpdateClaimFromPhone_intermediate_sets"]
+        ClaimConfig.compute_prices_and_check_validation = cfg["compute_prices_and_check_validation"]
 
     def ready(self):
         from core.models import ModuleConfiguration
