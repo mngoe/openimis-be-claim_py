@@ -864,6 +864,7 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                 print("service_linked ", service_linked)
                 serviceserviceSet = service.pop('serviceserviceSet', [])
                 print("serviceserviceSet ", serviceserviceSet)
+                claim.services.filter(id=service_id).update(**service)
                 if ClaimConfig.compute_prices_and_check_validation == True:
                     for claim_service_service in serviceserviceSet:
                         claim_service_code = claim_service_service.pop('subServiceCode')
