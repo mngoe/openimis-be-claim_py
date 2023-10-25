@@ -24,7 +24,8 @@ DEFAULT_CFG = {
     "gql_mutation_delete_claims_perms": ["111004"],
     "claim_print_perms": ["111006"],
     "claim_attachments_root_path": None,
-    "claim_uspUpdateClaimFromPhone_intermediate_sets": 2
+    "claim_uspUpdateClaimFromPhone_intermediate_sets": 2,
+    "compute_prices_and_check_validation": True
 }
 
 
