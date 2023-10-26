@@ -8,7 +8,7 @@ def process_child_relation(user, data_children, claim_id, children, create_hook)
     from core.utils import TimeUtils
     for data_elt in data_children:
         print("Process_child_relation")
-        if ClaimConfig.compute_prices_and_check_validation == True:
+        if ClaimConfig.native_code_for_services == False:
             if create_hook==service_create_hook :
                 claimed += calcul_amount_service(data_elt)
             else:
