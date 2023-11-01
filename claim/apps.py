@@ -24,7 +24,8 @@ DEFAULT_CFG = {
     "gql_mutation_delete_claims_perms": ["111004"],
     "claim_print_perms": ["111006"],
     "claim_attachments_root_path": None,
-    "claim_uspUpdateClaimFromPhone_intermediate_sets": 2
+    "claim_uspUpdateClaimFromPhone_intermediate_sets": 2,
+    "native_code_for_services": True
 }
 
 
@@ -52,6 +53,7 @@ class ClaimConfig(AppConfig):
     gql_mutation_delete_claims_perms = []
     claim_print_perms = []
     claim_attachments_root_path = None
+    native_code_for_services = True
 
     def _configure_perms(self, cfg):
         ClaimConfig.default_validations_disabled = cfg["default_validations_disabled"]
@@ -78,6 +80,7 @@ class ClaimConfig(AppConfig):
         ClaimConfig.claim_attachments_root_path = cfg["claim_attachments_root_path"]
         ClaimConfig.claim_uspUpdateClaimFromPhone_intermediate_sets = \
             cfg["claim_uspUpdateClaimFromPhone_intermediate_sets"]
+        ClaimConfig.native_code_for_services = cfg["native_code_for_services"]
 
     def ready(self):
         from core.models import ModuleConfiguration

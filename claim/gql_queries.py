@@ -8,7 +8,7 @@ from location.schema import HealthFacilityGQLType
 from medical.schema import DiagnosisGQLType
 from claim_batch.schema import BatchRunGQLType
 from .apps import ClaimConfig
-from .models import ClaimDedRem, Claim, ClaimAdmin, Feedback, ClaimItem, ClaimService, ClaimAttachment
+from .models import ClaimDedRem, Claim, ClaimAdmin, Feedback, ClaimItem, ClaimService, ClaimAttachment, ClaimServiceService, ClaimServiceItem
 from django.utils.translation import gettext as _
 from django.core.exceptions import PermissionDenied
 
@@ -173,3 +173,19 @@ class ClaimServiceGQLType(DjangoObjectType):
 
     class Meta:
         model = ClaimService
+
+class ClaimServiceServiceGQLType(DjangoObjectType):
+    """
+    Contains the Claim services within a specific Claim
+    """
+
+    class Meta:
+        model = ClaimServiceService
+
+class ClaimServiceItemGQLType(DjangoObjectType):
+    """
+    Contains the Claim services within a specific Claim
+    """
+
+    class Meta:
+        model = ClaimServiceItem

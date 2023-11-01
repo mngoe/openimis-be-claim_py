@@ -14,6 +14,7 @@ from medical import models as medical_models
 from policy import models as policy_models
 from product import models as product_models
 from django.apps import apps
+from django.utils import timezone as django_tz
 
 core_config = apps.get_app_config('core')
 
@@ -269,6 +270,8 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         db_column='AuditUserIDSubmit', blank=True, null=True)
     audit_user_id_process = models.IntegerField(
         db_column='AuditUserIDProcess', blank=True, null=True)
+    prescriber_type = models.SmallIntegerField(
+        db_column='PrescriberType', blank=True, null=True)
 
     # row_id = models.BinaryField(db_column='RowID', blank=True, null=True)
 
@@ -521,13 +524,48 @@ class ClaimService(core_models.VersionedModel, ClaimDetail, core_models.Extendab
         db_column='PriceOrigin', max_length=1, blank=True, null=True)
     exceed_ceiling_amount_category = models.DecimalField(
         db_column='ExceedCeilingAmountCategory', max_digits=18, decimal_places=2, blank=True, null=True)
-
     objects = ClaimDetailManager()
 
     class Meta:
         managed = True
         db_table = 'tblClaimServices'
 
+class ClaimServiceItem(models.Model):
+    idCsi = models.AutoField(primary_key=True, db_column='idCsi')
+    item = models.ForeignKey(medical_models.Item, models.DO_NOTHING, db_column='ItemID', related_name="claimItems")                           
+    claimlinkedItem = models.ForeignKey( ClaimService,
+                                          models.DO_NOTHING, db_column="ClaimServiceID",related_name='claimlinkedItem')
+    qty_provided = models.IntegerField(db_column="qty_provided",
+                                      blank=True, null=True)
+    qty_displayed = models.IntegerField(db_column="qty_displayed",
+                                      blank=True, null=True)
+    pcpDate = models.DateTimeField(db_column="created_date", default=django_tz.now,
+                                   blank=True, null=True)
+    price_asked = models.DecimalField(db_column="price",
+                                   max_digits=18, decimal_places=2, blank=True, null=True)
+                                   
+    class Meta:
+        managed = True
+        db_table = 'tblClaimServicesItems'
+
+class ClaimServiceService(models.Model):
+    idCss = models.AutoField(primary_key=True, db_column='idCss')
+    service = models.ForeignKey(medical_models.Service, models.DO_NOTHING,
+                              db_column='ServiceId', related_name='claimServices')
+    claimlinkedService = models.ForeignKey( ClaimService,
+                                          models.DO_NOTHING, db_column="claimlinkedService", related_name='claimlinkedService')
+    qty_provided = models.IntegerField(db_column="qty_provided",
+                                      blank=True, null=True)
+    qty_displayed = models.IntegerField(db_column="qty_displayed",
+                                      blank=True, null=True)
+    pcpDate = models.DateTimeField(db_column="created_date", default=django_tz.now,
+                                   blank=True, null=True)
+    price_asked = models.DecimalField(db_column="price",
+                                   max_digits=18, decimal_places=2, blank=True, null=True)
+    
+    class Meta:
+        managed = True
+        db_table = 'tblClaimServicesService'
 
 class ClaimDedRem(core_models.VersionedModel):
     id = models.AutoField(db_column='ExpenditureID', primary_key=True)

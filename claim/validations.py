@@ -2,7 +2,7 @@ import itertools
 import logging
 from collections import namedtuple
 
-from claim.models import ClaimItem, Claim, ClaimService, ClaimDedRem, ClaimDetail
+from claim.models import ClaimItem, Claim, ClaimService, ClaimDedRem, ClaimDetail, ClaimServiceService, ClaimServiceItem
 from core import utils
 from core.datetimes.shared import datetimedelta
 from django.db import connection
@@ -10,7 +10,7 @@ from django.db.models import Sum, Q
 from django.db.models.functions import Coalesce
 from django.utils.translation import gettext as _
 from insuree.models import InsureePolicy
-from medical.models import Service
+from medical.models import Service, ServiceService, ServiceItem
 from medical_pricelist.models import ItemsPricelistDetail, ServicesPricelistDetail
 from policy.models import Policy
 from product.models import Product, ProductItem, ProductService, ProductItemOrService
@@ -299,7 +299,6 @@ def frequency_check(qs, claim, elt):
                 claim__status__gt=Claim.STATUS_ENTERED
                 ) \
         .exclude(claim__uuid=claim.uuid) \
-        .order_by('-claim__date_from') \
         .exists()
 
 
@@ -1125,11 +1124,74 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
 
             if claim_detail.price_approved is not None:
                 set_price_adjusted = claim_detail.price_approved
+            print("Configuration", ClaimConfig.native_code_for_services)
+            if claim_detail.price_origin == ProductItemOrService.ORIGIN_CLAIM:
+                set_price_adjusted = claim_detail.price_asked
+                if ClaimConfig.native_code_for_services == False:
+                    try:
+                        if claim_detail.service.packagetype == 'F':
+                            service_price = claim_detail.service.price
+                            if claim_detail.price_adjusted is not None:
+                                print("compare ", claim_detail.price_adjusted, " and ", service_price)
+                                if claim_detail.price_adjusted > service_price:
+                                    set_price_adjusted = service_price
+                            else:
+                                print("compare ", claim_detail.price_asked, " and ", service_price)
+                                if claim_detail.price_asked > service_price:
+                                    set_price_adjusted = service_price
+                    except:
+                        print("This it an item element")
             else:
-                if claim_detail.price_origin == ProductItemOrService.ORIGIN_CLAIM:
-                    set_price_adjusted = claim_detail.price_asked
-                else:
-                    set_price_adjusted = pl_price
+                set_price_adjusted = pl_price
+                if ClaimConfig.native_code_for_services == False:
+                    try:
+                        contunue_service_check = True
+                        if claim_detail.service.packagetype == 'P':
+                            service_services = ServiceService.objects.filter(servicelinkedService=claim_detail.service.id).all()
+                            claim_service_services = ClaimServiceService.objects.filter(claimlinkedService=claim_detail.id).all()
+                            print("serviceservices ", service_services)
+                            print("claim services ", claim_service_services)
+                            if len(service_services) == len(claim_service_services):
+                                for servservice in service_services:
+                                    for claimserviceservice in claim_service_services:
+                                        if servservice.service.id == claimserviceservice.service.id:
+                                            print("comparing serviceservice qty ", servservice.qty_provided,
+                                            " and claimserviceservice qty ", claimserviceservice.qty_displayed)
+                                            if servservice.qty_provided != claimserviceservice.qty_displayed:
+                                                set_price_adjusted = 0
+                                                contunue_service_check = False
+                                                break
+                                    if contunue_service_check == False:
+                                        break
+                            else:
+                                # user misconfiguration !
+                                set_price_adjusted = 0
+                                contunue_service_check = False
+                            print("set_price_adjusted after service check ", set_price_adjusted)
+                            if contunue_service_check:
+                                contunue_item_check = True
+                                service_items = ServiceItem.objects.filter(servicelinkedItem=claim_detail.service.id).all()
+                                claim_service_items = ClaimServiceItem.objects.filter(claimlinkedItem=claim_detail.id).all()
+                                print("service_items: ", service_items)
+                                print("claim_service_items: ", claim_service_items)
+                                if len(service_items) == len(claim_service_items):
+                                    for serviceitem in service_items:
+                                        for claimservicesitem in claim_service_items:
+                                            if serviceitem.item.id == claimservicesitem.item.id:
+                                                print("comparing serviceitem qty ", serviceitem.qty_provided,
+                                                " and claimservicesitem qty ", claimservicesitem.qty_displayed)
+                                                if serviceitem.qty_provided != claimservicesitem.qty_displayed:
+                                                    set_price_adjusted = 0
+                                                    contunue_item_check = False
+                                                    break
+                                        if contunue_item_check == False:
+                                            break
+                                else:
+                                    # user misconfiguration !
+                                    set_price_adjusted = 0
+                                print("set_price_adjusted after items check ", set_price_adjusted)
+                    except:
+                        print("This is a ClaimItem element, not a ClaimService")
 
             work_value = itemsvc_quantity * set_price_adjusted
 
