@@ -75,6 +75,8 @@ class ClaimSubServiceInputType(InputObjectType):
         max_digits=18, decimal_places=2, required=False)
     qty_asked = graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
+    qty_adjusted = graphene.Decimal(
+        max_digits=18, decimal_places=2, required=False)
     price_asked = graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
 
@@ -87,6 +89,8 @@ class ClaimSubItemInputType(InputObjectType):
     qty_asked = graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
     price_asked = graphene.Decimal(
+        max_digits=18, decimal_places=2, required=False)
+    qty_adjusted= graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
 
 class ClaimServiceInputType(InputObjectType):
@@ -846,6 +850,7 @@ class SaveClaimReviewMutation(OpenIMISMutation):
     def async_mutate(cls, user, **data):
         claim = None
         try:
+            print("data ", data)
             if not user.has_perms(ClaimConfig.gql_mutation_deliver_claim_review_perms):
                 raise PermissionDenied(_("unauthorized"))
             claim = Claim.objects.get(uuid=data['claim_uuid'],
