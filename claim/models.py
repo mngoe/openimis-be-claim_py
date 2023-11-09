@@ -556,6 +556,8 @@ class ClaimServiceItem(models.Model):
                                       blank=True, null=True)
     qty_displayed = models.IntegerField(db_column="qty_displayed",
                                       blank=True, null=True)
+    qty_adjusted = models.IntegerField(db_column="qty_adjusted",
+                                      blank=True, null=True)
     pcpDate = models.DateTimeField(db_column="created_date", default=django_tz.now,
                                    blank=True, null=True)
     price_asked = models.DecimalField(db_column="price",
@@ -574,6 +576,8 @@ class ClaimServiceService(models.Model):
     qty_provided = models.IntegerField(db_column="qty_provided",
                                       blank=True, null=True)
     qty_displayed = models.IntegerField(db_column="qty_displayed",
+                                      blank=True, null=True)
+    qty_adjusted = models.IntegerField(db_column="qty_adjusted",
                                       blank=True, null=True)
     pcpDate = models.DateTimeField(db_column="created_date", default=django_tz.now,
                                    blank=True, null=True)
