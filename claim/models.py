@@ -188,6 +188,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     date_from = fields.DateField(db_column='DateFrom')
     date_to = fields.DateField(db_column='DateTo', blank=True, null=True)
     status = models.SmallIntegerField(db_column='ClaimStatus')
+    restore = models.ForeignKey('self', db_column='RestoredClaim', on_delete=models.DO_NOTHING, blank=True, null=True)
     adjuster = models.ForeignKey(
         core_models.InteractiveUser, models.DO_NOTHING,
         db_column='Adjuster', blank=True, null=True)
