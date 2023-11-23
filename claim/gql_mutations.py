@@ -162,7 +162,7 @@ class ClaimCodeInputType(graphene.String):
 
     @staticmethod
     def coerce_string(value):
-        assert_string_length(value, 20)
+        assert_string_length(value, 40)
         return value
 
     serialize = coerce_string
@@ -171,7 +171,7 @@ class ClaimCodeInputType(graphene.String):
     @staticmethod
     def parse_literal(ast):
         result = graphene.String.parse_literal(ast)
-        assert_string_length(result, 20)
+        assert_string_length(result, 40)
         return result
 
 

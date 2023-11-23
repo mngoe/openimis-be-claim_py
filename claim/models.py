@@ -184,7 +184,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         db_column='ClaimCategory', max_length=1, blank=True, null=True)
     insuree = models.ForeignKey(
         insuree_models.Insuree, models.DO_NOTHING, db_column='InsureeID')
-    code = models.CharField(db_column='ClaimCode', max_length=20, unique=True)
+    code = models.CharField(db_column='ClaimCode', max_length=40, unique=True)
     date_from = fields.DateField(db_column='DateFrom')
     date_to = fields.DateField(db_column='DateTo', blank=True, null=True)
     status = models.SmallIntegerField(db_column='ClaimStatus')
