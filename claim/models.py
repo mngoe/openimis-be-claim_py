@@ -188,6 +188,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     date_from = fields.DateField(db_column='DateFrom')
     date_to = fields.DateField(db_column='DateTo', blank=True, null=True)
     status = models.SmallIntegerField(db_column='ClaimStatus')
+    restore = models.ForeignKey('self', db_column='RestoredClaim', on_delete=models.DO_NOTHING, blank=True, null=True)
     adjuster = models.ForeignKey(
         core_models.InteractiveUser, models.DO_NOTHING,
         db_column='Adjuster', blank=True, null=True)
@@ -285,7 +286,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     # row_id = models.BinaryField(db_column='RowID', blank=True, null=True)
 
     class Meta:
-        managed = False
+        managed = True
         db_table = 'tblClaim'
 
     STATUS_REJECTED = 1
@@ -556,6 +557,8 @@ class ClaimServiceItem(models.Model):
                                       blank=True, null=True)
     qty_displayed = models.IntegerField(db_column="qty_displayed",
                                       blank=True, null=True)
+    qty_adjusted = models.IntegerField(db_column="qty_adjusted",
+                                      blank=True, null=True)
     pcpDate = models.DateTimeField(db_column="created_date", default=django_tz.now,
                                    blank=True, null=True)
     price_asked = models.DecimalField(db_column="price",
@@ -574,6 +577,8 @@ class ClaimServiceService(models.Model):
     qty_provided = models.IntegerField(db_column="qty_provided",
                                       blank=True, null=True)
     qty_displayed = models.IntegerField(db_column="qty_displayed",
+                                      blank=True, null=True)
+    qty_adjusted = models.IntegerField(db_column="qty_adjusted",
                                       blank=True, null=True)
     pcpDate = models.DateTimeField(db_column="created_date", default=django_tz.now,
                                    blank=True, null=True)
