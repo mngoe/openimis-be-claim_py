@@ -18,6 +18,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='claim',
             name='code',
-            field=models.CharField(db_column='ClaimCode', max_length=20),
+            field=models.CharField(db_column='ClaimCode', max_length=40),
         ),
     ]
