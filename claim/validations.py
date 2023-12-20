@@ -1112,9 +1112,12 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                             for servservice in service_services:
                                 for claimserviceservice in claim_service_services:
                                     if servservice.service.id == claimserviceservice.service.id:
+                                        value_to_compare = claimserviceservice.qty_displayed
+                                        if claimserviceservice.qty_adjusted is not None:
+                                            value_to_compare = claimserviceservice.qty_adjusted
                                         print("comparing serviceservice qty ", servservice.qty_provided,
-                                        " and claimserviceservice qty ", claimserviceservice.qty_displayed)
-                                        if servservice.qty_provided != claimserviceservice.qty_displayed:
+                                        " and claimserviceservice qty ", value_to_compare)
+                                        if servservice.qty_provided != value_to_compare:
                                             set_price_adjusted = 0
                                             contunue_service_check = False
                                             break
@@ -1136,9 +1139,12 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                                 for serviceitem in service_items:
                                     for claimservicesitem in claim_service_items:
                                         if serviceitem.item.id == claimservicesitem.item.id:
+                                            value_to_compare = claimservicesitem.qty_displayed
+                                            if claimservicesitem.qty_adjusted is not None:
+                                                value_to_compare = claimservicesitem.qty_adjusted
                                             print("comparing serviceservice qty ", servservice.qty_provided,
-                                            " and claimserviceservice qty ", claimserviceservice.qty_displayed)
-                                            if serviceitem.qty_provided != claimservicesitem.qty_displayed:
+                                            " and claimserviceitem qty ", value_to_compare)
+                                            if serviceitem.qty_provided != value_to_compare:
                                                 set_price_adjusted = 0
                                                 contunue_item_check = False
                                                 break
