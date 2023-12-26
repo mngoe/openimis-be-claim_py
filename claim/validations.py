@@ -1097,8 +1097,8 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                             print("compare ", claim_detail.price_asked, " and ", service_price)
                             if claim_detail.price_asked > service_price:
                                 set_price_adjusted = service_price
-                except:
-                    print("This it an item element")
+                except Exception as e:
+                    print("This is an item element ", e)
             else:
                 set_price_adjusted = pl_price
                 try:
@@ -1154,8 +1154,8 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                                 # user misconfiguration !
                                 set_price_adjusted = 0
                         print("set_price_adjusted after items check ", set_price_adjusted)
-                except:
-                    print("This is a ClaimItem element, not a ClaimService")
+                except Exception as e:
+                    print("This is a ClaimItem element, not a ClaimService", e)
             print("set_price_adjusted finally ", set_price_adjusted)
             work_value = itemsvc_quantity * set_price_adjusted
 
