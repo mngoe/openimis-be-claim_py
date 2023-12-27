@@ -1093,10 +1093,14 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                             print("compare ", claim_detail.price_adjusted, " and ", service_price)
                             if claim_detail.price_adjusted > service_price:
                                 set_price_adjusted = service_price
+                            else:
+                                set_price_adjusted = claim_detail.price_adjusted
                         else:
                             print("compare ", claim_detail.price_asked, " and ", service_price)
                             if claim_detail.price_asked > service_price:
                                 set_price_adjusted = service_price
+                            else:
+                                set_price_adjusted = claim_detail.price_asked
                 except Exception as e:
                     print("This is an item element ", e)
             else:
