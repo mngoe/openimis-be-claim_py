@@ -938,7 +938,7 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                 if item['status'] == ClaimItem.STATUS_PASSED:
                     all_rejected = False
             services = data.pop('services') if 'services' in data else []
-            claimed = 0
+            approved = 0
             ClaimServiceElts = []
             for service in services:
                 service_id = service.pop('id')
@@ -958,10 +958,11 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                             print("claim_service_to_update ", claim_service_to_update)
                             if claim_service_to_update:
                                 qty_asked = claim_service_service.pop('qty_asked', 0)
+                                qty_adjusted = claim_service_service.get('qty_adjusted', 0)
                                 price_asked = claim_service_service.pop('price_asked', 0)
                                 claim_service_service['qty_displayed'] = qty_asked
-                                price = qty_asked * price_asked
-                                claimed += price
+                                price = qty_adjusted * price_asked
+                                approved += price
                                 claim_service_to_update.update(**claim_service_service)
                         ClaimServiceElts.append(claim_service)
                 for claim_service_item in service_linked:
@@ -974,18 +975,21 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                             print("claim_item_to_update ", claim_item_to_update)
                             if claim_item_to_update:
                                 qty_asked = claim_service_item.pop('qty_asked', 0)
+                                qty_adjusted = claim_service_item.get('qty_adjusted', 0)
                                 price_asked = claim_service_item.pop('price_asked', 0)
                                 claim_service_item['qty_displayed'] = qty_asked
-                                price = qty_asked * price_asked
-                                claimed += price
+                                price = qty_adjusted * price_asked
+                                approved += price
                                 claim_item_to_update.update(**claim_service_item)
 
                 if service['status'] == ClaimService.STATUS_PASSED:
                     all_rejected = False
             claim.approved = approved_amount(claim)
-            claim.claimed = claimed
+            print("approved ", approved)
+            claim.approved = approved
             for claimservice in ClaimServiceElts:
-                setattr(claimservice, 'price_adjusted', claimed)
+                setattr(claimservice, 'price_adjusted', approved)
+                claimservice.save()
             claim.audit_user_id_review = user.id_for_audit
             if all_rejected:
                 claim.status = Claim.STATUS_REJECTED
