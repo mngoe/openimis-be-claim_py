@@ -1093,10 +1093,14 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                             print("compare ", claim_detail.price_adjusted, " and ", service_price)
                             if claim_detail.price_adjusted > service_price:
                                 set_price_adjusted = service_price
+                            else:
+                                set_price_adjusted = claim_detail.price_adjusted
                         else:
                             print("compare ", claim_detail.price_asked, " and ", service_price)
                             if claim_detail.price_asked > service_price:
                                 set_price_adjusted = service_price
+                            else:
+                                set_price_adjusted = claim_detail.price_asked
                 except Exception as e:
                     print("This is an item element ", e)
             else:
@@ -1142,7 +1146,7 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                                             value_to_compare = claimservicesitem.qty_displayed
                                             if claimservicesitem.qty_adjusted is not None:
                                                 value_to_compare = claimservicesitem.qty_adjusted
-                                            print("comparing serviceservice qty ", servservice.qty_provided,
+                                            print("comparing serviceservice qty ", serviceitem.qty_provided,
                                             " and claimserviceitem qty ", value_to_compare)
                                             if serviceitem.qty_provided != value_to_compare:
                                                 set_price_adjusted = 0
