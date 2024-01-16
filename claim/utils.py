@@ -36,7 +36,7 @@ def process_child_relation(user, data_children, claim_id, children, create_hook)
     return claimed
 
 def calcul_amount_service(elt):
-    totalClaimed = elt['price_asked']
+    totalClaimed = elt['price_asked'] * elt['qty_provided']
     if len(elt['serviceLinked'])!=0 and len(elt['serviceserviceSet'])!=0:
         totalClaimed = 0
         for serviceLinked in elt['serviceLinked']:
