@@ -815,7 +815,7 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                 if item['status'] == ClaimItem.STATUS_PASSED:
                     all_rejected = False
             services = data.pop('services') if 'services' in data else []
-            claimed = 0
+            approved = 0
             ClaimServiceElts = []
             for service in services:
                 service_id = service.pop('id')
@@ -841,11 +841,11 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                         if serviceL.price_asked.is_nan():
                             serviceL.price_asked = 0
                         prix = serviceL.qty_asked * serviceL.price_asked
-                        claimed += prix
+                        approved += prix
                 
                 if(serviceserviceSet):
                     for serviceserviceS in serviceserviceSet:
-                        serviceserviceS.pop('subItemCode', None)
+                        serviceserviceS.pop('subServiceCode', None)
                         if serviceserviceS.qty_asked.is_nan() :
                             serviceserviceS.qty_asked = 0
                         serviceId = Service.objects.filter(code=serviceserviceS.subServiceCode).first()
@@ -858,15 +858,16 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                         if serviceserviceS.price_asked.is_nan():
                             serviceserviceS.price_asked = 0
                         price = serviceserviceS.qty_asked * serviceserviceS.price_asked
-                        claimed += price
+                        approved += price
                         
 
                 if service['status'] == ClaimService.STATUS_PASSED:
                     all_rejected = False
             claim.approved = approved_amount(claim)
-            claim.claimed = claimed
+            print("approved ", approved)
+            claim.approved = approved
             for claimservice in ClaimServiceElts:
-                claimservice.price_adjusted = claimed
+                claimservice.price_adjusted = approved
                 claimservice.save()
             claim.audit_user_id_review = user.id_for_audit
             if all_rejected:
