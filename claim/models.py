@@ -281,6 +281,9 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         db_column='AuditUserIDSubmit', blank=True, null=True)
     audit_user_id_process = models.IntegerField(
         db_column='AuditUserIDProcess', blank=True, null=True)
+    test_number = models.CharField(
+        db_column='TestNumber', max_length=255, blank=True, null=True)
+    tdr = models.BooleanField(db_column='TDRResult', blank=True, null=True)
 
     # row_id = models.BinaryField(db_column='RowID', blank=True, null=True)
 
