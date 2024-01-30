@@ -259,6 +259,8 @@ class ClaimInputType(OpenIMISMutation.Input):
 
     items = graphene.List(ClaimItemInputType, required=False)
     services = graphene.List(ClaimServiceInputType, required=False)
+    test_number = graphene.String(required=False)
+    tdr = graphene.Boolean(required=False)
 
 
 
