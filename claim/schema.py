@@ -119,11 +119,12 @@ class Query(graphene.ObjectType):
                 variance_filter = variance_filter | ~Q(icd__code__in=diags)
             query = query.filter(variance_filter)
 
-        from location.models import Location
-        user_districts = UserDistrict.get_user_districts(info.context.user._u)
-        query = query.filter(
-            Q(health_facility__location__in=Location.objects.filter(uuid__in=user_districts.values_list('location__uuid', flat=True))) | Q(
-                health_facility__location__in=Location.objects.filter(uuid__in=user_districts.values_list('location__parent__uuid', flat=True))))
+        # from location.models import Location
+        # filtered already in get_queryser
+        # user_districts = UserDistrict.get_user_districts(info.context.user._u)
+        # query = query.filter(
+        #     Q(health_facility__location__in=Location.objects.filter(uuid__in=user_districts.values_list('location__uuid', flat=True))) | Q(
+        #         health_facility__location__in=Location.objects.filter(uuid__in=user_districts.values_list('location__parent__uuid', flat=True))))
 
         return gql_optimizer.query(query.all(), info)
 
