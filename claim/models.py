@@ -10,6 +10,7 @@ from django.db import models
 from graphql import ResolveInfo
 from insuree import models as insuree_models
 from location import models as location_models
+from location.models import LocationManager
 from location.models import UserDistrict
 from medical import models as medical_models
 from policy import models as policy_models
@@ -82,7 +83,7 @@ class ClaimAdmin(core_models.VersionedModel):
     @property
     def officer_allowed_locations(self):
         """
-        Returns uuid of all locations allowed for given officer
+        Returns uuid of all locations allowed for given officerLocationManager
         """
         district = self.health_facility.location
         all_allowed_uuids = [district.parent.uuid, district.uuid]
@@ -353,10 +354,9 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
                 ).filter(program_id__in=programs)
             else:
                 if not isinstance(user._u, core_models.TechnicalUser):
-                    dist = UserDistrict.get_user_districts(user._u)
-                    return queryset.filter(
-                        health_facility__location_id__in=dist.values_list("location_id", flat=True)
-                    ).filter(program_id__in=programs)
+                    queryset = LocationManager().build_user_location_filter_query(
+                        user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
+                    queryset = queryset.filter(program_id__in=programs)
         return queryset.filter(program_id__in=programs)
 
 
