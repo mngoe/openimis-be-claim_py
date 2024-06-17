@@ -292,7 +292,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         managed = True
         db_table = 'tblClaim'
         indexes = [
-            models.Index(fields=['ClaimCode','InsureeID', 'ClaimUUID', 'ClaimStatus'])
+            models.Index(fields=['code','insuree', 'uuid', 'status'])
         ]
 
     STATUS_REJECTED = 1
