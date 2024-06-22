@@ -292,7 +292,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         managed = True
         db_table = 'tblClaim'
         indexes = [
-            models.Index(fields=['code', 'uuid', 'status'])
+            models.Index(fields=['code', 'status'])
         ]
 
     STATUS_REJECTED = 1
