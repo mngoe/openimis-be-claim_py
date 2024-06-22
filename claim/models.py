@@ -287,6 +287,9 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     class Meta:
         managed = False
         db_table = 'tblClaim'
+        indexes = [
+            models.Index(fields=['code', 'uuid', 'status'])
+        ]
 
     STATUS_REJECTED = 1
     STATUS_ENTERED = 2
