@@ -10,20 +10,24 @@ from django.db import models
 from graphql import ResolveInfo
 from insuree import models as insuree_models
 from location import models as location_models
-from location.models import UserDistrict
+from location.models import LocationManager
 from medical import models as medical_models
 from policy import models as policy_models
 from product import models as product_models
+from django.apps import apps
+from django.utils import timezone as django_tz
 from program import models as program_models
-from django.utils import timezone as django_tz 
 from django.db.models import Q
+
+core_config = apps.get_app_config('core')
 
 
 class ClaimAdmin(core_models.VersionedModel):
     id = models.AutoField(db_column='ClaimAdminId', primary_key=True)
     uuid = models.CharField(db_column='ClaimAdminUUID', max_length=36, default=uuid.uuid4, unique=True)
 
-    code = models.CharField(db_column='ClaimAdminCode', max_length=8, blank=True, null=True)
+    code = models.CharField(db_column='ClaimAdminCode', max_length=50,
+                            blank=True, null=True)
     last_name = models.CharField(db_column='LastName', max_length=100, blank=True, null=True)
     other_names = models.CharField(db_column='OtherNames', max_length=100, blank=True, null=True)
     dob = models.DateField(db_column='DOB', blank=True, null=True)
@@ -48,10 +52,9 @@ class ClaimAdmin(core_models.VersionedModel):
         if settings.ROW_SECURITY and user.is_anonymous:
             return queryset.filter(id=-1)
         if settings.ROW_SECURITY:
-            dist = UserDistrict.get_user_districts(user._u)
-            return queryset.filter(
-                health_facility__location_id__in=[l.location_id for l in dist]
-            )
+            from location.schema import LocationManager
+            queryset = LocationManager().build_user_location_filter_query(
+                user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
         return queryset
 
     @property
@@ -82,7 +85,7 @@ class ClaimAdmin(core_models.VersionedModel):
     @property
     def officer_allowed_locations(self):
         """
-        Returns uuid of all locations allowed for given officer
+        Returns uuid of all locations allowed for given officerLocationManager
         """
         district = self.health_facility.location
         all_allowed_uuids = [district.parent.uuid, district.uuid]
@@ -133,47 +136,13 @@ class Feedback(core_models.VersionedModel):
         if settings.ROW_SECURITY and user.is_anonymous:
             return queryset.filter(id=-1)
         if settings.ROW_SECURITY:
-            dist = UserDistrict.get_user_districts(user._u)
-            return queryset.filter(
-                claim__health_facility__location_id__in=[l.location_id for l in dist]
-            )
+            queryset = LocationManager().build_user_location_filter_query(
+                user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
         return queryset
 
 
-class FeedbackPrompt(core_models.VersionedModel):
-    id = models.AutoField(db_column='FeedbackPromptID', primary_key=True)
-    feedback_prompt_date = fields.DateField(db_column='FeedbackPromptDate', blank=True, null=True)
-    claim_id = models.OneToOneField(
-        "Claim", models.DO_NOTHING, db_column='ClaimID', blank=True, null=True, related_name="+")
-    officer_id = models.IntegerField(db_column='OfficerID', blank=True, null=True)
-    phone_number = models.CharField(db_column='PhoneNumber', max_length=36, unique=True)
-    sms_status = models.IntegerField(db_column='SMSStatus', blank=True, null=True)
-    validity_from = fields.DateTimeField(db_column='ValidityFrom', blank=True, null=True)
-    validity_to = fields.DateTimeField(db_column='ValidityTo', blank=True, null=True)
-    legacy_id = models.IntegerField(db_column='LegacyID', blank=True, null=True)
-    audit_user_id = models.IntegerField(db_column='AuditUserID', blank=True, null=True)
 
-    class Meta:
-        managed = False
-        db_table = 'tblFeedbackPrompt'
-
-    @classmethod
-    def get_queryset(cls, queryset, user):
-        queryset = cls.filter_queryset(queryset)
-        # GraphQL calls with an info object while Rest calls with the user itself
-        if isinstance(user, ResolveInfo):
-            user = user.context.user
-        if settings.ROW_SECURITY and user.is_anonymous:
-            return queryset.filter(id=-1)
-        if settings.ROW_SECURITY:
-            dist = UserDistrict.get_user_districts(user._u)
-            return queryset.filter(
-                claim__health_facility__location_id__in=[l.location_id for l in dist]
-            )
-        return queryset
-
-
-signal_claim_rejection = dispatch.Signal(providing_args=["claim"])
+signal_claim_rejection = dispatch.Signal(["claim"])
 
 
 class Claim(core_models.VersionedModel, core_models.ExtendableModel):
@@ -184,7 +153,8 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         db_column='ClaimCategory', max_length=1, blank=True, null=True)
     insuree = models.ForeignKey(
         insuree_models.Insuree, models.DO_NOTHING, db_column='InsureeID')
-    code = models.CharField(db_column='ClaimCode', max_length=40, unique=True)
+    # do not change max_length value - use setting from apps.py
+    code = models.CharField(db_column='ClaimCode', max_length=50)
     date_from = fields.DateField(db_column='DateFrom')
     date_to = fields.DateField(db_column='DateTo', blank=True, null=True)
     status = models.SmallIntegerField(db_column='ClaimStatus')
@@ -285,6 +255,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     test_number = models.CharField(
         db_column='TestNumber', max_length=255, blank=True, null=True)
     tdr = models.BooleanField(db_column='TDRResult', blank=True, null=True)
+    care_type = models.CharField(db_column='CareType', max_length=4, blank=True, null=True)
 
     # row_id = models.BinaryField(db_column='RowID', blank=True, null=True)
 
@@ -350,21 +321,55 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
             programs = program_models.Program.objects.filter(user__id=user._u.id).filter(
                 validityDateFrom__lte=today).filter(
                 Q(validityDateTo__isnull=True) | Q(validityDateTo__gte=today))
+            if programs:
+                queryset = queryset.filter(program_id__in=programs)
         else:
             print("Id non existing")
         if settings.ROW_SECURITY:
             # TechnicalUsers don't have health_facility_id attribute
             if hasattr(user._u, 'health_facility_id') and user._u.health_facility_id:
-                return queryset.filter(
+                queryset = queryset.filter(
                     health_facility_id=user._u.health_facility_id
-                ).filter(program_id__in=programs)
+                )
             else:
                 if not isinstance(user._u, core_models.TechnicalUser):
-                    dist = UserDistrict.get_user_districts(user._u)
-                    return queryset.filter(
-                        health_facility__location_id__in=dist.values_list("location_id", flat=True)
-                    ).filter(program_id__in=programs)
-        return queryset.filter(program_id__in=programs)
+                    queryset = LocationManager().build_user_location_filter_query(
+                        user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
+        return queryset
+
+
+class FeedbackPrompt(core_models.VersionedModel):
+    id = models.AutoField(db_column='FeedbackPromptID', primary_key=True)
+    feedback_prompt_date = fields.DateField(db_column='FeedbackPromptDate', blank=True, null=True)
+    claim = models.ForeignKey(
+        Claim, models.DO_NOTHING, db_column='ClaimID', blank=True, null=True, related_name="+")
+    officer = models.ForeignKey(
+        core_models.Officer, models.DO_NOTHING, db_column="OfficerID", blank=True, null=True)
+    phone_number = models.CharField(db_column='PhoneNumber', max_length=50, blank=True, null=True)
+    sms_status = models.IntegerField(db_column='SMSStatus', blank=True, null=True)
+    validity_from = fields.DateTimeField(db_column='ValidityFrom', blank=True, null=True)
+    validity_to = fields.DateTimeField(db_column='ValidityTo', blank=True, null=True)
+    legacy_id = models.IntegerField(db_column='LegacyID', blank=True, null=True)
+    audit_user_id = models.IntegerField(db_column='AuditUserID', blank=True, null=True)
+
+    class Meta:
+        managed = True
+        db_table = 'tblFeedbackPrompt'
+
+    @classmethod
+    def get_queryset(cls, queryset, user):
+        queryset = cls.filter_queryset(queryset)
+        # GraphQL calls with an info object while Rest calls with the user itself
+        if isinstance(user, ResolveInfo):
+            user = user.context.user
+        if settings.ROW_SECURITY and user.is_anonymous:
+            return queryset.filter(id=-1)
+        if settings.ROW_SECURITY:
+            queryset = LocationManager().build_user_location_filter_query(
+                user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
+
+        return queryset
+
 
 
 class ClaimAttachmentsCount(models.Model):
@@ -477,14 +482,38 @@ class ClaimItem(core_models.VersionedModel, ClaimDetail, core_models.ExtendableM
         db_table = 'tblClaimItems'
 
 
+class GeneralClaimAttachmentType(models.TextChoices):
+    URL = "URL"
+    FILE = "FILE"
+
+
+class ClaimAttachmentType(core_models.VersionedModel):
+    id = models.SmallIntegerField(db_column='ClaimAttachmentTypeId', primary_key=True)
+    claim_attachment_type = models.CharField(db_column='ClaimAttachmentType', max_length=50)
+    is_autogenerated = models.BooleanField(default=False)
+    claim_general_type = models.CharField(max_length=10, default=GeneralClaimAttachmentType.FILE,
+                                          choices=GeneralClaimAttachmentType.choices)
+
+    class Meta:
+        managed = True
+        db_table = 'claim_ClaimAttachment_ClaimAttachmentType'
+
+
 class ClaimAttachment(core_models.UUIDModel, core_models.UUIDVersionedModel):
     claim = models.ForeignKey(
         Claim, models.DO_NOTHING, related_name='attachments')
+    general_type = models.CharField(max_length=4, choices=GeneralClaimAttachmentType.choices,
+                                    default=GeneralClaimAttachmentType.FILE)
     type = models.TextField(blank=True, null=True)
+    predefined_type = models.ForeignKey(ClaimAttachmentType, models.DO_NOTHING, related_name='type_dropdown', null=True,
+                                        blank=True)
     title = models.TextField(blank=True, null=True)
     date = fields.DateField(blank=True, default=TimeUtils.now)
     filename = models.TextField(blank=True, null=True)
     mime = models.TextField(blank=True, null=True)
+    # this is not needed at the moment, but we want to move attachment to core
+    # in that case module information is needed, and we want to avoid writing additional migration
+    module = models.TextField(blank=False, null=True)
     # frontend contributions may lead to externalized (nas) storage for documents
     url = models.TextField(blank=True, null=True)
     # Support of BinaryField is database-related: prefer to stick to b64-encoded
@@ -555,17 +584,17 @@ class ClaimService(core_models.VersionedModel, ClaimDetail, core_models.Extendab
         db_table = 'tblClaimServices'
 
 class ClaimServiceItem(models.Model):
-    idCsi = models.AutoField(primary_key=True, db_column='idCsi')
-    item = models.ForeignKey(medical_models.Item, models.DO_NOTHING, db_column='ItemID', related_name="claimItems")                           
-    claimlinkedItem = models.ForeignKey( ClaimService,
-                                          models.DO_NOTHING, db_column="ClaimServiceID",related_name='claimlinkedItem')
+    id = models.AutoField(primary_key=True, db_column='idCsi')
+    item = models.ForeignKey(medical_models.Item, models.DO_NOTHING, db_column='ItemID', related_name="service_items")                           
+    claim_service = models.ForeignKey( ClaimService,
+                                          models.DO_NOTHING, db_column="ClaimServiceID",related_name='items')
     qty_provided = models.IntegerField(db_column="qty_provided",
                                       blank=True, null=True)
     qty_displayed = models.IntegerField(db_column="qty_displayed",
                                       blank=True, null=True)
     qty_adjusted = models.IntegerField(db_column="qty_adjusted",
                                       blank=True, null=True)
-    pcpDate = models.DateTimeField(db_column="created_date", default=django_tz.now,
+    created_date = models.DateTimeField(db_column="created_date", default=django_tz.now,
                                    blank=True, null=True)
     price_asked = models.DecimalField(db_column="price",
                                    max_digits=18, decimal_places=2, blank=True, null=True)
@@ -575,18 +604,18 @@ class ClaimServiceItem(models.Model):
         db_table = 'tblClaimServicesItems'
 
 class ClaimServiceService(models.Model):
-    idCss = models.AutoField(primary_key=True, db_column='idCss')
+    id = models.AutoField(primary_key=True, db_column='idCss')
     service = models.ForeignKey(medical_models.Service, models.DO_NOTHING,
-                              db_column='ServiceId', related_name='claimServices')
-    claimlinkedService = models.ForeignKey( ClaimService,
-                                          models.DO_NOTHING, db_column="claimlinkedService", related_name='claimlinkedService')
+                              db_column='ServiceId', related_name='service_services')
+    claim_service = models.ForeignKey( ClaimService,
+                                          models.DO_NOTHING, db_column="claimServiceID", related_name='services')
     qty_provided = models.IntegerField(db_column="qty_provided",
                                       blank=True, null=True)
     qty_displayed = models.IntegerField(db_column="qty_displayed",
                                       blank=True, null=True)
     qty_adjusted = models.IntegerField(db_column="qty_adjusted",
                                       blank=True, null=True)
-    pcpDate = models.DateTimeField(db_column="created_date", default=django_tz.now,
+    created_date = models.DateTimeField(db_column="created_date", default=django_tz.now,
                                    blank=True, null=True)
     price_asked = models.DecimalField(db_column="price",
                                    max_digits=18, decimal_places=2, blank=True, null=True)

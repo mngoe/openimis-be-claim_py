@@ -1,28 +1,35 @@
 from claim.models import Claim, ClaimService, ClaimItem, ClaimDedRem, ClaimAdmin
 from claim.validations import get_claim_category, approved_amount
+from claim.services import claim_create, update_sum_claims
 from medical.test_helpers import get_item_of_type, get_service_of_category
+from uuid import uuid4
 
+class DummyUser:
+    def __init__(self):
+      self.id_for_audit = 1  
 
-def create_test_claim(custom_props={}):
+def create_test_claim(custom_props={}, user = DummyUser() ):
     from core import datetime
-    return Claim.objects.create(
-        **{
+    if 'insuree' not in custom_props and 'insuree_id' not in custom_props:
+        custom_props["insuree_id"]= 2
+
+    return claim_create(
+        {
             "health_facility_id": 18,
             "icd_id": 116,
             "date_from": datetime.datetime(2019, 6, 1),
             "date_claimed": datetime.datetime(2019, 6, 1),
             "date_to": datetime.datetime(2019, 6, 1),
-            "audit_user_id": 1,
-            "insuree_id": 2,
             "status": 2,
             "validity_from": datetime.datetime(2019, 6, 1),
+            "code":  str(uuid4()),
             **custom_props
-        }
+        }, user
     )
 
 
 def create_test_claimitem(claim, item_type, valid=True, custom_props={}):
-    return ClaimItem.objects.create(
+    item =  ClaimItem.objects.create(
         **{
             "claim": claim,
             "qty_provided": 7,
@@ -36,10 +43,13 @@ def create_test_claimitem(claim, item_type, valid=True, custom_props={}):
             **custom_props
            }
     )
+    update_sum_claims(claim)
+    return item
+
 
 
 def create_test_claimservice(claim, category=None, valid=True, custom_props={}):
-    return ClaimService.objects.create(
+    service =  ClaimService.objects.create(
         **{
             "claim": claim,
             "qty_provided": 7,
@@ -51,7 +61,10 @@ def create_test_claimservice(claim, category=None, valid=True, custom_props={}):
             "audit_user_id": -1,
             **custom_props
         }
-    )
+    )    
+    update_sum_claims(claim)
+    return service
+
 
 
 def mark_test_claim_as_processed(claim, status=Claim.STATUS_CHECKED, audit_user_id=-1):
@@ -78,17 +91,34 @@ def delete_claim_with_itemsvc_dedrem_and_history(claim):
 
 def create_test_claim_admin(custom_props={}):
     from core import datetime
-    return ClaimAdmin.objects.create(
-        **{
-            "code": "TST00001",
-            "last_name": "LastAdmin",
-            "other_names": "JoeAdmin",
-            "email_id": "joeadmin@lastadmin.com",
-            "phone": "+12027621401",
-            "health_facility_id": 1,
-            "has_login": False,
-            "audit_user_id": 1,
-            "validity_from": datetime.datetime(2019, 6, 1),
-            **custom_props
-        }
-    )
+    code = custom_props.pop('code','TST-CA')
+    uuid = custom_props.pop('uuid',None)
+    ca = None
+    qs_ca = ClaimAdmin.objects
+    data = {
+        "code": code,
+        "uuid": uuid,
+        "last_name": "LastAdmin",
+        "other_names": "JoeAdmin",
+        "email_id": "joeadmin@lastadmin.com",
+        "phone": "+12027621401",
+        "health_facility_id": 1,
+        "has_login": False,
+        "audit_user_id": 1,
+        "validity_from": datetime.datetime(2019, 6, 1),
+        **custom_props
+    }
+    if code:
+        qs_ca = qs_ca.filter(code=code)
+    if uuid:
+        qs_ca = qs_ca.filter(uuid=uuid)
+        
+    if code or uuid:
+        ca = qs_ca.first()
+    if ca:
+        data['uuid']=ca.uuid
+        ca.update(data)
+        return ca
+    else:
+        data['uuid']=uuid4()
+        return ClaimAdmin.objects.create( **data)

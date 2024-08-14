@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
         ('core', '0016_add_last_login_on_interactive_user'),
         ('location', '0008_add_enrollment_officer_gql_query_location_right'),
         ('medical', '0003_mutations'),
-        ('claim', '0015_alter_claim_options'),
+        ('claim', '0015_prohibit_interaction_for_enrolment_officer'),
     ]
 
     operations = [

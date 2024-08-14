@@ -44,7 +44,8 @@ class Command(BaseCommand):
                 "phone": "+" + fake.msisdn(),
                 "health_facility_id": hf})
             if verbose:
-                print(admin_num, "created claim admin", claim_admin, "for HF", hf, "with code", claim_admin.code)
+                logger.debug(f"{admin_num} created claim admin {claim_admin} for HF {hf} \
+                    with code {claim_admin.code}")
 
     def get_random_hf(self):
         if not self.hfs:

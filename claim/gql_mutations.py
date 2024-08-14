@@ -1,14 +1,17 @@
-import json
 import logging
+import os
+import urllib.parse
 import uuid
 import pathlib
 import base64
+from urllib.parse import urlparse
 from typing import Callable, Dict
 import graphene
 import importlib
 import graphene_django_optimizer
-from django.db.models import OuterRef, Avg, Subquery, Q
+from django.db.models import Count, Case, When, IntegerField, Q, Prefetch
 
+from core.models import MutationLog, Officer
 from .apps import ClaimConfig
 from claim.validations import validate_claim, get_claim_category, validate_assign_prod_to_claimitems_and_services, \
     process_dedrem, approved_amount
@@ -20,19 +23,23 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError, PermissionDenied, ObjectDoesNotExist
 from django.utils.translation import gettext as _
 from graphene import InputObjectType
-from location.schema import UserDistrict
-
 from claim.gql_queries import ClaimGQLType
 from claim.models import Claim, Feedback, FeedbackPrompt, ClaimDetail, ClaimItem, ClaimService, ClaimAttachment, \
-    ClaimDedRem, ClaimServiceItem ,ClaimServiceService
+    ClaimDedRem, GeneralClaimAttachmentType, ClaimAttachmentType,ClaimServiceService
+from claim.attachment_strategies import *
+from program import models as program_models
+from product.models import ProductItemOrService
 from medical.models import Item, Service
 
-from product.models import ProductItemOrService
-from program import models as program_models
-
 from claim.utils import process_items_relations, process_services_relations
-from .services import check_unique_claim_code
+from claim.services import validate_claim_data as service_validate_claim_data, \
+        update_or_create_claim as service_update_or_create_claim, check_unique_claim_code, submit_claim,\
+            validate_and_process_dedrem_claim as service_validate_and_process_dedrem_claim,\
+            create_feedback_prompt as service_create_feedback_prompt, update_claims_dedrems,\
+                set_feedback_prompt_validity_to_to_current_date, set_claims_status
 from django.db import transaction
+import requests
+
 logger = logging.getLogger(__name__)
 
 
@@ -73,7 +80,7 @@ class ClaimItemInputType(InputObjectType):
 
 class ClaimSubServiceInputType(InputObjectType):
     id = graphene.Int(required=False)
-    subServiceCode = graphene.String(required=True)
+    sub_service_code = graphene.String(required=True)
     qty_provided = graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
     qty_asked = graphene.Decimal(
@@ -86,7 +93,7 @@ class ClaimSubServiceInputType(InputObjectType):
 
 class ClaimSubItemInputType(InputObjectType):
     id = graphene.Int(required=False)
-    subItemCode = graphene.String(required=True)
+    sub_item_code = graphene.String(required=True)
     qty_provided = graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
     qty_asked = graphene.Decimal(
@@ -134,8 +141,8 @@ class ClaimServiceInputType(InputObjectType):
     price_origin = graphene.String(max_length=1, required=False)
     exceed_ceiling_amount_category = graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
-    serviceLinked = graphene.List(ClaimSubItemInputType, required=False)
-    serviceserviceSet = graphene.List(ClaimSubServiceInputType, required=False)
+    service_item_set = graphene.List(ClaimSubItemInputType, required=False)
+    service_service_set = graphene.List(ClaimSubServiceInputType, required=False)
 
 
 class FeedbackInputType(InputObjectType):
@@ -162,7 +169,7 @@ class ClaimCodeInputType(graphene.String):
 
     @staticmethod
     def coerce_string(value):
-        assert_string_length(value, 40)
+        assert_string_length(value, ClaimConfig.max_claim_length)
         return value
 
     serialize = coerce_string
@@ -171,7 +178,7 @@ class ClaimCodeInputType(graphene.String):
     @staticmethod
     def parse_literal(ast):
         result = graphene.String.parse_literal(ast)
-        assert_string_length(result, 40)
+        assert_string_length(result, ClaimConfig.max_claim_length)
         return result
 
 
@@ -199,6 +206,8 @@ class BaseAttachment:
     date = graphene.Date(required=False)
     filename = graphene.String(required=False)
     mime = graphene.String(required=False)
+    general_type = graphene.String(required=False)
+    predefined_type = graphene.String(required=False)
     url = graphene.String(required=False)
 
 
@@ -231,6 +240,7 @@ class ClaimInputType(OpenIMISMutation.Input):
     id = graphene.Int(required=False, read_only=True)
     uuid = graphene.String(required=False)
     code = ClaimCodeInputType(required=True)
+    autogenerate = graphene.Boolean(required=False)
     insuree_id = graphene.Int(required=True)
     date_from = graphene.Date(required=True)
     date_to = graphene.Date(required=False)
@@ -256,6 +266,7 @@ class ClaimInputType(OpenIMISMutation.Input):
     feedback_available = graphene.Boolean(default=False)
     feedback_status = TinyInt(required=False)
     feedback = graphene.Field(FeedbackInputType, required=False)
+    care_type = graphene.String(required=False)
 
     items = graphene.List(ClaimItemInputType, required=False)
     services = graphene.List(ClaimServiceInputType, required=False)
@@ -264,20 +275,9 @@ class ClaimInputType(OpenIMISMutation.Input):
 
 
 
+
 class CreateClaimInputType(ClaimInputType):
     attachments = graphene.List(ClaimAttachmentInputType, required=False)
-
-
-def reset_claim_before_update(claim):
-    claim.date_to = None
-    claim.icd_1 = None
-    claim.icd_2 = None
-    claim.icd_3 = None
-    claim.icd_4 = None
-    claim.guarantee_id = None
-    claim.explanation = None
-    claim.adjustment = None
-    claim.json_ext = None
 
 
 def create_file(date, claim_id, document):
@@ -301,9 +301,26 @@ def create_attachment(claim_id, data):
     data["claim_id"] = claim_id
     from core import datetime
     now = datetime.datetime.now()
-    if ClaimConfig.claim_attachments_root_path:
-        # don't use data date as it may be updated by user afterwards!
-        data['url'] = create_file(now, claim_id, data.pop('document'))
+    general_type = data['general_type']
+    data['module'] = 'claim'
+    if general_type == GeneralClaimAttachmentType.URL:
+        parsed_url = urlparse(data['url'])
+        if (ClaimConfig.allowed_domains_attachments and
+                not any(domain in parsed_url.path for domain in ClaimConfig.allowed_domains_attachments)):
+            raise ValidationError(_("mutation.attachment_url_domain_not_allowed"))
+        if data['predefined_type'] in attachment_strategies_dict:
+            data['url'] = attachment_strategies_dict[data['predefined_type']].handler(data)
+            data['document'] = data['url']
+        data['predefined_type'] = ClaimAttachmentType.objects.get(validity_to__isnull=True, claim_general_type="URL",
+                                                                  claim_attachment_type=data['predefined_type'])
+    elif general_type == GeneralClaimAttachmentType.FILE:
+        if ClaimConfig.claim_attachments_root_path:
+            # don't use data date as it may be updated by user afterwards!
+            data['url'] = create_file(now, claim_id, data.pop('document'))
+        data['predefined_type'] = ClaimAttachmentType.objects.get(validity_to__isnull=True, claim_general_type="FILE",
+                                                                  claim_attachment_type=data['predefined_type'])
+    else:
+        raise ValidationError(_("mutation.attachment_general_type_incorrect"))
     data['validity_from'] = now
     ClaimAttachment.objects.create(**data)
 
@@ -340,85 +357,17 @@ def validate_claim_data(data, user):
     if not validate_number_of_additional_diagnoses(data):
         raise ValidationError(_("mutation.claim_too_many_additional_diagnoses"))
 
-    if ClaimConfig.claim_validation_multiple_services_explanation_required:
-        for service in services:
-            if service["qty_provided"] > 1 and not service.get("explanation"):
-                raise ValidationError(_("mutation.service_explanation_required"))
-
-    if len(incoming_code) > ClaimConfig.max_claim_length:
-        raise ValidationError(_("mutation.code_name_too_long"))
-
-    if not restore and current_code != incoming_code and check_unique_claim_code(incoming_code):
-        raise ValidationError(_("mutation.code_name_duplicated"))
-
+def validate_claim_data(data, user):
+    return service_validate_claim_data(data, user)
 
 @transaction.atomic
 def update_or_create_claim(data, user):
-    validate_claim_data(data, user)
-    items = data.pop('items') if 'items' in data else []
-    services = data.pop('services') if 'services' in data else []
-    claim_uuid = data.pop("uuid", None)
-    autogenerate_code = data.pop('autogenerate', None)
-    restore = data.pop('restore', None)
-    if restore:
-        restored_qs = Claim.objects.filter(uuid=restore)
-        restored_from_claim = restored_qs.first()
-        data["restore"] = restored_from_claim
-    if autogenerate_code:
-        data['code'] = __autogenerate_claim_code()
     if "client_mutation_id" in data:
         data.pop('client_mutation_id')
     if "client_mutation_label" in data:
         data.pop('client_mutation_label')
     data["program"] = program_models.Program.objects.filter(idProgram=data["program"]).first()
-
-    # update_or_create(uuid=claim_uuid, ...)
-    # doesn't work because of explicit attempt to set null to uuid!
-    if claim_uuid:
-        claim = Claim.objects.get(uuid=claim_uuid)
-        claim.save_history()
-        # reset the non required fields
-        # (each update is 'complete', necessary to be able to set 'null')
-        reset_claim_before_update(claim)
-        [setattr(claim, key, data[key]) for key in data]
-    else:
-        claim = Claim.objects.create(**data)
-    from core.utils import TimeUtils
-    claimed = 0
-    claim.items.update(validity_to=TimeUtils.now())
-    claimed += process_items_relations(user, claim, items)
-    claim.services.update(validity_to=TimeUtils.now())
-    claimed += process_services_relations(user, claim, services)
-
-    claim.claimed = claimed
-    claim.save()
-    return claim
-
-def validate_number_of_additional_diagnoses(incoming_data):
-    additional_diagnoses_count = 0
-    for key in incoming_data.keys():
-        if key.startswith("icd_") and key.endswith("_id") and key != "icd_id":
-            additional_diagnoses_count += 1
-
-    return additional_diagnoses_count <= ClaimConfig.additional_diagnosis_number_allowed
-
-def __autogenerate_claim_code():
-    module_name, function_name = '[undefined]', '[undefined]'
-    try:
-        claim_code_function = _get_autogenerating_func()
-        return claim_code_function(ClaimConfig.autogenerated_claim_code_config)
-    except ImportError as e:
-        logger.error(f"Error: Could not import module '{module_name}' for claim code autogeneration")
-        raise e
-    except AttributeError as e:
-        logger.error(f"Error: Could not find function '{function_name}' in module '{module_name}' for claim code autogeneration")
-        raise e
-
-
-def _get_autogenerating_func() -> Callable[[Dict], Callable]:
-    module_name, function_name = ClaimConfig.autogenerate_func.rsplit('.', 1)
-    module = importlib.import_module(module_name)
-    return getattr(module, function_name)
+    return service_update_or_create_claim(data, user)
 
 
 class CreateClaimMutation(OpenIMISMutation):
@@ -441,7 +390,6 @@ class CreateClaimMutation(OpenIMISMutation):
             if not user.has_perms(ClaimConfig.gql_mutation_create_claims_perms):
                 raise PermissionDenied(_("unauthorized"))
             is_claim_code_autogenerated = data.get("autogenerate", False)
-            data['audit_user_id'] = user.id_for_audit
             data['status'] = Claim.STATUS_ENTERED
             from core.utils import TimeUtils
             data['validity_from'] = TimeUtils.now()
@@ -506,11 +454,8 @@ class CreateAttachmentMutation(OpenIMISMutation):
             claim_uuid = data.pop("claim_uuid")
             queryset = Claim.objects.filter(*filter_validity())
             if settings.ROW_SECURITY:
-                dist = UserDistrict.get_user_districts(user._u)
-                queryset = queryset.filter(
-                    health_facility__location__id__in=[
-                        l.location_id for l in dist]
-                )
+                from location.schema import LocationManager
+                queryset = LocationManager().build_user_location_filter_query( user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])           
             claim = queryset.filter(uuid=claim_uuid).first()
             if not claim:
                 raise PermissionDenied(_("unauthorized"))
@@ -536,18 +481,36 @@ class UpdateAttachmentMutation(OpenIMISMutation):
                 raise PermissionDenied(_("unauthorized"))
             queryset = ClaimAttachment.objects.filter(*filter_validity())
             if settings.ROW_SECURITY:
-                from location.models import UserDistrict
-                dist = UserDistrict.get_user_districts(user._u)
-                queryset = queryset.select_related("claim") \
-                    .filter(
-                    claim__health_facility__location__id__in=[
-                        l.location_id for l in dist]
-                )
+                from location.schema import LocationManager
+                queryset = LocationManager().build_user_location_filter_query( user._u, prefix='claim__health_facility__location', queryset = queryset.select_related("claim"), loc_types=['D'])
+
             attachment = queryset \
                 .filter(id=data['id']) \
                 .first()
             if not attachment:
                 raise PermissionDenied(_("unauthorized"))
+            general_type = data['general_type']
+            data['module'] = 'claim'
+            from core import datetime
+            now = datetime.datetime.now()
+            if general_type == GeneralClaimAttachmentType.URL:
+                parsed_url = urlparse(data['url'])
+                if (ClaimConfig.allowed_domains_attachments and
+                        not any(domain in parsed_url.path for domain in ClaimConfig.allowed_domains_attachments)):
+                    raise ValidationError(_("mutation.attachment_url_domain_not_allowed"))
+                if data['predefined_type'] in attachment_strategies_dict:
+                    data['url'] = attachment_strategies_dict[data['predefined_type']].handler(data)
+                    data['document'] = data['url']
+                data['predefined_type'] = ClaimAttachmentType.objects.get(validity_to__isnull=True,
+                                                                          claim_general_type="URL",
+                                                                          claim_attachment_type=data['predefined_type'])
+            elif general_type == GeneralClaimAttachmentType.FILE:
+                if ClaimConfig.claim_attachments_root_path:
+                    # don't use data date as it may be updated by user afterwards!
+                    data['url'] = create_file(now, claim_id, data.pop('document'))
+                data['predefined_type'] = ClaimAttachmentType.objects.get(validity_to__isnull=True,
+                                                                          claim_general_type="FILE",
+                                                                          claim_attachment_type=data['predefined_type'])
             attachment.save_history()
             data['audit_user_id'] = user.id_for_audit
             [setattr(attachment, key, data[key]) for key in data]
@@ -576,13 +539,8 @@ class DeleteAttachmentMutation(OpenIMISMutation):
                 raise PermissionDenied(_("unauthorized"))
             queryset = ClaimAttachment.objects.filter(*filter_validity())
             if settings.ROW_SECURITY:
-                from location.models import UserDistrict
-                dist = UserDistrict.get_user_districts(user._u)
-                queryset = queryset.select_related("claim") \
-                    .filter(
-                    claim__health_facility__location__id__in=[
-                        l.location_id for l in dist]
-                )
+                from location.schema import LocationManager
+                queryset = LocationManager().build_user_location_filter_query( user._u, prefix='health_facility__location', queryset = queryset, loc_types=['D'])     
             attachment = queryset \
                 .filter(id=data['id']) \
                 .first()
@@ -599,7 +557,47 @@ class DeleteAttachmentMutation(OpenIMISMutation):
                 'detail': str(exc)}]
 
 
-class SubmitClaimsMutation(OpenIMISMutation):
+class ClaimSubmissionStatsMixin:
+    @classmethod
+    def _generate_claim_submission_stats(cls, uuids):
+        claims_query = Claim.objects.filter(uuid__in=list(uuids))
+        claim_item_query = ClaimItem.objects.filter(claim__in=claims_query)
+        claim_service_query = ClaimService.objects.filter(claim__in=claims_query)
+        claim_stats = claims_query.aggregate(
+            submitted=Count('uuid', output_field=IntegerField()),
+            checked=Count(Case(When(status=4, then=1), output_field=IntegerField())),
+            processed=Count(Case(When(status=8, then=1), output_field=IntegerField())),
+            valuated=Count(Case(When(status=16, then=1), output_field=IntegerField())),
+            rejected=Count(Case(When(status=1, then=1), output_field=IntegerField())),
+        )
+        item_stats = claim_item_query.aggregate(
+            items_passed=Count(Case(When(status=1, then=1), output_field=IntegerField())),
+            items_rejected=Count(Case(When(status=2, then=1), output_field=IntegerField())),
+        )
+        service_stats = claim_service_query.aggregate(
+            services_passed=Count(Case(When(status=1, then=1), output_field=IntegerField())),
+            services_rejected=Count(Case(When(status=2, then=1), output_field=IntegerField())),
+        )
+
+        return {**claim_stats, **item_stats, **service_stats}
+
+    @classmethod
+    def _parse_submission_stats(cls, claim_submission_stats):
+        return claim_submission_stats
+
+    @classmethod
+    def add_submission_stats_to_mutation_log(cls, client_mutation_id, uuids):
+        mutation_log = MutationLog.objects.filter(client_mutation_id=client_mutation_id).first()
+        claim_submission_stats = cls._generate_claim_submission_stats(uuids)
+        parsed_stats = cls._parse_submission_stats(claim_submission_stats)
+        if isinstance(mutation_log.json_ext, dict):
+            mutation_log.json_ext["claim_stats"] = parsed_stats
+        else:
+            mutation_log.json_ext = {"claim_stats": parsed_stats}
+        mutation_log.save()
+
+
+class SubmitClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
     """
     Submit one or several claims.
     """
@@ -615,119 +613,61 @@ class SubmitClaimsMutation(OpenIMISMutation):
         additional_filters = graphene.String()
 
     @classmethod
+    def _parse_submission_stats(cls, claim_submission_stats):
+        return {
+            "submitted": claim_submission_stats["submitted"],
+            "checked": claim_submission_stats["checked"],
+            "rejected": claim_submission_stats["rejected"],
+            "items_passed": claim_submission_stats["items_passed"],
+            "items_rejected": claim_submission_stats["items_rejected"],
+            "services_passed": claim_submission_stats["services_passed"],
+            "services_rejected": claim_submission_stats["services_rejected"],
+            "header": "Claims submitted",
+            # failed
+        }
+
+    @classmethod
     @mutation_on_uuids_from_filter(Claim, ClaimGQLType, 'additional_filters', __filter_handlers)
     def async_mutate(cls, user, **data):
         if not user.has_perms(ClaimConfig.gql_mutation_submit_claims_perms):
             raise PermissionDenied(_("unauthorized"))
         errors = []
         uuids = data.get("uuids", [])
-
-        for claim_uuid in uuids:
-            c_errors = []
-            claim = Claim.objects \
-                .filter(uuid=claim_uuid,
+        client_mutation_id = data.get("client_mutation_id", None)
+        c_errors = []
+        claims = Claim.objects \
+                .filter(uuid__in=uuids,
                         validity_to__isnull=True) \
-                .prefetch_related("items") \
-                .prefetch_related("services") \
-                .first()
-            if claim is None:
-                errors += {
-                    'title': claim_uuid,
-                    'list': [
-                        {'message': _(
-                            "claim.validation.id_does_not_exist") % {'id': claim_uuid}}
-                    ]
-                }
-                continue
-            claim.save_history()
-            logger.debug("SubmitClaimsMutation: validating claim %s", claim_uuid)
-            c_errors += validate_claim(claim, True)
-            logger.debug("SubmitClaimsMutation: claim %s validated, nb of errors: %s", claim_uuid, len(c_errors))
-            if len(c_errors) == 0:
-                c_errors = validate_assign_prod_to_claimitems_and_services(claim)
-                logger.debug("SubmitClaimsMutation: claim %s assigned, nb of errors: %s", claim_uuid, len(c_errors))
-                c_errors += process_dedrem(claim, user.id_for_audit, False)
-                logger.debug("SubmitClaimsMutation: claim %s processed for dedrem, nb of errors: %s", claim_uuid,
-                             len(errors))
-            c_errors += set_claim_submitted(claim, c_errors, user)
-            logger.debug("SubmitClaimsMutation: claim %s set submitted", claim_uuid)
+            .prefetch_related(Prefetch('items', queryset=ClaimItem.objects.filter(
+                *filter_validity(), 
+                Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True))))) \
+            .prefetch_related(Prefetch('services', queryset=ClaimService.objects.filter(
+                *filter_validity(),
+                Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True))))) 
+        remaining_uuid = list(map(str.upper,uuids))
+        for claim in claims:
+            remaining_uuid.remove(claim.uuid.upper())
+            c_errors += submit_claim(claim, user)
             if c_errors:
                 errors.append({
                     'title': claim.code,
                     'list': c_errors
                 })
+        if len(remaining_uuid):
+            c_errors.append( {'code': REJECTION_REASON_INVALID_CLAIM,
+                            'message': _("claim.validation.claim_uuid_not_found") + ','.join(remaining_uuid) })
         if len(errors) == 1:
             errors = errors[0]['list']
+        cls.add_submission_stats_to_mutation_log(client_mutation_id, uuids)
         logger.debug("SubmitClaimsMutation: claim done, errors: %s", len(errors))
         return errors
 
 
-def set_claims_status(uuids, field, status, audit_data=None, user=None):
-    errors = []
-    for claim_uuid in uuids:
-        claim = Claim.objects \
-            .filter(uuid=claim_uuid,
-                    validity_to__isnull=True) \
-            .first()
-        if claim is None:
-            errors += [{'message': _(
-                "claim.validation.id_does_not_exist") % {'id': claim_uuid}}]
-            continue
-        try:
-            claim.save_history()
-            setattr(claim, field, status)
-            # creating/cancelling feedback prompts
-            if field == 'feedback_status':
-                if status == Claim.FEEDBACK_SELECTED:
-                    create_feedback_prompt(claim_uuid, user)
-                elif status in [Claim.FEEDBACK_NOT_SELECTED, Claim.FEEDBACK_BYPASSED]:
-                    set_feedback_prompt_validity_to_to_current_date(claim_uuid)
-            if audit_data:
-                for k, v in audit_data.items():
-                    setattr(claim, k, v)
-            claim.save()
-        except Exception as exc:
-            errors += [
-                {'message': _("claim.mutation.failed_to_change_status_of_claim") %
-                            {'code': claim.code}}]
-
-    return errors
-
 
 def create_feedback_prompt(claim_uuid, user):
     current_claim = Claim.objects.get(uuid=claim_uuid)
-    feedback_prompt = {}
-    from core.utils import TimeUtils
-    feedback_prompt['feedback_prompt_date'] = TimeUtils.date()
-    feedback_prompt['validity_from'] = TimeUtils.now()
-    feedback_prompt['claim_id'] = current_claim
-    feedback_prompt['officer_id'] = current_claim.admin_id
-    feedback_prompt['audit_user_id'] = user.id_for_audit
-    FeedbackPrompt.objects.create(
-        **feedback_prompt
-    )
-
-
-def set_feedback_prompt_validity_to_to_current_date(claim_uuid):
-    try:
-        claim_id = Claim.objects.get(uuid=claim_uuid).id
-        feedback_prompt_id = FeedbackPrompt.objects.get(claim_id=claim_id, validity_to=None).id
-        from core.utils import TimeUtils
-        current_feedback_prompt = FeedbackPrompt.objects.get(id=feedback_prompt_id)
-        current_feedback_prompt.validity_to = TimeUtils.now()
-        current_feedback_prompt.save()
-    except ObjectDoesNotExist:
-        return "No such feedback prompt exist."
-
-
-def update_claims_dedrems(uuids, user):
-    # We could do it in one query with filter(claim__uuid__in=uuids) but we'd loose the logging
-    errors = []
-    for uuid in uuids:
-        logger.debug(f"delivering review on {uuid}, reprocessing dedrem ({user})")
-        claim = Claim.objects.get(uuid=uuid)
-        errors += validate_and_process_dedrem_claim(claim, user, False)
-    return errors
+    return service_create_feedback_prompt(current_claim, user)
+    
 
 
 class SelectClaimsForFeedbackMutation(OpenIMISMutation):
@@ -940,58 +880,55 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                 if item['status'] == ClaimItem.STATUS_PASSED:
                     all_rejected = False
             services = data.pop('services') if 'services' in data else []
-            approved = 0
-            ClaimServiceElts = []
+            claimed = 0
+            claim_service_elements = []
             for service in services:
                 service_id = service.pop('id')
-                service_linked = service.pop('serviceLinked', [])
-                print("service_linked ", service_linked)
-                serviceserviceSet = service.pop('serviceserviceSet', [])
-                print("serviceserviceSet ", serviceserviceSet)
+                service_linked = service.pop('service_item_set', [])
+                logger.debug("service_linked ", service_linked)
+                service_service_set = service.pop('service_service_set', [])
+                logger.debug("service_service_set ", service_service_set)
                 claim.services.filter(id=service_id).update(**service)
-                for claim_service_service in serviceserviceSet:
-                    claim_service_code = claim_service_service.pop('subServiceCode')
-                    print("ICI ", claim.services.filter(id=service_id))
-                    claim_service = claim.services.filter(id=service_id).first()
-                    if claim_service:
-                        service_elt = Service.objects.filter(code=claim_service_code).first()
-                        if service_elt:
-                            claim_service_to_update = claim_service.claimlinkedService.filter(service=service_elt.id)
-                            print("claim_service_to_update ", claim_service_to_update)
-                            if claim_service_to_update:
-                                qty_asked = claim_service_service.pop('qty_asked', 0)
-                                qty_adjusted = claim_service_service.get('qty_adjusted', 0)
-                                price_asked = claim_service_service.pop('price_asked', 0)
-                                claim_service_service['qty_displayed'] = qty_asked
-                                price = qty_adjusted * price_asked
-                                approved += price
-                                claim_service_to_update.update(**claim_service_service)
-                        ClaimServiceElts.append(claim_service)
-                for claim_service_item in service_linked:
-                    claim_item_code = claim_service_item.pop('subItemCode')
-                    claim_service = claim.services.filter(id=service_id).first()
-                    if claim_service:
-                        item_elt = Item.objects.filter(code=claim_item_code).first()
-                        if item_elt:
-                            claim_item_to_update = claim_service.claimlinkedItem.filter(item=item_elt.id)
-                            print("claim_item_to_update ", claim_item_to_update)
-                            if claim_item_to_update:
-                                qty_asked = claim_service_item.pop('qty_asked', 0)
-                                qty_adjusted = claim_service_item.get('qty_adjusted', 0)
-                                price_asked = claim_service_item.pop('price_asked', 0)
-                                claim_service_item['qty_displayed'] = qty_asked
-                                price = qty_adjusted * price_asked
-                                approved += price
-                                claim_item_to_update.update(**claim_service_item)
+                if ClaimConfig.native_code_for_services == False:
+                    for claim_service_service in service_service_set:
+                        claim_service_code = claim_service_service.pop('subServiceCode')
+                        claim_service = claim.services.filter(id=service_id).first()
+                        if claim_service:
+                            service_element = Service.objects.filter(*filter_validity(), code=claim_service_code).first()
+                            if service_element:
+                                claim_service_to_update = claim_service.services.filter(service=service_element.id)
+                                logger.debug("claim_service_to_update ", claim_service_to_update)
+                                if claim_service_to_update:
+                                    qty_asked = claim_service_service.pop('qty_asked', 0)
+                                    price_asked = claim_service_service.pop('price_asked', 0)
+                                    claim_service_service['qty_displayed'] = qty_asked
+                                    price = qty_asked * price_asked
+                                    claimed += price
+                                    claim_service_to_update.update(**claim_service_service)
+                            claim_service_elements.append(claim_service)
+                    for claim_service_item in service_linked:
+                        claim_item_code = claim_service_item.pop('subItemCode')
+                        claim_service = claim.services.filter(id=service_id).first()
+                        if claim_service:
+                            item_element = Item.objects.filter(*filter_validity(), code=claim_item_code).first()
+                            if item_element:
+                                claim_item_to_update = claim_service.items.filter(item=item_element.id)
+                                logger.debug("claim_item_to_update ", claim_item_to_update)
+                                if claim_item_to_update:
+                                    qty_asked = claim_service_item.pop('qty_asked', 0)
+                                    price_asked = claim_service_item.pop('price_asked', 0)
+                                    claim_service_item['qty_displayed'] = qty_asked
+                                    price = qty_asked * price_asked
+                                    claimed += price
+                                    claim_item_to_update.update(**claim_service_item)
 
                 if service['status'] == ClaimService.STATUS_PASSED:
                     all_rejected = False
             claim.approved = approved_amount(claim)
-            print("approved ", approved)
-            claim.approved = approved
-            for claimservice in ClaimServiceElts:
-                setattr(claimservice, 'price_adjusted', approved)
-                claimservice.save()
+            if ClaimConfig.native_code_for_services == False:
+                claim.claimed = claimed
+                for claimservice in claim_service_elements:
+                    setattr(claimservice, 'price_adjusted', claimed)
             claim.audit_user_id_review = user.id_for_audit
             if all_rejected:
                 claim.status = Claim.STATUS_REJECTED
@@ -1003,7 +940,7 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                 'detail': str(exc)}]
 
 
-class ProcessClaimsMutation(OpenIMISMutation):
+class ProcessClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
     """
     Process one or several claims.
     """
@@ -1014,39 +951,56 @@ class ProcessClaimsMutation(OpenIMISMutation):
         uuids = graphene.List(graphene.String)
 
     @classmethod
+    def _parse_submission_stats(cls, claim_submission_stats):
+        return {
+            "submitted": claim_submission_stats["submitted"],
+            "processed": claim_submission_stats["processed"],
+            "valuated": claim_submission_stats["valuated"],
+            "rejected": claim_submission_stats["rejected"],
+            "header": "Submitted to process",
+            # failed
+        }
+
+    @classmethod
     def async_mutate(cls, user, **data):
         if not user.has_perms(ClaimConfig.gql_mutation_process_claims_perms):
             raise PermissionDenied(_("unauthorized"))
         errors = []
-        for claim_uuid in data["uuids"]:
-            logger.debug("ProcessClaimsMutation: processing %s", claim_uuid)
+        uuids = data.get("uuids", None)
+        client_mutation_id = data.get("client_mutation_id", None)
+        claims = Claim.objects \
+                .filter(uuid__in=uuids) \
+                .prefetch_related(Prefetch('items', queryset=ClaimItem.objects.filter(*filter_validity())))\
+                .prefetch_related(Prefetch('services', queryset=ClaimService.objects.filter(*filter_validity())))
+        remaining_uuid = list(map(str.upper,uuids))
+        for claim in claims:
+            remaining_uuid.remove(claim.uuid.upper())
+            
+
+            logger.debug("ProcessClaimsMutation: processing %s", claim.uuid)
             c_errors = []
-            claim = Claim.objects \
-                .filter(uuid=claim_uuid) \
-                .prefetch_related("items") \
-                .prefetch_related("services") \
-                .first()
-            if claim is None:
-                errors += {
-                    'title': claim_uuid,
-                    'list': [{'message': _(
-                        "claim.validation.id_does_not_exist") % {'id': claim_uuid}}]
-                }
-                continue
+     
             claim.save_history()
             claim.audit_user_id_process = user.id_for_audit
-            logger.debug("ProcessClaimsMutation: validating claim %s", claim_uuid)
+            logger.debug("ProcessClaimsMutation: validating claim %s", claim.uuid)
             c_errors += validate_and_process_dedrem_claim(claim, user, True)
 
-            logger.debug("ProcessClaimsMutation: claim %s set processed or valuated", claim_uuid)
+            logger.debug("ProcessClaimsMutation: claim %s set processed or valuated", claim.uuid)
             if c_errors:
                 errors.append({
                     'title': claim.code,
                     'list': c_errors
                 })
-
+                
+        if len(remaining_uuid):
+                errors += {
+                    'title': _('error'),
+                    'list': [{'message': _(
+                        "claim.validation.id_does_not_exist") % {'id': ','.join(remaining_uuid)}}]
+                }
         if len(errors) == 1:
             errors = errors[0]['list']
+        cls.add_submission_stats_to_mutation_log(client_mutation_id, uuids)
         logger.debug("ProcessClaimsMutation: claims %s done, errors: %s", data["uuids"], len(errors))
         return errors
 
@@ -1070,8 +1024,8 @@ class DeleteClaimsMutation(OpenIMISMutation):
         for claim_uuid in data["uuids"]:
             claim = Claim.objects \
                 .filter(uuid=claim_uuid) \
-                .prefetch_related("items") \
-                .prefetch_related("services") \
+                .prefetch_related(Prefetch('items', queryset=ClaimItem.objects.filter(*filter_validity())))\
+                .prefetch_related(Prefetch('services', queryset=ClaimService.objects.filter(*filter_validity())))\
                 .first()
             if claim is None:
                 errors += {
@@ -1086,26 +1040,7 @@ class DeleteClaimsMutation(OpenIMISMutation):
         return errors
 
 
-def set_claim_submitted(claim, errors, user):
-    try:
-        claim.audit_user_id_submit = user.id_for_audit
-        if errors:
-            claim.status = Claim.STATUS_REJECTED
-        else:
-            claim.approved = approved_amount(claim)
-            claim.status = Claim.STATUS_CHECKED
-            from core.utils import TimeUtils
-            claim.submit_stamp = TimeUtils.now()
-            claim.category = get_claim_category(claim)
-        claim.save()
-        return []
-    except Exception as exc:
-        return {
-            'title': claim.code,
-            'list': [{
-                'message': _("claim.mutation.failed_to_change_status_of_claim") % {'code': claim.code},
-                'detail': claim.uuid}]
-        }
+
 
 
 def set_claim_deleted(claim):
@@ -1121,49 +1056,7 @@ def set_claim_deleted(claim):
         }
 
 
-def details_with_relative_prices(details):
-    return details.filter(status=ClaimDetail.STATUS_PASSED) \
-        .filter(price_origin=ProductItemOrService.ORIGIN_RELATIVE) \
-        .exists()
-
-
-def with_relative_prices(claim):
-    return details_with_relative_prices(claim.items) or details_with_relative_prices(claim.services)
-
-
-def set_claim_processed_or_valuated(claim, errors, user):
-    try:
-        if errors:
-            claim.status = Claim.STATUS_REJECTED
-        else:
-            claim.status = Claim.STATUS_PROCESSED if with_relative_prices(claim) else Claim.STATUS_VALUATED
-            claim.audit_user_id_process = user.id_for_audit
-            from core.utils import TimeUtils
-            claim.process_stamp = TimeUtils.now()
-        claim.save()
-        return []
-    except Exception as ex:
-        return {
-            'title': claim.code,
-            'list': [{'message': _("claim.mutation.failed_to_change_status_of_claim") % {'code': claim.code},
-                      'detail': claim.uuid}]
-        }
 
 
 def validate_and_process_dedrem_claim(claim, user, is_process):
-    errors = validate_claim(claim, False)
-    logger.debug("ProcessClaimsMutation: claim %s validated, nb of errors: %s", claim.uuid, len(errors))
-    if len(errors) == 0:
-        errors = validate_assign_prod_to_claimitems_and_services(claim)
-        logger.debug("ProcessClaimsMutation: claim %s assigned, nb of errors: %s", claim.uuid, len(errors))
-        errors += process_dedrem(claim, user.id_for_audit, is_process)
-        logger.debug("ProcessClaimsMutation: claim %s processed for dedrem, nb of errors: %s", claim.uuid,
-                     len(errors))
-    else:
-        # OMT-208 the claim is invalid. If there is a dedrem, we need to clear it (caused by a review)
-        deleted_dedrems = ClaimDedRem.objects.filter(claim=claim).delete()
-        if deleted_dedrems:
-            logger.debug(f"Claim {claim.uuid} is invalid, we deleted its dedrem ({deleted_dedrems})")
-    if is_process:
-        errors += set_claim_processed_or_valuated(claim, errors, user)
-    return errors
+    return service_validate_and_process_dedrem_claim(claim, user, is_process)

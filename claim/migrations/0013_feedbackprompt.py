@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
                 ('id', models.AutoField(db_column='FeedbackPromptID', primary_key=True, serialize=False)),
                 ('feedback_prompt_date', core.fields.DateField(blank=True, db_column='FeedbackPromptDate', null=True)),
                 ('officer_id', models.IntegerField(blank=True, db_column='OfficerID', null=True)),
-                ('phone_number', models.CharField(db_column='PhoneNumber', max_length=36, unique=True)),
+                ('phone_number', models.CharField(db_column='PhoneNumber', max_length=36, null=True, blank=True)),
                 ('sms_status', models.IntegerField(blank=True, db_column='SMSStatus', null=True)),
                 ('validity_from', core.fields.DateTimeField(blank=True, db_column='ValidityFrom', null=True)),
                 ('validity_to', core.fields.DateTimeField(blank=True, db_column='ValidityTo', null=True)),

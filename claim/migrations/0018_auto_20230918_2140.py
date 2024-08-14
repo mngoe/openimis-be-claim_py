@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0017_merge_0013_feedbackprompt_0016_auto_20230213_0918'),
+        ('claim', '0018_alter_jsonext_column'),
     ]
 
     operations = [

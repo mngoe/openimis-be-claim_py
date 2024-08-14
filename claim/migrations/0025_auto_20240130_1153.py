@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0024_add_claim_restore_perms'),
+        ('claim', '0025_auto_20231205_1455'),
     ]
 
     operations = [

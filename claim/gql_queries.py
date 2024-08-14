@@ -7,7 +7,11 @@ from insuree.schema import InsureeGQLType
 from location.schema import HealthFacilityGQLType
 from medical.schema import DiagnosisGQLType
 from claim_batch.schema import BatchRunGQLType
-from .models import ClaimDedRem, Claim, ClaimAdmin, Feedback, ClaimItem, ClaimService, ClaimAttachment, ClaimServiceService, ClaimServiceItem
+from .apps import ClaimConfig
+from claim.models import (ClaimDedRem, Claim, ClaimAdmin, Feedback, ClaimItem, ClaimService, ClaimAttachment,
+                          ClaimAttachmentType, ClaimServiceService, ClaimServiceItem)
+from django.utils.translation import gettext as _
+from django.core.exceptions import PermissionDenied
 
 
 class ClaimDedRemGQLType(DjangoObjectType):
@@ -52,7 +56,8 @@ class ClaimGQLType(DjangoObjectType):
     attachments_count = graphene.Int()
     client_mutation_id = graphene.String()
     date_processed_to = graphene.Date()
-
+    restore_id = graphene.Int()
+    
     def resolve_insuree(self, info):
         if "insuree_loader" in info.context.dataloaders and self.insuree_id:
             return info.context.dataloaders["insuree_loader"].load(self.insuree_id)
@@ -67,7 +72,11 @@ class ClaimGQLType(DjangoObjectType):
                 self.health_facility_id
             )
         return self.health_facility
-
+    
+    def resolve_restore_id(self, info):
+        return self.restore_id
+        
+        
     class Meta:
         model = Claim
         interfaces = (graphene.relay.Node,)
@@ -109,8 +118,7 @@ class ClaimGQLType(DjangoObjectType):
 
     @classmethod
     def get_queryset(cls, queryset, info):
-        claim_ids = Claim.get_queryset(queryset, info).values('uuid').all()
-        return Claim.objects.filter(uuid__in=claim_ids)
+        return Claim.get_queryset(queryset, info).all()
 
 
 class ClaimAttachmentGQLType(DjangoObjectType):
@@ -126,6 +134,7 @@ class ClaimAttachmentGQLType(DjangoObjectType):
             "date": ["exact", "lt", "lte", "gt", "gte"],
             "filename": ["exact", "icontains"],
             "mime": ["exact", "icontains"],
+            "general_type": ["exact", "icontains"],
             "url": ["exact", "icontains"],
             **prefix_filterset("claim__", ClaimGQLType._meta.filter_fields),
         }
@@ -135,6 +144,17 @@ class ClaimAttachmentGQLType(DjangoObjectType):
     def get_queryset(cls, queryset, info):
         queryset = queryset.filter(*filter_validity())
         return queryset
+
+
+class ClaimAttachmentTypeGQLType(DjangoObjectType):
+    class Meta:
+        model = ClaimAttachmentType
+        interfaces = (graphene.relay.Node,)
+        filter_fields = {
+            "id": ["exact"],
+            "claim_general_type": ["exact"]
+        }
+        connection_class = ExtendedConnection
 
 
 class FeedbackGQLType(DjangoObjectType):

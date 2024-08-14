@@ -42,7 +42,7 @@ class Command(BaseCommand):
                                        "admin_id": claim_admin,
                                        "health_facility_id": hf})
             if verbose:
-                print(claim_num, "created claim", claim, "for insuree", insuree, "with code", claim.code)
+                logger.debug(f"{claim_num} created claim {claim} for insuree {insuree} with code {claim.code}")
             for svc_num in range(1, nb_services + 1):
                 service = self.get_random_service()
                 claim_service = create_test_claimservice(claim, custom_props={
@@ -51,7 +51,7 @@ class Command(BaseCommand):
                     "price_asked": random.randint(1, 1000),
                 })
                 if verbose:
-                    print(claim_num, svc_num, "Created claim service", claim_service, "for service", service)
+                    logger.debug(f"{claim_num} {svc_num} Created claim service {claim_service} for service {service}")
             for item_num in range(1, nb_items + 1):
                 item = self.get_random_item()
                 claim_item = create_test_claimitem(claim, "D", custom_props=
@@ -61,7 +61,7 @@ class Command(BaseCommand):
                     "price_asked": random.randint(1, 1000),
                 })
                 if verbose:
-                    print(claim_num, item_num, "Created claim item", claim_item, "for item", item)
+                    logger.debug(f"{claim_num} {item_num} Created claim item {claim_item} for item {item}")
 
     def get_random_insuree(self):
         if not self.insurees:

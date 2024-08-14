@@ -11,7 +11,7 @@ import uuid
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0021_auto_20231102_1155'),
+        ('claim', '0022_alter_feedbackprompt_phone_number'),
     ]
 
     operations = [
