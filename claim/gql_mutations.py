@@ -3,7 +3,9 @@ import logging
 import uuid
 import pathlib
 import base64
+from typing import Callable, Dict
 import graphene
+import importlib
 import graphene_django_optimizer
 from django.db.models import OuterRef, Avg, Subquery, Q
 
@@ -30,6 +32,7 @@ from program import models as program_models
 
 from claim.utils import process_items_relations, process_services_relations
 from .services import check_unique_claim_code
+from django.db import transaction
 logger = logging.getLogger(__name__)
 
 
@@ -75,6 +78,8 @@ class ClaimSubServiceInputType(InputObjectType):
         max_digits=18, decimal_places=2, required=False)
     qty_asked = graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
+    qty_adjusted = graphene.Decimal(
+        max_digits=18, decimal_places=2, required=False)
     price_asked = graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
 
@@ -87,6 +92,8 @@ class ClaimSubItemInputType(InputObjectType):
     qty_asked = graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
     price_asked = graphene.Decimal(
+        max_digits=18, decimal_places=2, required=False)
+    qty_adjusted= graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
 
 class ClaimServiceInputType(InputObjectType):
@@ -155,7 +162,7 @@ class ClaimCodeInputType(graphene.String):
 
     @staticmethod
     def coerce_string(value):
-        assert_string_length(value, 40)
+        assert_string_length(value, 20)
         return value
 
     serialize = coerce_string
@@ -164,7 +171,7 @@ class ClaimCodeInputType(graphene.String):
     @staticmethod
     def parse_literal(ast):
         result = graphene.String.parse_literal(ast)
-        assert_string_length(result, 40)
+        assert_string_length(result, 20)
         return result
 
 
@@ -245,7 +252,7 @@ class ClaimInputType(OpenIMISMutation.Input):
     explanation = graphene.String(required=False)
     adjustment = graphene.String(required=False)
     json_ext = graphene.types.json.JSONString(required=False)
-
+    restore = graphene.UUID(required=False)
     feedback_available = graphene.Boolean(default=False)
     feedback_status = TinyInt(required=False)
     feedback = graphene.Field(FeedbackInputType, required=False)
@@ -305,17 +312,60 @@ def create_attachments(claim_id, attachments):
     for attachment in attachments:
         create_attachment(claim_id, attachment)
 
-
-def update_or_create_claim(data, user):
-    items = data.pop('items') if 'items' in data else []
-    services = data.pop('services') if 'services' in data else []
+def validate_claim_data(data, user):
+    services = data.get('services') if 'services' in data else []
     incoming_code = data.get('code')
-    claim_uuid = data.pop("uuid", None)
+    claim_uuid = data.get("uuid", None)
+    restore = data.get('restore', None)
     current_claim = Claim.objects.filter(uuid=claim_uuid).first()
     current_code = current_claim.code if current_claim else None
-    if current_code != incoming_code \
-            and check_unique_claim_code(incoming_code):
+
+    if restore:
+        restored_qs = Claim.objects.filter(uuid=restore)
+        restored_from_claim = restored_qs.first()
+        restored_count = Claim.objects.filter(restore=restored_from_claim).count()
+        if not restored_qs.exists():
+            raise ValidationError(_("mutation.restored_from_does_not_exist"))
+        if not restored_from_claim.status == Claim.STATUS_REJECTED:
+            raise ValidationError(_("mutation.cannot_restore_not_rejected_claim"))
+        if not user.has_perms(ClaimConfig.gql_mutation_restore_claims_perms):
+            raise ValidationError(_("mutation.no_restore_rights"))
+        if ClaimConfig.claim_max_restore and restored_count >= ClaimConfig.claim_max_restore:
+            raise ValidationError(_("mutation.max_restored_claim") % {
+                "max_restore": ClaimConfig.claim_max_restore
+            })
+    elif current_claim is not None and current_claim.status not in (Claim.STATUS_CHECKED, Claim.STATUS_ENTERED):
+        raise ValidationError(_("mutation.claim_not_editable")) 
+
+    if not validate_number_of_additional_diagnoses(data):
+        raise ValidationError(_("mutation.claim_too_many_additional_diagnoses"))
+
+    if ClaimConfig.claim_validation_multiple_services_explanation_required:
+        for service in services:
+            if service["qty_provided"] > 1 and not service.get("explanation"):
+                raise ValidationError(_("mutation.service_explanation_required"))
+
+    if len(incoming_code) > ClaimConfig.max_claim_length:
+        raise ValidationError(_("mutation.code_name_too_long"))
+
+    if not restore and current_code != incoming_code and check_unique_claim_code(incoming_code):
         raise ValidationError(_("mutation.code_name_duplicated"))
+
+
+@transaction.atomic
+def update_or_create_claim(data, user):
+    validate_claim_data(data, user)
+    items = data.pop('items') if 'items' in data else []
+    services = data.pop('services') if 'services' in data else []
+    claim_uuid = data.pop("uuid", None)
+    autogenerate_code = data.pop('autogenerate', None)
+    restore = data.pop('restore', None)
+    if restore:
+        restored_qs = Claim.objects.filter(uuid=restore)
+        restored_from_claim = restored_qs.first()
+        data["restore"] = restored_from_claim
+    if autogenerate_code:
+        data['code'] = __autogenerate_claim_code()
     if "client_mutation_id" in data:
         data.pop('client_mutation_id')
     if "client_mutation_label" in data:
@@ -344,6 +394,32 @@ def update_or_create_claim(data, user):
     claim.save()
     return claim
 
+def validate_number_of_additional_diagnoses(incoming_data):
+    additional_diagnoses_count = 0
+    for key in incoming_data.keys():
+        if key.startswith("icd_") and key.endswith("_id") and key != "icd_id":
+            additional_diagnoses_count += 1
+
+    return additional_diagnoses_count <= ClaimConfig.additional_diagnosis_number_allowed
+
+def __autogenerate_claim_code():
+    module_name, function_name = '[undefined]', '[undefined]'
+    try:
+        claim_code_function = _get_autogenerating_func()
+        return claim_code_function(ClaimConfig.autogenerated_claim_code_config)
+    except ImportError as e:
+        logger.error(f"Error: Could not import module '{module_name}' for claim code autogeneration")
+        raise e
+    except AttributeError as e:
+        logger.error(f"Error: Could not find function '{function_name}' in module '{module_name}' for claim code autogeneration")
+        raise e
+
+
+def _get_autogenerating_func() -> Callable[[Dict], Callable]:
+    module_name, function_name = ClaimConfig.autogenerate_func.rsplit('.', 1)
+    module = importlib.import_module(module_name)
+    return getattr(module, function_name)
+
 
 class CreateClaimMutation(OpenIMISMutation):
     """
@@ -364,11 +440,7 @@ class CreateClaimMutation(OpenIMISMutation):
                     _("mutation.authentication_required"))
             if not user.has_perms(ClaimConfig.gql_mutation_create_claims_perms):
                 raise PermissionDenied(_("unauthorized"))
-            # Claim code unicity should be enforced at DB Scheme level...
-            if Claim.objects.filter(code=data['code']).exists():
-                return [{
-                    'message': _("claim.mutation.duplicated_claim_code") % {'code': data['code']},
-                }]
+            is_claim_code_autogenerated = data.get("autogenerate", False)
             data['audit_user_id'] = user.id_for_audit
             data['status'] = Claim.STATUS_ENTERED
             from core.utils import TimeUtils
@@ -377,6 +449,8 @@ class CreateClaimMutation(OpenIMISMutation):
             claim = update_or_create_claim(data, user)
             if attachments:
                 create_attachments(claim.id, attachments)
+            if is_claim_code_autogenerated:
+                return {"client_mutation_label": f"Create Claim - {claim.code}", "code": f"{claim.code}"}
             return None
         except Exception as exc:
             return [{
@@ -848,6 +922,7 @@ class SaveClaimReviewMutation(OpenIMISMutation):
     def async_mutate(cls, user, **data):
         claim = None
         try:
+            print("data ", data)
             if not user.has_perms(ClaimConfig.gql_mutation_deliver_claim_review_perms):
                 raise PermissionDenied(_("unauthorized"))
             claim = Claim.objects.get(uuid=data['claim_uuid'],
@@ -869,47 +944,43 @@ class SaveClaimReviewMutation(OpenIMISMutation):
             ClaimServiceElts = []
             for service in services:
                 service_id = service.pop('id')
-                service.pop('serviceLinked', None)
-                service.pop('serviceserviceSet', None)
-                serviceLinked = service.serviceLinked
-                serviceserviceSet = service.serviceserviceSet
+                service_linked = service.pop('serviceLinked', [])
+                print("service_linked ", service_linked)
+                serviceserviceSet = service.pop('serviceserviceSet', [])
+                print("serviceserviceSet ", serviceserviceSet)
                 claim.services.filter(id=service_id).update(**service)
-                ClaimServiceId = ClaimService.objects.filter(claim=claim.id, service=service.service_id).first()
-                ClaimServiceElts.append(ClaimServiceId)
-                if(serviceLinked):
-                    for serviceL in serviceLinked:
-                        serviceL.pop('subItemCode', None)
-                        if serviceL.qty_asked.is_nan() :
-                            serviceL.qty_asked = 0
-                        itemId = Item.objects.filter(code=serviceL.subItemCode).first()
-                        claimServiceItemId = ClaimServiceItem.objects.filter(
-                            item=itemId,
-                            claimlinkedItem = ClaimServiceId
-                        ).first()
-                        claimServiceItemId.qty_displayed=serviceL.qty_asked
-                        claimServiceItemId.save()
-                        if serviceL.price_asked.is_nan():
-                            serviceL.price_asked = 0
-                        prix = serviceL.qty_asked * serviceL.price_asked
-                        approved += prix
-                
-                if(serviceserviceSet):
-                    for serviceserviceS in serviceserviceSet:
-                        serviceserviceS.pop('subServiceCode', None)
-                        if serviceserviceS.qty_asked.is_nan() :
-                            serviceserviceS.qty_asked = 0
-                        serviceId = Service.objects.filter(code=serviceserviceS.subServiceCode).first()
-                        claimServiceServiceId = ClaimServiceService.objects.filter(
-                            service=serviceId,
-                            claimlinkedService = ClaimServiceId
-                        ).first()
-                        claimServiceServiceId.qty_displayed=serviceserviceS.qty_asked
-                        claimServiceServiceId.save()
-                        if serviceserviceS.price_asked.is_nan():
-                            serviceserviceS.price_asked = 0
-                        price = serviceserviceS.qty_asked * serviceserviceS.price_asked
-                        approved += price
-                        
+                for claim_service_service in serviceserviceSet:
+                    claim_service_code = claim_service_service.pop('subServiceCode')
+                    print("ICI ", claim.services.filter(id=service_id))
+                    claim_service = claim.services.filter(id=service_id).first()
+                    if claim_service:
+                        service_elt = Service.objects.filter(code=claim_service_code).first()
+                        if service_elt:
+                            claim_service_to_update = claim_service.claimlinkedService.filter(service=service_elt.id)
+                            print("claim_service_to_update ", claim_service_to_update)
+                            if claim_service_to_update:
+                                qty_asked = claim_service_service.pop('qty_asked', 0)
+                                price_asked = claim_service_service.pop('price_asked', 0)
+                                claim_service_service['qty_displayed'] = qty_asked
+                                price = qty_asked * price_asked
+                                claimed += price
+                                claim_service_to_update.update(**claim_service_service)
+                        ClaimServiceElts.append(claim_service)
+                for claim_service_item in service_linked:
+                    claim_item_code = claim_service_item.pop('subItemCode')
+                    claim_service = claim.services.filter(id=service_id).first()
+                    if claim_service:
+                        item_elt = Item.objects.filter(code=claim_item_code).first()
+                        if item_elt:
+                            claim_item_to_update = claim_service.claimlinkedItem.filter(item=item_elt.id)
+                            print("claim_item_to_update ", claim_item_to_update)
+                            if claim_item_to_update:
+                                qty_asked = claim_service_item.pop('qty_asked', 0)
+                                price_asked = claim_service_item.pop('price_asked', 0)
+                                claim_service_item['qty_displayed'] = qty_asked
+                                price = qty_asked * price_asked
+                                claimed += price
+                                claim_item_to_update.update(**claim_service_item)
 
                 if service['status'] == ClaimService.STATUS_PASSED:
                     all_rejected = False
@@ -917,8 +988,7 @@ class SaveClaimReviewMutation(OpenIMISMutation):
             print("approved ", approved)
             claim.approved = approved
             for claimservice in ClaimServiceElts:
-                claimservice.price_adjusted = approved
-                claimservice.save()
+                setattr(claimservice, 'price_adjusted', claimed)
             claim.audit_user_id_review = user.id_for_audit
             if all_rejected:
                 claim.status = Claim.STATUS_REJECTED

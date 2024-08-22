@@ -158,3 +158,51 @@ msgid "claim.validation.assign_prod.elt.no_product_code"
 msgstr ""
 "%(code)s: Claim service/item %(elt)s doesn't seem to have a valid Policy-"
 ">Product"
+
+#: claim/validations.py:187 claim/validations.py:187
+msgid "claim.validation.claimitem_validity"
+msgstr "%(code)s: Claim item validity_to is not null"
+
+#: claim/validations.py:200 claim/validations.py:200
+msgid "claim.validation.claimservice_validity"
+msgstr "%(code)s: Claim service validity_to is not null"
+
+#: claim/validations.py:218 claim/validations.py:218
+msgid "claim.validation.claimitem_in_price_list_validity"
+msgstr "%(code)s: Claim item not in the price list"
+
+#: claim/validations.py:237 claim/validations.py:237
+msgid "claim.validation.claimservice_in_price_list_validity"
+msgstr "%(code)s: Claim service not in the price list"
+
+#: claim/validations.py:261 claim/validations.py:261
+msgid "claim.validation.claimdetail_care_type_validity"
+msgstr "%(code)s: Claim item/service invalid care type"
+
+#: claim/validations.py:277 claim/validations.py:277
+msgid "claim.validation.claimdetail_limitation_validity"
+msgstr "%(code)s: Claim item/service passed its limit"
+
+#: claim/validations.py:307 claim/validations.py:307
+msgid "claim.validation.claimitem_frequency_validity"
+msgstr "%(code)s: Claim item invalid frequency"
+
+#: claim/validations.py:320 claim/validations.py:320
+msgid "claim.validation.claimservice_frequency_validity"
+msgstr "%(code)s: Claim service invalid frequency"
+
+#: claim/gql_mutations.py:284 claim/gql_mutations.py:284
+msgid "mutation.code_name_duplicated"
+msgstr "Code name duplicate"
+
+msgid "mutation.max_restored_claim"
+msgstr "Max allowed claim restore is: %(max_restore)"
+
+msgid "mutation.no_restore_rights"
+msgstr "You don't have rights to restore the claim"
+
+msgid "mutation.cannot_restore_not_rejected_claim"
+msgstr "Claim needs to be rejected to be restored"
+
+msgid "mutation.restored_from_does_not_exist"
+msgstr "The claim you want to restore does not exist"
