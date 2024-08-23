@@ -52,6 +52,7 @@ class ClaimGQLType(DjangoObjectType):
     attachments_count = graphene.Int()
     client_mutation_id = graphene.String()
     date_processed_to = graphene.Date()
+    restore_id = graphene.Int()
 
     def resolve_insuree(self, info):
         if "insuree_loader" in info.context.dataloaders and self.insuree_id:
@@ -67,6 +68,9 @@ class ClaimGQLType(DjangoObjectType):
                 self.health_facility_id
             )
         return self.health_facility
+
+    def resolve_restore_id(self, info):
+        return self.restore_id
 
     class Meta:
         model = Claim
