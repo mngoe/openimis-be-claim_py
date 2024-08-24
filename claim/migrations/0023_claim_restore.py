@@ -7,7 +7,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0022_auto_20231109_1521'),
+        ('claim', '0022_auto_20240130_1153'),
     ]
 
     operations = [
