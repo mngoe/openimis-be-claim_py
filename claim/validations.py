@@ -109,6 +109,7 @@ def validate_claim(claim, check_max):
 
 
 def validate_claimitems(claim):
+    errors = []
     target_date = claim.date_from if claim.date_from else claim.date_to
     for claimitem in claim.items.all():
         if not claimitem.rejection_reason:
