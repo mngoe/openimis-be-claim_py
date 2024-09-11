@@ -142,7 +142,7 @@ def validate_claimitems(claim):
 def validate_claimservices(claim):
     target_date = claim.date_from if claim.date_from else claim.date_to
     base_category = get_claim_category(claim)
-
+    errors = []
     for claimservice in claim.services.all():
         if not claimservice.rejection_reason:
             errors += validate_claimservice_validity(claim, claimservice)
