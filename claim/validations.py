@@ -193,6 +193,7 @@ def validate_claimitem_validity(claim, claimitem):
     # gives no result, so no claimitem is pointing to an old item and the complex query always fetched the last one.
     # Here, claimitem.item.legacy_id is always None
     errors = []
+    target_date = get_claim_target_date(claim)
     if claimitem.validity_to is None and claimitem.item.validity_to is not None:
         claimitem.rejection_reason = REJECTION_REASON_INVALID_ITEM_OR_SERVICE
         errors += [{'code': REJECTION_REASON_INVALID_ITEM_OR_SERVICE,
@@ -200,12 +201,23 @@ def validate_claimitem_validity(claim, claimitem):
                         'code': claim.code
                     },
                     'detail': claim.uuid}]
+    elif claimitem.item.validity_from and claimitem.item.validity_from > target_date:
+        # Reject the claim item if the associated item has a validity start date that is later than the claim's target date.
+        claimitem.rejection_reason = REJECTION_REASON_TARGET_DATE
+        errors += [{
+            'code': REJECTION_REASON_TARGET_DATE,
+            'message': _("claim.validation.item_future_validity") % {
+                'code': claim.code
+            },
+            'detail': claim.uuid
+        }]
     return errors
 
 
 def validate_claimservice_validity(claim, claimservice):
     # See note in validate_claimitem_validity
     errors = []
+    target_date = get_claim_target_date(claim)
     if claimservice.validity_to is None and claimservice.service.validity_to is not None:
         claimservice.rejection_reason = REJECTION_REASON_INVALID_ITEM_OR_SERVICE
         errors += [{'code': REJECTION_REASON_INVALID_ITEM_OR_SERVICE,
@@ -213,6 +225,15 @@ def validate_claimservice_validity(claim, claimservice):
                         'code': claim.code
                     },
                     'detail': claim.uuid}]
+    elif claimservice.service.validity_from and claimservice.service.validity_from > target_date:
+        # Reject the claim service if the associated item has a validity start date that is later than the claim's target date.
+        claimservice.rejection_reason = REJECTION_REASON_TARGET_DATE
+        errors += [{
+            'code': REJECTION_REASON_TARGET_DATE,
+            'message': _("claim.validation.service_future_validity") % {
+                'code': claim.code
+            },
+            'detail': claim.uuid}]
     return errors
 
 

@@ -231,3 +231,9 @@ msgstr "Claim needs to be rejected to be restored"
 
 msgid "mutation.restored_from_does_not_exist"
 msgstr "The claim you want to restore does not exist"
+
+msgid "claim.validation.service_future_validity"
+msgstr "The service associated with claim %(code)s is not yet valid at the time of the claim"
+
+msgid "claim.validation.item_future_validity"
+msgstr "The item associated with claim %(code)s is not yet valid at the time of the claim"
