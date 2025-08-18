@@ -2,6 +2,7 @@ from django.test import TestCase
 from unittest import mock
 from location.test_helpers import create_test_location, create_test_health_facility, create_test_village
 from insuree.test_helpers import create_test_insuree
+from program.test_helpers import create_test_program
 from claim.test_helpers import create_test_claim_admin
 from claim.models import Claim, ClaimItem, ClaimService, ClaimDetail
 from medical.models import Diagnosis, Item, Service
@@ -26,6 +27,7 @@ class ClaimSubmitServiceTestCase(TestCase):
     test_district = None
     test_village = None
     test_ward = None
+    test_program = None
 
 
     @classmethod
@@ -48,6 +50,7 @@ class ClaimSubmitServiceTestCase(TestCase):
         )
         cls.test_insuree = create_test_insuree(is_head=True, custom_props=props, family_custom_props=family_props)
         cls.test_claim_admin = create_test_claim_admin()
+        cls.test_program = create_test_program()
         cls.test_icd = Diagnosis(code='ICD00I', name='diag test', audit_user_id=-1)
         cls.test_icd.save()
         cls.test_claim = Claim.objects.create(
@@ -60,7 +63,8 @@ class ClaimSubmitServiceTestCase(TestCase):
             insuree=cls.test_insuree,
             health_facility=cls.test_hf,
             status=Claim.STATUS_ENTERED,
-            audit_user_id=-1
+            audit_user_id=-1,
+            program=cls.test_program
         )
 
         cls.test_claim_item = ClaimItem.objects.create(
@@ -250,7 +254,7 @@ class ClaimSubmitServiceTestCase(TestCase):
 
         claim = self._get_test_dict(code='e_n_s')
         service = ClaimSubmitService(user=mock_user)
-        submitted_claim = service.enter_and_submit(claim, False)
+        submitted_claim = service.enter_and_submit(claim, False) 
         expected_claimed = 1000 + 1000  # 2 provisions, both qty = 1, price asked == 1000
 
         self.assertEqual(submitted_claim.status, Claim.STATUS_CHECKED)
@@ -290,6 +294,7 @@ class ClaimSubmitServiceTestCase(TestCase):
             "insuree_id": self.test_claim.insuree_id,
             "status": self.test_claim.status,
             "validity_from": self.test_claim.validity_from,
+            "program": self.test_program,
             "items": [{
                 "qty_provided": self.test_claim_item.qty_provided,
                 "price_asked": self.test_claim_item.price_asked,
