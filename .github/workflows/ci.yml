@@ -16,7 +16,6 @@ on:
         required: false
 
 
-
 jobs:
   call:
     name: Default CI Flow
