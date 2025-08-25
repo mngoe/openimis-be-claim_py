@@ -194,8 +194,10 @@ class Query(graphene.ObjectType):
             filters.append(Q(services__rejection_reason=rejection_code))
         code_is_not = kwargs.get("code_is_not", None)
         
-        if len(filters):
-            query = query.filter(*filters)   
+        if len(filters): 
+            # Apply DISTINCT to avoid duplicates caused by joins (e.g., multiple services per claim)
+            filtered_query = query.filter(*filters).values('id').distinct()
+            query = query.filter(id__in=filtered_query)
         if code_is_not:
             query = query.exclude(code=code_is_not)
         
