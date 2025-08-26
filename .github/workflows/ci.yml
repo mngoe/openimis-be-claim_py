@@ -14,12 +14,10 @@ on:
         description: Just a simple comment to know the purpose of the manual build
         required: false
 
-
-
 jobs:
   call:
     name: Default CI Flow
-    uses: mngoe/openimis-be_py/.github/workflows/ci_module.yml@feature-32719
+    uses: mngoe/openimis-be_py/.github/workflows/ci_module.yml@test-csu
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     with:
