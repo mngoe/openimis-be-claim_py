@@ -15,6 +15,7 @@ from graphene.test import Client
 from graphene import Schema
 
 from claim.models import Claim, ClaimAdmin
+from claim.test_helpers import create_test_claim_admin
 
 
 from policy.models import Policy
@@ -24,7 +25,9 @@ from core.test_helpers import create_test_officer
 from insuree.test_helpers import create_test_insuree
 from location.models import Location
 from medical.test_helpers import create_test_service
-from medical_pricelist.test_helpers import add_service_to_hf_pricelist
+from medical_pricelist.test_helpers import add_service_to_hf_pricelist, create_test_service_pricelist, create_test_item_pricelist
+from program.test_helpers import create_test_program
+from location.test_helpers import create_test_health_facility, create_test_village
 
 @dataclass
 class DummyContext:
@@ -45,6 +48,9 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
     service= None
     product_service= None
     claim_admin = None
+    location= None
+    program= None
+    hf= None
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -62,9 +68,14 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         (policy, insuree_policy) = create_test_policy2(cls.product, cls.insuree, custom_props={
             "value": 1000, "status": Policy.STATUS_ACTIVE})
         cls.service = create_test_service("A")
-        cls.claim_admin = ClaimAdmin.objects.filter(*filter_validity()).first()
-        cls.svc_pl_detail = add_service_to_hf_pricelist(cls.service, hf_id = cls.claim_admin.health_facility.id )
+        cls.claim_admin = create_test_claim_admin()
+        cls.location = create_test_village()
+        cls.hf_spl = create_test_service_pricelist(cls.location.id)
+        cls.hf_ipl = create_test_item_pricelist(cls.location.id)
+        cls.hf = create_test_health_facility("TEST_HF2", location_id=cls.location.id, custom_props={'services_pricelist': cls.hf_spl, 'items_pricelist': cls.hf_ipl}, valid=True)
+        cls.svc_pl_detail = add_service_to_hf_pricelist(cls.service, hf_id = cls.hf.id )
         cls.product_service = create_test_product_service(cls.product, cls.service, custom_props={"limit_no_adult": 20})
+        cls.program = create_test_program(code="CCS", name="Chêque Santé")
         
     def test_claims_query(self):
         
@@ -148,8 +159,9 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
                 feedbackStatus: 1
                 reviewStatus: 1
                 dateClaimed: "2023-12-06"
-                healthFacilityId: {self.claim_admin.health_facility.id}
+                healthFacilityId: {self.hf.id}
                 visitType: "O"
+                program: {self.program.idProgram}
                 services: [
                 {{
                 
@@ -193,8 +205,9 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
                 feedbackStatus: 1
                 reviewStatus: 1
                 dateClaimed: "2023-12-06"
-                healthFacilityId: {self.claim_admin.health_facility.id}
+                healthFacilityId: {self.hf.id}
                 visitType: "O"
+                program: {self.program.idProgram}
                 services: [
                 {{
                 
