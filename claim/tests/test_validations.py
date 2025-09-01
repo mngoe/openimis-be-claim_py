@@ -1252,3 +1252,77 @@ class ValidationTest(TestCase):
         self.assertEqual(claimservice2.price_adjusted, 750)
         claimservice3.refresh_from_db()
         self.assertIsNone(claimservice3.price_adjusted)
+   
+    def test_submit_claim_package_matching(self):
+        # Given: Create a service package with matching sub-items and sub-services
+        insuree = create_test_insuree()
+        self.assertIsNotNone(insuree)
+        # Create a sub-item and a sub-service
+        sub_item = create_test_item("D", custom_props={"price": 50})
+        sub_service = create_test_service("D", custom_props={"price": 200})
+        # Create a service package
+        package_service = create_test_service("A", custom_props={"packagetype": "P", "price": 1000})
+        # Link the sub-item and sub-service to the package
+        ServiceItem.objects.create(
+            servicelinkedItem=package_service,
+            item=sub_item,
+            qty_provided=2
+        )
+        ServiceService.objects.create(
+            servicelinkedService=package_service,
+            service=sub_service,
+            qty_provided=1
+        )
+        product = create_test_product("BCUL0001", custom_props={
+            "name": "Basic Cover Ultha",
+            "lump_sum": 10_000,
+        })
+        product_service = create_test_product_service(product, package_service)
+        policy = create_test_policy(product, insuree, link=True)
+        pricelist_detail = add_service_to_hf_pricelist(package_service, hf_id=self.test_hf.id)
+
+        # Create a claim with a service package and matching sub-elements
+        claim1 = create_test_claim({"insuree_id": insuree.id, "health_facility_id": self.test_hf.id})
+        service1 = create_test_claimservice(
+            claim1, custom_props={"service_id": package_service.id, "qty_provided": 1, "price_asked": 1000}
+        )
+
+        # Add matching sub-items and sub-services
+        ClaimServiceItem.objects.create(
+            claim_service=service1,
+            item=sub_item,
+            qty_provided=2,
+            qty_displayed=2,
+            qty_adjusted=2,
+            price_asked=50
+        )
+        ClaimServiceService.objects.create(
+            claim_service=service1,
+            service=sub_service,
+            qty_provided=1,
+            qty_displayed=1,
+            qty_adjusted=1,
+            price_asked=200
+        )
+
+        # When: Validate the claim
+        errors = validate_claim(claim1, True)
+        errors += validate_assign_prod_to_claimitems_and_services(claim1)
+
+        # Then:
+        claim1.refresh_from_db()
+        service1.refresh_from_db()
+        self.assertEqual(len(errors), 0)
+        self.assertEqual(service1.status, ClaimService.STATUS_PASSED)
+        self.assertEqual(service1.rejection_reason, 0)
+
+        # tearDown
+        delete_claim_with_itemsvc_dedrem_and_history(claim1)
+        policy.insuree_policies.first().delete()
+        policy.delete()
+        product_service.delete()
+        pricelist_detail.delete()
+        package_service.delete()
+        sub_item.delete()
+        sub_service.delete()
+        product.delete()
