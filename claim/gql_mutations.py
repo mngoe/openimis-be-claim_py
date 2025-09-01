@@ -1,44 +1,35 @@
 import logging
-import os
-import urllib.parse
 import uuid
 import pathlib
 import base64
 from urllib.parse import urlparse
-from typing import Callable, Dict
 import graphene
-import importlib
-import graphene_django_optimizer
 from django.db.models import Count, Case, When, IntegerField, Q, Prefetch
 
-from core.models import MutationLog, Officer
+from core.models import MutationLog
 from .apps import ClaimConfig
-from claim.validations import validate_claim, get_claim_category, validate_assign_prod_to_claimitems_and_services, \
-    process_dedrem, approved_amount
+from claim.validations import approved_amount
 from core import filter_validity, assert_string_length
 from core.schema import TinyInt, SmallInt, OpenIMISMutation
 from core.gql.gql_mutations import mutation_on_uuids_from_filter
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
-from django.core.exceptions import ValidationError, PermissionDenied, ObjectDoesNotExist
+from django.core.exceptions import ValidationError, PermissionDenied
 from django.utils.translation import gettext as _
 from graphene import InputObjectType
 from claim.gql_queries import ClaimGQLType
-from claim.models import Claim, Feedback, FeedbackPrompt, ClaimDetail, ClaimItem, ClaimService, ClaimAttachment, \
-    ClaimDedRem, GeneralClaimAttachmentType, ClaimAttachmentType,ClaimServiceService
+from claim.models import Claim, Feedback, ClaimItem, ClaimService, ClaimAttachment, \
+     GeneralClaimAttachmentType, ClaimAttachmentType
 from claim.attachment_strategies import *
 from program import models as program_models
-from product.models import ProductItemOrService
 from medical.models import Item, Service
 
-from claim.utils import process_items_relations, process_services_relations
 from claim.services import validate_claim_data as service_validate_claim_data, \
-        update_or_create_claim as service_update_or_create_claim, check_unique_claim_code, submit_claim,\
+        update_or_create_claim as service_update_or_create_claim, submit_claim,\
             validate_and_process_dedrem_claim as service_validate_and_process_dedrem_claim,\
             create_feedback_prompt as service_create_feedback_prompt, update_claims_dedrems,\
                 set_feedback_prompt_validity_to_to_current_date, set_claims_status
 from django.db import transaction
-import requests
 
 logger = logging.getLogger(__name__)
 

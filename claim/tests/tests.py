@@ -1,20 +1,16 @@
-import base64
 import json
 from dataclasses import dataclass
 from core.models import User
 from core.models.openimis_graphql_test_case import openIMISGraphQLTestCase
 
-from core.utils import filter_validity
 from core.test_helpers import create_test_interactive_user
-from django.conf import settings
-from graphene_django.utils.testing import GraphQLTestCase
 from graphql_jwt.shortcuts import get_token
 #credits https://docs.graphene-python.org/projects/django/en/latest/testing/
 from claim import schema as claim_schema
 from graphene.test import Client
 from graphene import Schema
 
-from claim.models import Claim, ClaimAdmin
+from claim.models import Claim
 from claim.test_helpers import create_test_claim_admin
 
 
@@ -23,7 +19,6 @@ from policy.test_helpers import create_test_policy2
 from product.test_helpers import create_test_product, create_test_product_service
 from core.test_helpers import create_test_officer
 from insuree.test_helpers import create_test_insuree
-from location.models import Location
 from medical.test_helpers import create_test_service
 from medical_pricelist.test_helpers import add_service_to_hf_pricelist, create_test_service_pricelist, create_test_item_pricelist
 from program.test_helpers import create_test_program

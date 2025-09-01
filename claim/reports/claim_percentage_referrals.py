@@ -1,9 +1,6 @@
 from claim.models import Claim
-from django.db import connection
-from django.db.models import Q, F, Count
-from django.db.models.functions import Coalesce
-from location.models import HealthFacility, Location
-from tools.utils import dictfetchall
+from django.db.models import Q, F
+from location.models import HealthFacility
 
 import logging
 

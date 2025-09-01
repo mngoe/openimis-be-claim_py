@@ -1,7 +1,6 @@
 import math
 from claim.models import Claim, ClaimItem, ClaimService, ClaimDetail, ClaimServiceItem, ClaimServiceService
 from medical.models import Item, Service
-from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 from .apps import ClaimConfig
 

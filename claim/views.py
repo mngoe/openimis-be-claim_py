@@ -2,10 +2,7 @@ import base64
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
-from rest_framework.decorators import api_view, permission_classes
-from location.models import LocationManager
 from report.services import ReportService
-from core.security import checkUserWithRights
 from .services import ClaimReportService
 from .reports import claim
 from .apps import ClaimConfig

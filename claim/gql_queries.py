@@ -1,7 +1,5 @@
-import datetime
 import graphene
 from core import prefix_filterset, ExtendedConnection, filter_validity
-from graphene.utils.deduplicator import deflate
 from graphene_django import DjangoObjectType
 from insuree.schema import InsureeGQLType
 from location.schema import HealthFacilityGQLType
