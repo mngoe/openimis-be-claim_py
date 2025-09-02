@@ -4,8 +4,8 @@ from claim.test_helpers import create_test_claim, create_test_claimservice, crea
     mark_test_claim_as_processed, delete_claim_with_itemsvc_dedrem_and_history
 from core.test_helpers import create_test_officer, create_test_interactive_user
 
-from claim.validations import get_claim_category, validate_claim, validate_assign_prod_to_claimitems_and_services, \
-    process_dedrem, REJECTION_REASON_WAITING_PERIOD_FAIL, REJECTION_REASON_INVALID_ITEM_OR_SERVICE
+from claim.validations import get_claim_category, validate_claim, \
+    REJECTION_REASON_WAITING_PERIOD_FAIL, REJECTION_REASON_INVALID_ITEM_OR_SERVICE
 from core.models import User, InteractiveUser
 from django.test import TestCase
 from insuree.models import Family, Insuree
@@ -557,9 +557,7 @@ class ValidationTest(TestCase):
         item1 = create_test_claimitem(
             claim1, "D", custom_props={"item_id": item.id}, product=product)
         errors = validate_claim(claim1, True)
-        errors += validate_assign_prod_to_claimitems_and_services(claim1)
         self.__make_history(product, (claim1.validity_to or claim1.validity_from) + timedelta(days=1) )
-        errors += process_dedrem(claim1, -1, True)
         self.assertEqual(len(errors), 0)
 
 
@@ -601,7 +599,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -661,7 +659,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1,  *filter_validity())
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -761,7 +759,6 @@ class ValidationTest(TestCase):
                 "item_id": item.id,
             }, product=product)
         # errors = validate_claim(claim1, True)
-        # errors += validate_assign_prod_to_claimitems_and_services(claim1)
         errors = processing_claim(claim1, self.user, True)
         self.assertEqual(len(errors), 0)
 
@@ -780,7 +777,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1,  *filter_validity())
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -827,8 +824,6 @@ class ValidationTest(TestCase):
                 "origin": ProductItemOrService.ORIGIN_PRICELIST
                 }, product=product)
         errors = validate_claim(claim1, True)
-        errors += validate_assign_prod_to_claimitems_and_services(claim1)
-        errors += process_dedrem(claim1, -1, False)
 
         self.assertEqual(len(errors), 0)
         # Make sure that the dedrem was generated
@@ -927,9 +922,6 @@ class ValidationTest(TestCase):
         update_claims_dedrems([claim1.uuid], self.user)
 
         errors = validate_claim(claim1, True)
-        if len(errors) == 0:
-            errors += validate_assign_prod_to_claimitems_and_services(claim1)
-            errors += process_dedrem(claim1, -1, False)
 
         # The claim should be globally rejected since the review rejected all items/svc
         claim1.refresh_from_db()
@@ -972,7 +964,6 @@ class ValidationTest(TestCase):
         item1 = create_test_claimitem(
             claim1, "D", custom_props={"item_id": item.id}, product=product)
         errors = validate_claim(claim1, True)
-        errors += validate_assign_prod_to_claimitems_and_services(claim1)
         pricelist_detail1 = claim1.health_facility.services_pricelist.details.filter(service=service).first()
         update_pricelist_service_detail_in_hf_pricelist(pricelist_detail1, custom_props={"price_overrule": 21})
         pricelist_detail2 = claim1.health_facility.items_pricelist.details.filter(item=item).first()
@@ -996,7 +987,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -1114,8 +1105,6 @@ class ValidationTest(TestCase):
         # set the service price to 1000 lower than the price_adjusted
         errors = validate_claim(claim1, True)
 
-        errors = validate_assign_prod_to_claimitems_and_services(claim1)
-        errors += process_dedrem(claim1, -1, True)
         self.assertEqual(len(errors), 0)
         # The claimservice1's price_adjusted should be the service price
         # because the price_adjusted is greater than the service (4000 > 1000)

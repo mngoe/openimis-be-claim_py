@@ -14,8 +14,7 @@ from django.db.models import Count, Case, When, IntegerField, Q, Prefetch
 
 from core.models import MutationLog, Officer
 from .apps import ClaimConfig
-from claim.validations import validate_claim, get_claim_category, validate_assign_prod_to_claimitems_and_services, \
-    process_dedrem, approved_amount
+from claim.validations import validate_claim
 from core import filter_validity, assert_string_length
 from core.schema import TinyInt, SmallInt, OpenIMISMutation
 from core.gql.gql_mutations import mutation_on_uuids_from_filter
@@ -32,7 +31,7 @@ from claim.attachment_strategies import *
 from product.models import ProductItemOrService
 from medical.models import Item, Service
 
-from claim.utils import process_items_relations, process_services_relations
+from claim.utils import process_items_relations, process_services_relations, approved_amount
 from claim.services import validate_claim_data as service_validate_claim_data, \
         update_or_create_claim as service_update_or_create_claim, check_unique_claim_code, ClaimSubmitService,\
             processing_claim as service_processing_claim,\

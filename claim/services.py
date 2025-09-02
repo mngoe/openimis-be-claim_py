@@ -25,8 +25,7 @@ from claim.utils import (
     get_claim_target_date,
     approved_amount
 )
-from .validations import validate_claim, validate_assign_prod_to_claimitems_and_services, process_dedrem, \
-    approved_amount, get_claim_category
+from .validations import validate_claim,  get_claim_category
 from django.db.models import Subquery, F, OuterRef, Sum, FloatField
 from django.db.models.functions import Coalesce
 from django.contrib.auth.models import AnonymousUser
@@ -592,15 +591,10 @@ def processing_claim(claim, user, is_process=False, validate=True):
     else:
         policies = None
     if validate and claim.status != Claim.STATUS_CHECKED:
-        errors = validate_claim(claim, False, policies)
+        errors = validate_claim(claim, check_max=False, policies=policies, user=user, process_dedrem_opt=True)
         logger.debug("ProcessClaimsMutation: claim %s validated, nb of errors: %s", claim.uuid, len(errors))
         if len(errors) == 0:
-            errors = validate_assign_prod_to_claimitems_and_services(claim, policies=policies, items=items, services=services)
             logger.debug("ProcessClaimsMutation: claim %s assigned, nb of errors: %s", claim.uuid, len(errors))
-    if len(errors) == 0:    
-        errors = process_dedrem(claim, user.id_for_audit, is_process, policies=policies, items=items, services=services)
-        logger.debug("ProcessClaimsMutation: claim %s processed for dedrem, nb of errors: %s", claim.uuid,
-                    len(errors))
     if len(errors) > 0:
         # OMT-208 the claim is invalid. If there is a dedrem, we need to clear it (caused by a review)
         deleted_dedrems = ClaimDedRem.objects.filter(claim=claim,).delete()
