@@ -11,13 +11,13 @@ from django.db import connection
 from django.db.models import Sum, Q, ExpressionWrapper, DecimalField, Case, When, F, Value
 from django.db.models.functions import Coalesce
 from django.utils.translation import gettext as _
-from insuree.models import InsureePolicy
 from medical.models import Service, ServiceService, ServiceItem, Item
 from medical_pricelist.models import ItemsPricelistDetail, ServicesPricelistDetail
 from policy.models import Policy
 from product.models import Product, ProductItem, ProductService, ProductItemOrService
 from .apps import ClaimConfig
 from .utils import get_queryset_valid_at_date, get_valid_policies_qs, get_claim_target_date, approved_amount
+
 logger = logging.getLogger(__name__)
 
 REJECTION_REASON_INVALID_ITEM_OR_SERVICE = 1
@@ -42,7 +42,6 @@ REJECTION_REASON_INVALID_CLAIM = 20
 REJECTION_REASON_NO_COVERAGE = 21
 
 Deductible = namedtuple('Deductible', ['amount', 'type', 'prev'])
-
 
 def initialize_dedrem_processing(claim):
     """Initialize basic claim processing parameters."""
@@ -92,25 +91,16 @@ def fetch_items_and_services(claim, items=None, services=None):
         ))
     return items, services
 
-def get_policy_and_product_info(policies, items, services, target_date):
-    """Extract policy and product information."""
+def get_policy_and_product_info(policies, items, services):
+    """Extract policy and product information from provided items and services."""
     policies_id = list(set(
         (*[s.policy_id for s in services if s.policy_id is not None],
          *[i.policy_id for i in items if i.policy_id is not None],)
     ))
-    products_id = list(set(p.product_id for p in policies if p.id in policies_id))
-    item_ids = [item.item_id for item in items]
-    service_ids = [service.service_id for service in services]
-    product_data_by_item = get_products(target_date, item_ids, items[0].claim.insuree_id if items else None, items[0].claim.insuree.is_adult(target_date) if items else False, 'Item')
-    product_data_by_service = get_products(target_date, service_ids, services[0].claim.insuree_id if services else None, services[0].claim.insuree.is_adult(target_date) if services else False, 'Service')
-    products_id_from_items_services = set()
-    for pd in product_data_by_item.values():
-        for row in pd:
-            products_id_from_items_services.add(row[0])
-    for pd in product_data_by_service.values():
-        for row in pd:
-            products_id_from_items_services.add(row[0])
-    products_id = list(set(products_id) | products_id_from_items_services)
+    products_id = list(set(
+        (*[s.product_id for s in services if s.product_id is not None],
+         *[i.product_id for i in items if i.product_id is not None],)
+    ))
     return policies_id, products_id
 
 def calculate_hospital_visit(product, hospitalization, hf_level):
@@ -123,9 +113,8 @@ def calculate_hospital_visit(product, hospitalization, hf_level):
 
 def get_policy_members(policy_id, target_date):
     """Count policy members."""
-    return InsureePolicy.objects.filter(
-        policy_id=policy_id,
-        effective_date__isnull=False,
+    return Policy.objects.filter(
+        id=policy_id,
         effective_date__lte=target_date,
         expiry_date__gte=target_date,
         validity_to__isnull=True
@@ -564,7 +553,6 @@ def update_claim_status(claim, is_process, deductibles, user, products_id):
     claim.save()
     return []
 
-
 def validate_assign_prod_to_claimitems_and_services(claim, policies=None, services=None, items=None, product_items_by_item_id=None, product_services_by_service_id=None, target_date=None):
     errors = []
     if not policies:
@@ -686,7 +674,6 @@ def _query_product_item_service_limit(target_date, elt_qs, limitation_field, lim
                 limitation_field, limitation_type)
     return pdt_elt
 
-
 def find_best_product_etl(product_elt_c, product_elt_f, fixed_limit, claim_price, co_sharing_percent):
     if product_elt_c and product_elt_f:
         if fixed_limit == 0 or fixed_limit > claim_price:
@@ -711,7 +698,7 @@ def find_best_product_etl(product_elt_c, product_elt_f, fixed_limit, claim_price
             product_elt_c = None
     return product_elt
 
-def get_product_items_services(target_date, elt_ids, insuree_id, adult, item_or_service, product_ids, policies, insuree_policy_dict):
+def get_product_items_services(target_date, elt_ids, insuree_id, adult, item_or_service, product_ids, policies):
     if not elt_ids:
         return {}
     if item_or_service == 'Item':
@@ -732,26 +719,17 @@ def get_product_items_services(target_date, elt_ids, insuree_id, adult, item_or_
     for obj in qs:
         elt_id = getattr(obj, f'{field}_id')
         for policy in policies_by_product[obj.product_id]:
-            insuree_policy = insuree_policy_dict.get(policy.id)
-            if not insuree_policy:
-                continue
-            insuree_policy_effective_date = insuree_policy.effective_date
-            expiry_date = insuree_policy.expiry_date
-            policy_effective_date = policy.effective_date
-            policy_stage = policy.stage
-            waiting_period = getattr(obj, 'waiting_period_adult' if adult else 'waiting_period_child') or 0
             data_by_elt[elt_id].append({
                 'prod_item_svc': obj,
-                'insuree_policy_effective_date': insuree_policy_effective_date,
-                'policy_effective_date': policy_effective_date,
-                'expiry_date': expiry_date,
-                'policy_stage': policy_stage,
-                'waiting_period': waiting_period,
+                'insuree_policy_effective_date': policy.effective_date,
+                'policy_effective_date': policy.effective_date,
+                'expiry_date': policy.expiry_date,
+                'policy_stage': policy.stage,
+                'waiting_period': getattr(obj, 'waiting_period_adult' if adult else 'waiting_period_child') or 0,
             })
     for elt_id in data_by_elt:
         data_by_elt[elt_id].sort(key=lambda d: d['policy_effective_date'] + datetimedelta(months=d['waiting_period']))
     return data_by_elt
-
 
 def process_dedrem(claim, user=None, is_process=False, policies=None, items=None, services=None, item_product_data=None, service_product_data=None, product_dict=None, product_item_tuple_dict=None, product_service_tuple_dict=None):
     errors, target_date, category, hospitalization, hf_level = initialize_dedrem_processing(claim)
@@ -766,14 +744,14 @@ def process_dedrem(claim, user=None, is_process=False, policies=None, items=None
             'detail': claim.uuid
         }]
     items, services = fetch_items_and_services(claim, items, services)
-    policies_id, products_id = get_policy_and_product_info(policies, items, services, target_date)
+    policies_id, products_id = get_policy_and_product_info(policies, items, services)
     claim_deductibles = {}
     if item_product_data is None:
         item_ids = [item.item_id for item in items]
-        item_product_data = get_product_items_services(target_date, item_ids, claim.insuree_id, claim.insuree.is_adult(target_date), 'Item', set(p.product_id for p in policies), policies, {})
+        item_product_data = get_product_items_services(target_date, item_ids, claim.insuree_id, claim.insuree.is_adult(target_date), 'Item', set(p.product_id for p in policies), policies)
     if service_product_data is None:
         service_ids = [service.service_id for service in services]
-        service_product_data = get_product_items_services(target_date, service_ids, claim.insuree_id, claim.insuree.is_adult(target_date), 'Service', set(p.product_id for p in policies), policies, {})
+        service_product_data = get_product_items_services(target_date, service_ids, claim.insuree_id, claim.insuree.is_adult(target_date), 'Service', set(p.product_id for p in policies), policies)
     if product_dict is None:
         product_dict = {}
         for data in item_product_data.values():
@@ -832,6 +810,7 @@ def process_dedrem(claim, user=None, is_process=False, policies=None, items=None
         merge_deductible(claim_deductibles, deductibles)
     errors.extend(update_claim_status(claim, is_process, claim_deductibles, user, products_id))
     return errors
+
 def merge_deductible(claim_deductibles, deductibles):
     for k in deductibles.keys():
         data = deductibles[k]
@@ -847,6 +826,7 @@ def merge_deductible(claim_deductibles, deductibles):
                 claim_deductibles[k] = deductibles[k]
             else:
                 claim_deductibles[k] = [deductibles[k]]
+
 def validate_claim(claim, check_max, process_dedrem_opt=True, policies=None, user=None):
     logger.debug(f"Validating claim {claim.uuid}")
     if ClaimConfig.default_validations_disabled:
@@ -889,21 +869,11 @@ def validate_claim(claim, check_max, process_dedrem_opt=True, policies=None, use
             services_pricelist__validity_to__isnull=True,
             *filter_validity(validity=target_date)
         )}
-        if not policies:
-            policies = list(get_valid_policies_qs(claim.insuree.id, target_date))
         product_ids = set(p.product_id for p in policies)
-        insuree_policies = InsureePolicy.objects.filter(
-            insuree_id=claim.insuree_id,
-            policy__id__in=[p.id for p in policies],
-            validity_to__isnull=True,
-            effective_date__lte=target_date,
-            expiry_date__gte=target_date
-        )
-        insuree_policy_dict = {ip.policy_id: ip for ip in insuree_policies}
-        item_product_data = get_product_items_services(target_date, item_ids, claim.insuree_id, adult, 'Item', product_ids, policies, insuree_policy_dict)
-        service_product_data = get_product_items_services(target_date, service_ids, claim.insuree_id, adult, 'Service', product_ids, policies, insuree_policy_dict)
-        product_ids = set()
+        item_product_data = get_product_items_services(target_date, item_ids, claim.insuree_id, adult, 'Item', product_ids, policies)
+        service_product_data = get_product_items_services(target_date, service_ids, claim.insuree_id, adult, 'Service', product_ids, policies)
         product_dict = {}
+        product_ids = set()
         for data in item_product_data.values():
             for d in data:
                 prod_id = d['prod_item_svc'].product.id
@@ -948,61 +918,69 @@ def validate_claim(claim, check_max, process_dedrem_opt=True, policies=None, use
         else:
             min_effective = target_date
             max_expiry = target_date
-        historical_item_qtys = ClaimItem.objects.filter(
-            item_id__in=item_ids,
-            claim__insuree_id=claim.insuree_id,
-            claim__status__gt=Claim.STATUS_ENTERED,
-            claim__validity_to__isnull=True,
-            validity_to__isnull=True,
-            status=ClaimDetail.STATUS_PASSED,
-        ).filter(Q(rejection_reason=0) | Q(rejection_reason__isnull=True)) \
-         .annotate(target_date=Coalesce("claim__date_to", "claim__date_from")) \
-         .filter(target_date__gte=min_effective, target_date__lte=max_expiry) \
-         .exclude(claim__uuid=claim.uuid) \
-         .values('item_id', 'target_date', qty=Coalesce('qty_approved', 'qty_provided'))
+        # Identify items and services requiring historical data
+        item_ids_with_limits = []
+        service_ids_with_limits = []
+        for item in items:
+            pi_data = product_items_by_item_id.get(item.item_id, [])
+            for pi in pi_data:
+                if (pi.waiting_period_adult or pi.waiting_period_child or
+                    pi.limit_no_adult is not None or pi.limit_no_child is not None or
+                    item.item.frequency):
+                    item_ids_with_limits.append(item.item_id)
+                    
+        for service in services:
+            ps_data = product_services_by_service_id.get(service.service_id, [])
+            for ps in ps_data:
+                if (ps.waiting_period_adult or ps.waiting_period_child or
+                    ps.limit_no_adult is not None or ps.limit_no_child is not None or
+                    service.service.frequency):
+                    service_ids_with_limits.append(service.service_id)
+                    
+        # Fetch historical quantities only for items/services with limits
+        if item_ids_with_limits:
+            historical_item_qtys = ClaimItem.objects.filter(
+                item_id__in=item_ids_with_limits,
+                claim__insuree_id=claim.insuree_id,
+                claim__status__gt=Claim.STATUS_ENTERED,
+                claim__validity_to__isnull=True,
+                validity_to__isnull=True,
+                status=ClaimDetail.STATUS_PASSED,
+            ).filter(Q(rejection_reason=0) | Q(rejection_reason__isnull=True)) \
+            .annotate(target_date=Coalesce("claim__date_to", "claim__date_from")) \
+            .filter(target_date__gte=min_effective, target_date__lte=max_expiry) \
+            .exclude(claim__uuid=claim.uuid) \
+            .values('item_id', 'target_date', qty=Coalesce('qty_approved', 'qty_provided'))
+        else:
+            historical_item_qtys = []
         item_history_by_id = {}
         recent_item_dates_by_id = {}
         for h in historical_item_qtys:
             item_id = h['item_id']
             item_history_by_id.setdefault(item_id, []).append((h['target_date'], h['qty']))
-            recent_item_dates_by_id.setdefault(item_id, []).append(h['target_date'])
-        historical_service_qtys = ClaimService.objects.filter(
-            service_id__in=service_ids,
-            claim__insuree_id=claim.insuree_id,
-            claim__status__gt=Claim.STATUS_ENTERED,
-            claim__validity_to__isnull=True,
-            validity_to__isnull=True,
-            status=ClaimDetail.STATUS_PASSED,
-        ).filter(Q(rejection_reason=0) | Q(rejection_reason__isnull=True)) \
-         .annotate(target_date=Coalesce("claim__date_to", "claim__date_from")) \
-         .filter(target_date__gte=min_effective, target_date__lte=max_expiry) \
-         .exclude(claim__uuid=claim.uuid) \
-         .values('service_id', 'target_date', qty=Coalesce('qty_approved', 'qty_provided'))
+        
+        if service_ids_with_limits:
+            historical_service_qtys = ClaimService.objects.filter(
+                service_id__in=service_ids_with_limits,
+                claim__insuree_id=claim.insuree_id,
+                claim__status__gt=Claim.STATUS_ENTERED,
+                claim__validity_to__isnull=True,
+                validity_to__isnull=True,
+                status=ClaimDetail.STATUS_PASSED,
+            ).filter(Q(rejection_reason=0) | Q(rejection_reason__isnull=True)) \
+            .annotate(target_date=Coalesce("claim__date_to", "claim__date_from")) \
+            .filter(target_date__gte=min_effective, target_date__lte=max_expiry) \
+            .exclude(claim__uuid=claim.uuid) \
+            .values('service_id', 'target_date', qty=Coalesce('qty_approved', 'qty_provided'))
+        else:
+            historical_service_qtys = []
         service_history_by_id = {}
-        recent_service_dates_by_id = {}
         for h in historical_service_qtys:
             service_id = h['service_id']
             service_history_by_id.setdefault(service_id, []).append((h['target_date'], h['qty']))
-            recent_service_dates_by_id.setdefault(service_id, []).append(h['target_date'])
-        historical_claims = Claim.objects \
-            .filter(
-                insuree_id=claim.insuree_id,
-                validity_to__isnull=True,
-                status__gt=Claim.STATUS_ENTERED,
-            ).annotate(
-                target_date=Coalesce("date_to", "date_from")
-            ) \
-            .filter(
-                target_date__gte=min_effective,
-                target_date__lte=max_expiry,
-            ).exclude(uuid=claim.uuid) \
-            .values('target_date', 'category')
-        claims_by_category = defaultdict(list)
-        for hc in historical_claims:
-            cat = hc['category']
-            claims_by_category[cat].append(hc['target_date'])
-        detail_errors += validate_claimitems(claim, target_date, adult, items, item_pricelist_dict, item_product_data, item_history_by_id, recent_item_dates_by_id, product_dict)
-        detail_errors += validate_claimservices(claim, target_date, adult, services, service_pricelist_dict, service_product_data, service_history_by_id, recent_service_dates_by_id, base_category, claims_by_category, product_dict)
+        
+        detail_errors += validate_claimitems(claim, target_date, adult, items, item_pricelist_dict, item_product_data, item_history_by_id,  product_dict)
+        detail_errors += validate_claimservices(claim, target_date, adult, services, service_pricelist_dict, service_product_data, service_history_by_id, base_category, product_dict)
         errors += validate_assign_prod_to_claimitems_and_services(claim, policies=policies, services=services, items=items, product_items_by_item_id=product_items_by_item_id, product_services_by_service_id=product_services_by_service_id, target_date=target_date)
         if len(errors) == 0 and check_max:
             over_category_errors = [
@@ -1054,8 +1032,7 @@ def validate_claim(claim, check_max, process_dedrem_opt=True, policies=None, use
     logger.debug(f"Validation found {len(errors)} error(s)")
     return errors
 
-
-def validate_claimitems(claim, target_date, adult, items, pricelist_dict, product_data_by_id, history_by_id, recent_dates_by_id, product_dict):
+def validate_claimitems(claim, target_date, adult, items, pricelist_dict, product_data_by_id, history_by_id,  product_dict):
     errors = []
     for claimitem in items:
         if claimitem.rejection_reason:
@@ -1068,7 +1045,7 @@ def validate_claimitems(claim, target_date, adult, items, pricelist_dict, produc
         if not claimitem.rejection_reason:
             errors += validate_claimdetail_limitation_fail(claim, claimitem)
         if not claimitem.rejection_reason:
-            errors += validate_claimitem_frequency(claim, claimitem, target_date, recent_dates_by_id.get(claimitem.item_id, []))
+            errors += validate_claimitem_frequency(claim, claimitem, target_date, history_by_id.get(claimitem.item_id, []))
         if not claimitem.rejection_reason:
             errors += validate_item_product_family(
                 claimitem=claimitem,
@@ -1087,8 +1064,7 @@ def validate_claimitems(claim, target_date, adult, items, pricelist_dict, produc
             claimitem.status = ClaimItem.STATUS_PASSED
     return errors
 
-
-def validate_claimservices(claim, target_date, adult, services, pricelist_dict, product_data_by_id, history_by_id, recent_dates_by_id, base_category, claims_by_category, product_dict):
+def validate_claimservices(claim, target_date, adult, services, pricelist_dict, product_data_by_id, history_by_id,  base_category, product_dict):
     errors = []
     for claimservice in services:
         if claimservice.rejection_reason:
@@ -1101,7 +1077,7 @@ def validate_claimservices(claim, target_date, adult, services, pricelist_dict, 
         if not claimservice.rejection_reason:
             errors += validate_claimdetail_limitation_fail(claim, claimservice)
         if not claimservice.rejection_reason:
-            errors += validate_claimservice_frequency(claim, claimservice, target_date, recent_dates_by_id.get(claimservice.service_id, []))
+            errors += validate_claimservice_frequency(claim, claimservice, target_date, history_by_id.get(claimservice.service_id, []))
         if not claimservice.rejection_reason:
             errors += validate_service_product_family(
                 claimservice=claimservice,
@@ -1113,7 +1089,6 @@ def validate_claimservices(claim, target_date, adult, services, pricelist_dict, 
                 claim=claim,
                 products_data=product_data_by_id.get(claimservice.service_id, []),
                 history=history_by_id.get(claimservice.service_id, []),
-                claims_by_category=claims_by_category,
                 product_dict=product_dict
             )
         if claimservice.rejection_reason:
@@ -1122,7 +1097,6 @@ def validate_claimservices(claim, target_date, adult, services, pricelist_dict, 
             claimservice.rejection_reason = 0
             claimservice.status = ClaimService.STATUS_PASSED
     return errors
-
 
 def validate_claimitem_validity(claim, claimitem):
     errors = []
@@ -1225,7 +1199,7 @@ def validate_claimdetail_limitation_fail(claim, claimdetail):
 def validate_claimitem_frequency(claim, claimitem, target_date, recent_dates):
     errors = []
     if claimitem.item.frequency and any(
-        d >= (target_date - datetimedelta(days=claimitem.item.frequency)) for d in recent_dates
+        d >= (target_date - datetimedelta(days=claimitem.item.frequency)) for d in [entry[0] for entry in history]
     ):
         claimitem.rejection_reason = REJECTION_REASON_FREQUENCY_FAILURE
         errors += [{
@@ -1237,10 +1211,10 @@ def validate_claimitem_frequency(claim, claimitem, target_date, recent_dates):
         }]
     return errors
 
-def validate_claimservice_frequency(claim, claimservice, target_date, recent_dates):
+def validate_claimservice_frequency(claim, claimservice, target_date, history):
     errors = []
     if claimservice.service.frequency and any(
-        d >= (target_date - datetimedelta(days=claimservice.service.frequency)) for d in recent_dates
+        d >= (target_date - datetimedelta(days=claimservice.service.frequency)) for d in [entry[0] for entry in history]
     ):
         claimservice.rejection_reason = REJECTION_REASON_FREQUENCY_FAILURE
         errors += [{
@@ -1272,11 +1246,7 @@ def validate_insuree(claim, insuree, policies=None):
                         'code': claim.code,
                         'insuree': str(insuree)},
                     'detail': claim.uuid}]
-    if not policies and not InsureePolicy.objects.filter(
-        insuree=insuree,
-        effective_date__lte=claim.date_from,
-        expiry_date__gte=claim.date_to or claim.date_from,
-        *filter_validity()):
+    if not policies:
         errors += [{'code': REJECTION_REASON_NO_COVERAGE,
                     'message': _("claim.validation.family.no_policy") % {
                         'code': claim.code,
@@ -1313,7 +1283,7 @@ def validate_item_product_family(claimitem, target_date, item, insuree_id, adult
                     'detail': claimitem.claim.uuid}]
     return errors
 
-def validate_service_product_family(claimservice, target_date, service, insuree_id, adult, base_category, claim, products_data, history, claims_by_category, product_dict):
+def validate_service_product_family(claimservice, target_date, service, insuree_id, adult, base_category, claim, products_data, history, product_dict):
     errors = []
     found = False
     for data in products_data:
@@ -1326,6 +1296,8 @@ def validate_service_product_family(claimservice, target_date, service, insuree_
         core = __import__("core")
         insuree_policy_effective_date = core.datetime.date.from_ad_date(
             insuree_policy_effective_date)
+        policy_effective_date = core.datetime.date.from_ad_date(
+            policy_effective_date)
         expiry_date = core.datetime.date.from_ad_date(expiry_date)
         errors += check_service_item_waiting_period(policy_stage, policy_effective_date,
                                                     insuree_policy_effective_date, service, adult,
@@ -1336,7 +1308,7 @@ def validate_service_product_family(claimservice, target_date, service, insuree_
         product = product_service.product
         if base_category != 'O':
             errors += check_claim_max_no_category(base_category, product, expiry_date, insuree_id,
-                                                  insuree_policy_effective_date, claim, claimservice, claims_by_category)
+                                                  policy_effective_date, claim, claimservice)
             if error_len != len(errors):
                 break
     if not found:
@@ -1388,10 +1360,10 @@ def check_service_item_max_provision(adult, product_service_item, service_or_ite
                 claim_service_item.rejection_reason = REJECTION_REASON_QTY_OVER_LIMIT
                 errors += [{'code': REJECTION_REASON_QTY_OVER_LIMIT,
                             'message': _("claim.validation.product_family.max_nb_allowed") }]
-               
     return errors
+
 def check_claim_max_no_category(base_category, product_data, expiry_date, insuree_id,
-                               insuree_policy_effective_date, claim, claimservice, claims_by_category):
+                               policy_effective_date, claim, claimservice):
     errors = []
     category_dict = {
         'C': {'field': 'max_no_consultation', 'reason': REJECTION_REASON_MAX_CONSULTATIONS,
@@ -1407,12 +1379,32 @@ def check_claim_max_no_category(base_category, product_data, expiry_date, insure
         'V': {'field': 'max_no_visits', 'reason': REJECTION_REASON_MAX_VISITS,
               'message': 'claim.validation.product_family.max_nb_visits'},
     }.get(base_category)
-    if category_dict and getattr(product_data,category_dict['field'], None) is not None and getattr(product_data,category_dict['field'],None) >= 0:
-        max_value = getattr(product_data, category_dict['field'], None)
+    if category_dict and getattr(product_data, category_dict['field'], None) is not None and getattr(product_data, category_dict['field'], None) >= 0:
+        max_value = getattr(product_data, category_dict['field'])
+        historical_claims = Claim.objects \
+                .filter(
+                    insuree_id=claim.insuree_id,
+                    validity_to__isnull=True,
+                    status__gt=Claim.STATUS_ENTERED,
+                    category=base_category
+                ).annotate(
+                    target_date=Coalesce("date_to", "date_from")
+                ) \
+                .filter(
+                    target_date__gte=policy_effective_date,
+                    target_date__lte=expiry_date,
+                ).exclude(uuid=claim.uuid) \
+                .values('target_date', 'category')
+        claims_by_category = defaultdict(list)
+        for hc in historical_claims:
+            cat = hc['category']
+            claims_by_category[cat].append(hc['target_date'])
+        
+        
         dates = claims_by_category.get(base_category, [])
         if base_category == 'V':
             dates += claims_by_category.get(None, [])
-        count = len([d for d in dates if insuree_policy_effective_date <= d <= expiry_date])
+        count = len([d for d in dates if policy_effective_date <= d <= expiry_date])
         if count >= max_value:
             claimservice.rejection_reason = category_dict['reason']
             errors += [{
@@ -1424,54 +1416,6 @@ def check_claim_max_no_category(base_category, product_data, expiry_date, insure
                 'detail': claimservice.claim.uuid
             }]
     return errors
-
-def get_products(target_date, elt_ids, insuree_id, adult, item_or_service):
-    if not elt_ids:
-        return {}
-    if item_or_service == 'Item':
-        model = ProductItem
-        field = 'item'
-    else:
-        model = ProductService
-        field = 'service'
-    waiting_field = 'waiting_period_adult' if adult else 'waiting_period_child'
-    qs = model.objects.filter(
-        validity_to__isnull=True,
-        **{f'{field}_id__in': elt_ids},
-        product__validity_to__isnull=True,
-        product__policies__validity_to__isnull=True,
-        product__policies__effective_date__lte=target_date,
-        product__policies__expiry_date__gte=target_date,
-        product__policies__status__in=(Policy.STATUS_ACTIVE, Policy.STATUS_EXPIRED),
-        product__policies__insuree_policies__insuree_id=insuree_id,
-        product__policies__insuree_policies__validity_to__isnull=True,
-        product__policies__insuree_policies__effective_date__lte=target_date,
-        product__policies__insuree_policies__expiry_date__gte=target_date,
-    ).annotate(
-        expiry_date=F('product__policies__insuree_policies__expiry_date'),
-        policy_effective_date=F('product__policies__effective_date'),
-        insuree_policy_effective_date=F('product__policies__insuree_policies__effective_date'),
-        policy_stage=F('product__policies__stage'),
-        prod_elt_id=F('id'),
-        waiting_period=Coalesce(F(waiting_field), Value(0)),
-        max_no_consultation=F('product__max_no_consultation'),
-        max_no_surgery=F('product__max_no_surgery'),
-        max_no_delivery=F('product__max_no_delivery'),
-        max_no_antenatal=F('product__max_no_antenatal'),
-        max_no_hospitalization=F('product__max_no_hospitalization'),
-        max_no_visits=F('product__max_no_visits')
-    ).values_list(
-        f'{field}_id', 'product__id', 'prod_elt_id', 'insuree_policy_effective_date', 'policy_effective_date',
-        'expiry_date', 'policy_stage', 'waiting_period', 'max_no_consultation', 'max_no_surgery',
-        'max_no_delivery', 'max_no_antenatal', 'max_no_hospitalization', 'max_no_visits'
-    )
-    data_by_elt = {}
-    for row in qs:
-        elt_id = row[0]
-        data_by_elt.setdefault(elt_id, []).append(row[1:])
-    for elt_id in data_by_elt:
-        data_by_elt[elt_id].sort(key=lambda row: row[3] + datetimedelta(months=row[6]))
-    return data_by_elt
 
 def get_claim_category(claim):
     """
