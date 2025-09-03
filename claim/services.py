@@ -591,7 +591,7 @@ def processing_claim(claim, user, is_process=False, validate=True):
     else:
         policies = None
     if validate and claim.status != Claim.STATUS_CHECKED:
-        errors = validate_claim(claim, check_max=False, policies=policies, user=user, process_dedrem_opt=True)
+        errors = validate_claim(claim, check_max=True, policies=policies, user=user, process_dedrem_opt=True)
         logger.debug("ProcessClaimsMutation: claim %s validated, nb of errors: %s", claim.uuid, len(errors))
         if len(errors) == 0:
             logger.debug("ProcessClaimsMutation: claim %s assigned, nb of errors: %s", claim.uuid, len(errors))
