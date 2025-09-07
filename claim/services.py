@@ -20,7 +20,7 @@ from product.models import ProductItemOrService
 
 from claim.utils import process_items_relations, process_services_relations
 from .validations import validate_claim, validate_assign_prod_to_claimitems_and_services, process_dedrem, \
-    approved_amount, get_claim_category
+    approved_amount, get_claim_category, REJECTION_REASON_MANUAL_REJECTION
 from django.db.models import Subquery, F, OuterRef, Sum, FloatField
 from django.db.models.functions import Coalesce
 from django.contrib.auth.models import AnonymousUser
@@ -558,6 +558,36 @@ def submit_claim(claim, user):
     c_errors += set_claim_submitted(claim, c_errors, user)
     logger.debug("SubmitClaimsMutation: claim %s set submitted", claim.uuid)
     return c_errors
+
+
+def reject_claim(claim, user, explanation=None):
+
+    errors = []
+
+    try:
+        claim.save_history()
+        claim.status = Claim.STATUS_REJECTED
+        claim.explanation = explanation
+        claim.audit_user_id_process = user.id_for_audit
+
+        # Update all items and services to rejected status
+        claim.items.filter(validity_to__isnull=True) \
+                .update(status=ClaimItem.STATUS_REJECTED,
+                        qty_approved=0,
+                        rejection_reason=REJECTION_REASON_MANUAL_REJECTION)
+        claim.services.filter(validity_to__isnull=True) \
+                .update(status=ClaimService.STATUS_REJECTED,
+                        qty_approved=0,
+                        rejection_reason=REJECTION_REASON_MANUAL_REJECTION)
+
+        claim.save()
+    except Exception as exc:
+        errors.append({
+            'message': _("claim.mutation.failed_to_reject_claim") % {'code': claim.code},
+            'detail': str(exc)
+        })
+
+    return errors
 
 
 def set_claim_submitted(claim, errors, user):

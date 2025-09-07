@@ -294,6 +294,7 @@ class Mutation(graphene.ObjectType):
     skip_claims_review = SkipClaimsReviewMutation.Field()
     process_claims = ProcessClaimsMutation.Field()
     delete_claims = DeleteClaimsMutation.Field()
+    reject_claims = RejectClaimsMutation.Field()
 
 
 def on_claim_mutation(sender, **kwargs):
