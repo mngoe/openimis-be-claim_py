@@ -36,7 +36,7 @@ from claim.services import validate_claim_data as service_validate_claim_data, \
         update_or_create_claim as service_update_or_create_claim, check_unique_claim_code, submit_claim,\
             validate_and_process_dedrem_claim as service_validate_and_process_dedrem_claim,\
             create_feedback_prompt as service_create_feedback_prompt, update_claims_dedrems,\
-                set_feedback_prompt_validity_to_to_current_date, set_claims_status
+                set_feedback_prompt_validity_to_to_current_date, set_claims_status, import_claims
 from django.db import transaction
 import requests
 
@@ -1061,3 +1061,38 @@ def set_claim_deleted(claim):
 
 def validate_and_process_dedrem_claim(claim, user, is_process):
     return service_validate_and_process_dedrem_claim(claim, user, is_process)
+
+class ImportClaimsMutation(OpenIMISMutation):
+    """
+    Import claims from an Excel file.
+    """
+    _mutation_module = "claim"
+    _mutation_class = "ImportClaimsMutation"
+
+    class Input(OpenIMISMutation.Input):
+        file_url = graphene.String(required=True)
+
+    success = graphene.Boolean()
+
+    @classmethod
+    def async_mutate(cls, user, **data):
+        try:
+            if isinstance(user, AnonymousUser) or not user.id:
+                raise ValidationError("Authentication required.")
+
+            if not user.has_perms('claim.can_import_claims'):
+                raise PermissionDenied("Unauthorized")
+
+            file_url = data.get('file_url')
+            
+            errors = import_claims(file_url, user)
+            if errors:
+                raise ValidationError(f"Import failed: {errors}")
+
+            return ImportClaimsMutation(success=True)
+        
+        except Exception as exc:
+            return [{
+                'message': "Failed to import claims",
+                'detail': str(exc)
+            }]
