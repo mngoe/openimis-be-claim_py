@@ -4,6 +4,12 @@ from medical.models import Item, Service
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 from .apps import ClaimConfig
+from core import filter_validity
+from policy.models import Policy
+from claim.subqueries import (   
+    total_elm_approved_exp,
+)
+from django.db.models import DecimalField, ExpressionWrapper
 
 
 def process_child_relation(user, data_children, claim_id, children, create_hook):
@@ -59,6 +65,16 @@ def calcul_amount_service(elt):
     return totalClaimed
 
 
+def approved_amount(claim):
+    if claim.status != Claim.STATUS_REJECTED:
+        return Claim.objects.filter(id=claim.id).aggregate(
+            value=ExpressionWrapper(total_elm_approved_exp('items__') + total_elm_approved_exp('services__')
+            ,output_field=DecimalField())
+        )["value"] or 0
+    else:
+        return 0
+
+
 def __check_if_maximum_amount_overshoot(data_children, children):
     is_overshoot = False
     for entity in data_children:
@@ -77,6 +93,22 @@ def __check_if_maximum_amount_overshoot(data_children, children):
             break
 
     return is_overshoot
+
+
+def get_claim_target_date(claim):
+    return claim.date_to if claim.date_to else claim.date_from
+
+def get_valid_policies_qs(insuree_id, target_date):
+    return Policy.objects.filter(
+        insuree_policies__insuree_id=insuree_id,
+        *filter_validity(validity=target_date),
+        *filter_validity(validity=target_date, prefix='insuree_policies__'),
+        effective_date__lte=target_date, 
+        expiry_date__gte=target_date,
+        status__in=[Policy.STATUS_ACTIVE, Policy.STATUS_EXPIRED],
+        insuree_policies__effective_date__lte=target_date, 
+        insuree_policies__expiry_date__gte=target_date,
+    )
 
 
 def item_create_hook(claim_id, item):
