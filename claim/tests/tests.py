@@ -306,9 +306,9 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         claim_item = self.claim.items.first()
         self.assertIsNotNone(claim_item)
         self.assertEqual(claim_item.status, ClaimItem.STATUS_REJECTED)
-        self.assertEqual(claim_item.status, ClaimItem.STATUS_REJECTED)
+        self.assertEqual(claim_item.rejection_reason, REJECTION_REASON_MANUAL_REJECTION)
         claim_service = self.claim.services.first()
         self.assertIsNotNone(claim_service)
-        self.assertEqual(claim_item.rejection_reason, REJECTION_REASON_MANUAL_REJECTION)
-        self.assertEqual(claim_item.rejection_reason, REJECTION_REASON_MANUAL_REJECTION)
+        self.assertEqual(claim_service.status, ClaimService.STATUS_REJECTED)
+        self.assertEqual(claim_service.rejection_reason, REJECTION_REASON_MANUAL_REJECTION)
         
