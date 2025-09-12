@@ -1,21 +1,17 @@
 from django.test import TestCase
 from unittest import mock
-from location.test_helpers import create_test_location, create_test_health_facility,create_test_village
+from location.test_helpers import create_test_health_facility,create_test_village
 from insuree.test_helpers import create_test_insuree
 from policy.test_helpers import create_test_policy2
 from product.test_helpers import (
-    create_test_product,
-    create_test_product_service,
-    create_test_product_item
+    create_test_product
 )
-from product.models import ProductItemOrService
 from claim.test_helpers import create_test_claim_admin, create_test_claim
 from claim.models import Claim, ClaimItem, ClaimService,ClaimDetail
-from medical.models import  Diagnosis, Item, Service
+from medical.models import  Diagnosis
 from medical.test_helpers import create_test_item, create_test_service
-from medical_pricelist.test_helpers import add_service_to_hf_pricelist, add_item_to_hf_pricelist, create_test_service_pricelist, create_test_item_pricelist
+from medical_pricelist.test_helpers import  create_test_service_pricelist, create_test_item_pricelist
 
-from core.services import create_or_update_interactive_user, create_or_update_core_user
 import datetime
 from claim.services import *
 import core
@@ -25,6 +21,7 @@ from claim.test_helpers import create_test_claim
 from claim.models import ClaimServiceItem, ClaimServiceService
 from django.db import connection
 from program.test_helpers import create_test_program
+
 
 class ClaimSubmitServiceTestCase(TestCase):
     test_hf = None
@@ -119,6 +116,7 @@ class ClaimSubmitServiceTestCase(TestCase):
             audit_user_id=-1,
             status=ClaimDetail.STATUS_PASSED
         )
+
 
     def test_minimal_item_claim_submit_xml(self):
         items = [
@@ -400,3 +398,27 @@ class ClaimSubmitServiceTestCase(TestCase):
                 "service_service_set": []
             }]
         }
+        
+        
+    def test_reject_claim(self):
+        
+        mock_user = mock.Mock(is_anonymous=False)
+        mock_user.has_perm = mock.MagicMock(return_value=True)
+        mock_user.id_for_audit = -1
+        explanation = "Rejected for testing"
+        errors = reject_claim(self.test_claim, mock_user, explanation)
+
+        self.assertEqual(errors, [])
+        self.test_claim.refresh_from_db()
+        self.assertEqual(self.test_claim.status, Claim.STATUS_REJECTED)
+        self.assertEqual(self.test_claim.explanation, explanation)
+
+        self.test_claim_item.refresh_from_db()
+        self.assertEqual(self.test_claim_item.status, ClaimItem.STATUS_REJECTED)
+        self.assertEqual(self.test_claim_item.qty_approved, 0)
+        self.assertEqual(self.test_claim_item.rejection_reason, REJECTION_REASON_MANUAL_REJECTION)
+
+        self.test_claim_service.refresh_from_db()
+        self.assertEqual(self.test_claim_service.status, ClaimService.STATUS_REJECTED)
+        self.assertEqual(self.test_claim_service.qty_approved, 0)
+        self.assertEqual(self.test_claim_service.rejection_reason, REJECTION_REASON_MANUAL_REJECTION)
