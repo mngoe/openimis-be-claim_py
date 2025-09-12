@@ -1,4 +1,3 @@
-import base64
 import json
 from dataclasses import dataclass
 from core.models import User
@@ -6,17 +5,15 @@ from core.models.openimis_graphql_test_case import openIMISGraphQLTestCase
 
 from core.utils import filter_validity
 from core.test_helpers import create_test_interactive_user
-from django.conf import settings
-from graphene_django.utils.testing import GraphQLTestCase
+
 from graphql_jwt.shortcuts import get_token
 #credits https://docs.graphene-python.org/projects/django/en/latest/testing/
 from claim import schema as claim_schema
 from graphene.test import Client
 from graphene import Schema
 
-from claim.models import Claim, ClaimAdmin
-
-
+from claim.models import Claim, ClaimAdmin, ClaimItem, ClaimService
+from claim.services import REJECTION_REASON_MANUAL_REJECTION
 from policy.models import Policy
 from policy.test_helpers import create_test_policy2
 from product.test_helpers import create_test_product, create_test_product_service
@@ -25,6 +22,7 @@ from insuree.test_helpers import create_test_insuree
 from location.models import Location
 from medical.test_helpers import create_test_service
 from medical_pricelist.test_helpers import add_service_to_hf_pricelist
+from claim.test_helpers import create_test_claimitem, create_test_claimservice, create_test_claim
 
 @dataclass
 class DummyContext:
@@ -65,6 +63,9 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         cls.claim_admin = ClaimAdmin.objects.filter(*filter_validity()).first()
         cls.svc_pl_detail = add_service_to_hf_pricelist(cls.service, hf_id = cls.claim_admin.health_facility.id )
         cls.product_service = create_test_product_service(cls.product, cls.service, custom_props={"limit_no_adult": 20})
+        cls.claim = create_test_claim(custom_props={"insuree_id": cls.insuree.id})
+        cls.claim_item = create_test_claimitem(cls.claim)
+        cls.claim_service= create_test_claimservice(cls.claim)
         
     def test_claims_query(self):
         
@@ -263,3 +264,37 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         ## check the mutation answer
         claim = Claim.objects.filter(code = 'm-c-claim').first()
         self.assertEqual(claim.feedback_status, Claim.FEEDBACK_SELECTED)
+        
+        
+    def test_reject_claims_mutation(self):
+        mutation = f"""
+            mutation {{
+                rejectClaims(
+                    input: {{
+                        clientMutationId: "test-reject"
+                        uuids: ["{self.claim.uuid}"]
+                        explanation: "Manually rejected from test"
+                    }}
+                ) {{
+                    clientMutationId
+                    internalId
+                }}
+            }}
+        """
+
+        response = self.query(mutation, headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
+        self.assertResponseNoErrors(response)
+
+        # Check the claim status
+        self.claim.refresh_from_db()
+        self.assertEqual(self.claim.status, Claim.STATUS_REJECTED)
+        self.assertEqual(self.claim.explanation, "Manually rejected from test")
+        claim_item = self.claim.items.first()
+        self.assertIsNotNone(claim_item)
+        self.assertEqual(claim_item.status, ClaimItem.STATUS_REJECTED)
+        self.assertEqual(claim_item.rejection_reason, REJECTION_REASON_MANUAL_REJECTION)
+        claim_service = self.claim.services.first()
+        self.assertIsNotNone(claim_service)
+        self.assertEqual(claim_service.status, ClaimService.STATUS_REJECTED)
+        self.assertEqual(claim_service.rejection_reason, REJECTION_REASON_MANUAL_REJECTION)
+        
