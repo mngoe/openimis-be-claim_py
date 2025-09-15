@@ -252,12 +252,9 @@ class ValidationTest(TestCase):
         claim2.delete()
         service1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_service.delete()
         pricelist_detail.delete()
         service.delete()
-        product.delete()
 
     def test_validate_patient_category(self):
         # When the insuree already reaches his limit of visits
@@ -284,12 +281,9 @@ class ValidationTest(TestCase):
         # tearDown
         service1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_service.delete()
         pricelist_detail.delete()
         service.delete()
-        product.delete()
 
     def test_frequency(self):
         # When the insuree already reaches his limit of visits
@@ -327,12 +321,9 @@ class ValidationTest(TestCase):
         claim2.delete()
         service1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_service.delete()
         pricelist_detail.delete()
         service.delete()
-        product.delete()
 
 
     def test_limit_no(self):
@@ -369,12 +360,9 @@ class ValidationTest(TestCase):
         claim2.delete()
         service1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_service.delete()
         pricelist_detail.delete()
         service.delete()
-        product.delete()
 
     def test_limit_delivery(self):
         # When the insuree already reaches his limit of visits
@@ -410,12 +398,9 @@ class ValidationTest(TestCase):
         claim2.delete()
         service1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_service.delete()
         pricelist_detail.delete()
         service.delete()
-        product.delete()
 
     def test_limit_hospital(self):
         # When the insuree already reaches his limit of visits
@@ -452,12 +437,9 @@ class ValidationTest(TestCase):
         claim2.delete()
         service1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_service.delete()
         pricelist_detail.delete()
         service.delete()
-        product.delete()
 
     def test_limit_surgery(self):
         # When the insuree already reaches his limit of visits
@@ -493,12 +475,9 @@ class ValidationTest(TestCase):
         claim2.delete()
         service1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_service.delete()
         pricelist_detail.delete()
         service.delete()
-        product.delete()
 
     def test_limit_visit(self):
         # When the insuree already reaches his limit of visits
@@ -534,12 +513,9 @@ class ValidationTest(TestCase):
         claim2.delete()
         service1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_service.delete()
         pricelist_detail.delete()
         service.delete()
-        product.delete()
 
     def test_waiting_period(self):
         # When the insuree already reaches his limit of visits
@@ -665,15 +641,12 @@ class ValidationTest(TestCase):
         service1.delete()
         item1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_item.delete()
         product_service.delete()
         pricelist_detail1.delete()
         pricelist_detail2.delete()
         service.delete()
         item.delete()
-        product.delete()
 
     def test_submit_claim_dedrem_limit_delivery(self):
         # Given
@@ -736,15 +709,12 @@ class ValidationTest(TestCase):
         service1.delete()
         item1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_item.delete()
         product_service.delete()
         pricelist_detail1.delete()
         pricelist_detail2.delete()
         service.delete()
         item.delete()
-        product.delete()
 
     def test_submit_claim_dedrem_limit_consultation(self):
         # Given
@@ -807,15 +777,12 @@ class ValidationTest(TestCase):
         service1.delete()
         item1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_item.delete()
         product_service.delete()
         pricelist_detail1.delete()
         pricelist_detail2.delete()
         service.delete()
         item.delete()
-        product.delete()
 
     def test_submit_claim_dedrem_limit_antenatal(self):
         # Given
@@ -878,15 +845,12 @@ class ValidationTest(TestCase):
         service1.delete()
         item1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_item.delete()
         product_service.delete()
         pricelist_detail1.delete()
         pricelist_detail2.delete()
         service.delete()
         item.delete()
-        product.delete()
 
     def test_review_reject_update_dedrem(self):
         """
@@ -963,7 +927,6 @@ class ValidationTest(TestCase):
         pricelist_detail2.delete()
         service.delete()
         item.delete()
-        product.delete()
 
     def test_review_reject_delete_dedrem(self):
         """
@@ -1058,7 +1021,6 @@ class ValidationTest(TestCase):
         pricelist_detail2.delete()
         service.delete()
         item.delete()
-        product.delete()
 
     def test_submit_claim_dedrem_update_pricelist_detail(self):
         '''
@@ -1128,15 +1090,12 @@ class ValidationTest(TestCase):
         service1.delete()
         item1.delete()
         claim1.delete()
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_item.delete()
         product_service.delete()
         pricelist_detail1.delete()
         pricelist_detail2.delete()
         service.delete()
         item.delete()
-        product.delete()
 
     def test_set_status(self):
         class DummyUser:
@@ -1318,11 +1277,8 @@ class ValidationTest(TestCase):
 
         # tearDown
         delete_claim_with_itemsvc_dedrem_and_history(claim1)
-        policy.insuree_policies.first().delete()
-        policy.delete()
         product_service.delete()
         pricelist_detail.delete()
         package_service.delete()
         sub_item.delete()
         sub_service.delete()
-        product.delete()
