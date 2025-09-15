@@ -14,6 +14,7 @@ on:
         description: Just a simple comment to know the purpose of the manual build
         required: false
 
+
 jobs:
   call:
     name: Default CI Flow
