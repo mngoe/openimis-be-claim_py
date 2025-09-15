@@ -33,7 +33,7 @@ def create_test_claim(custom_props=None, user=DummyUser(), product=None):
         insuree = Insuree.objects.filter(id=custom_props['insuree_id']).first()
     else:
         insuree = create_test_insuree()
-        custom_props["insuree"] = insuree
+    custom_props["insuree"] = insuree
         
     test_hf = None
     if 'health_facility_id' in custom_props:
