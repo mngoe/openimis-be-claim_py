@@ -890,7 +890,7 @@ class DeliverClaimsReviewMutation(OpenIMISMutation):
         errors = set_claims_status(data['uuids'], 'review_status', Claim.REVIEW_DELIVERED,
                                    {'audit_user_id_review': user.id_for_audit})
         # OMT-208 update the dedrem for the reviewed claims
-        errors += update_claims_dedrems(data["uuids"], user)
+        errors += update_claims_dedrems(data["uuids"], user, 'review_status', Claim.REVIEW_DELIVERED)
 
         return errors
 

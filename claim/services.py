@@ -640,24 +640,6 @@ def processing_claim(claim, user, is_process=False, validate=True):
 validate_and_process_dedrem_claim = processing_claim
 
 
-def validate_and_process_dedrem_claim(claim, user, is_process):
-    errors = validate_claim(claim, False)
-    logger.debug("ProcessClaimsMutation: claim %s validated, nb of errors: %s", claim.uuid, len(errors))
-    if len(errors) == 0:
-        errors = validate_assign_prod_to_claimitems_and_services(claim)
-        logger.debug("ProcessClaimsMutation: claim %s assigned, nb of errors: %s", claim.uuid, len(errors))
-        errors += process_dedrem(claim, user.id_for_audit, is_process)
-        logger.debug("ProcessClaimsMutation: claim %s processed for dedrem, nb of errors: %s", claim.uuid,
-                     len(errors))
-    else:
-        # OMT-208 the claim is invalid. If there is a dedrem, we need to clear it (caused by a review)
-        deleted_dedrems = ClaimDedRem.objects.filter(claim=claim).delete()
-        if deleted_dedrems:
-            logger.debug(f"Claim {claim.uuid} is invalid, we deleted its dedrem ({deleted_dedrems})")
-    if is_process:
-        errors += set_claim_processed_or_valuated(claim, errors, user)
-    return errors
-
 
 def set_claim_processed_or_valuated(claim, errors, user):
     try:
@@ -710,6 +692,9 @@ def set_claims_status(uuids, field, status, audit_data=None, user=None):
                     create_feedback_prompt(claim, user)
                 elif status in [Claim.FEEDBACK_NOT_SELECTED, Claim.FEEDBACK_BYPASSED]:
                     set_feedback_prompt_validity_to_to_current_date(claim.uuid)
+            # Set status to PROCESSED if bypassing review
+            if field == 'review_status' and status == Claim.REVIEW_BYPASSED:
+                claim.status = Claim.STATUS_PROCESSED
             if audit_data:
                 for k, v in audit_data.items():
                     setattr(claim, k, v)
@@ -781,7 +766,7 @@ def set_feedback_prompt_validity_to_to_current_date(claim_uuid):
         return "No such feedback prompt exist."
 
 
-def update_claims_dedrems(uuids, user):
+def update_claims_dedrems(uuids, user, field=None, status=None):
     # We could do it in one query with filter(claim__uuid__in=uuids) but we'd loose the logging
     errors = []
     claims = Claim.objects.filter(uuid__in=uuids)
@@ -790,7 +775,20 @@ def update_claims_dedrems(uuids, user):
         remaining_uuid.remove(claim.uuid.upper())       
         logger.debug(f"delivering review on {claim.uuid}, reprocessing dedrem ({user})")
         errors += validate_and_process_dedrem_claim(claim, user, False)
+        # Set status to PROCESSED if delivered review
+        if field == 'review_status' and status == Claim.REVIEW_DELIVERED:
+            set_claims_status_to_be_processed(claim.uuid)
     if len(remaining_uuid):
         errors.append(_(
             "claim.validation.id_does_not_exist") % {'id': ','.join(remaining_uuid)})
     return errors
+
+
+def set_claims_status_to_be_processed(claim_uuid):
+    try:
+        claim = Claim.objects.get(uuid=claim_uuid)
+        claim.status = Claim.STATUS_PROCESSED
+        claim.save()
+    except ObjectDoesNotExist:
+        return "No such claim exist."
+
