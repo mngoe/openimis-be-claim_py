@@ -18,7 +18,8 @@ from django.conf import settings
 from claim.models import Claim, ClaimItem, ClaimService, ClaimDetail, ClaimDedRem, FeedbackPrompt
 from product.models import ProductItemOrService
 
-from claim.utils import process_items_relations, process_services_relations
+from claim.utils import process_items_relations, process_services_relations, \
+    get_valid_policies_qs, get_claim_target_date
 from .validations import validate_claim, validate_assign_prod_to_claimitems_and_services, process_dedrem, \
     approved_amount, get_claim_category
 from django.db.models import Subquery, F, OuterRef, Sum, FloatField
@@ -208,7 +209,7 @@ class ClaimSubmitService(object):
     def enter_and_submit(self, claim: dict, rule_engine_validation: bool = True) -> Claim:
         create_claim_service = ClaimCreateService(self.user)
         entered_claim = create_claim_service.enter_claim(claim)
-        submitted_claim = self.submit_claim(entered_claim, rule_engine_validation)
+        submitted_claim, errors = self.submit_claim(entered_claim, rule_engine_validation)
         return submitted_claim
 
     @register_service_signal('claim.submit_claim')
@@ -219,13 +220,11 @@ class ClaimSubmitService(object):
         self._validate_submit_permissions()
         self._validate_user_hf(claim.health_facility.code)
         claim.save_history()
+        validation_errors = processing_claim(claim, self.user, False, rule_engine_validation)
+        if validation_errors:
+            return self.__submit_to_rejected(claim), validation_errors
 
-        if rule_engine_validation:
-            validation_errors = self._validate_claim(claim)
-            if validation_errors:
-                return self.__submit_to_rejected(claim)
-
-        return self.__submit_to_checked(claim)
+        return self.__submit_to_checked(claim), []
 
     def _validate_submit_permissions(self):
         if type(self.user) is AnonymousUser or not self.user.id:
@@ -240,12 +239,6 @@ class ClaimSubmitService(object):
         if not hf and settings.ROW_SECURITY:
             raise ClaimSubmitError("Invalid health facility code or health facility not allowed for user")
 
-    def _validate_claim(self, claim):
-        errors = validate_claim(claim, True)
-        if not errors:
-            errors = validate_assign_prod_to_claimitems_and_services(claim)
-            errors += process_dedrem(claim, self.user.id_for_audit, False)
-        return errors or []
 
     def __submit_to_rejected(self, claim: Claim):
         claim.status = Claim.STATUS_REJECTED
@@ -544,20 +537,7 @@ def validate_number_of_additional_diagnoses(incoming_data):
 
 
 def submit_claim(claim, user):
-    c_errors = []
-    claim.save_history()
-    logger.debug("SubmitClaimsMutation: validating claim %s", claim.uuid)
-    c_errors += validate_claim(claim, True)
-    logger.debug("SubmitClaimsMutation: claim %s validated, nb of errors: %s", claim.uuid, len(c_errors))
-    if len(c_errors) == 0:
-        c_errors = validate_assign_prod_to_claimitems_and_services(claim)
-        logger.debug("SubmitClaimsMutation: claim %s assigned, nb of errors: %s", claim.uuid, len(c_errors))
-        c_errors += process_dedrem(claim, user.id_for_audit, False)
-        logger.debug("SubmitClaimsMutation: claim %s processed for dedrem, nb of errors: %s", claim.uuid,
-                        len(c_errors))
-    c_errors += set_claim_submitted(claim, c_errors, user)
-    logger.debug("SubmitClaimsMutation: claim %s set submitted", claim.uuid)
-    return c_errors
+    return ClaimSubmitService(user).submit_claim(claim, user)[1]
 
 
 def set_claim_submitted(claim, errors, user):
@@ -581,6 +561,54 @@ def set_claim_submitted(claim, errors, user):
                 'detail': claim.uuid}]
         }
         
+
+def processing_claim(claim, user, is_process=False, validate=True):
+    """
+    Process a claim by validating it, assigning products, and handling deductions/remunerations.
+
+    Args:
+        claim: The claim object to process.
+        user: The user performing the claim processing.
+        is_process (bool, optional): If True, sets the claim as processed or valuated. Defaults to False.
+        validate (bool, optional): If True, validates the claim and assigns products. Defaults to True.
+
+    Returns:
+        list: A list of errors encountered during processing. An empty list indicates successful processing.
+
+    Notes:
+        - Retrieves valid policies for the claim's insuree based on the target date.
+        - Validates the claim and assigns products to claim items/services if `validate` is True.
+        - Processes deductions/remunerations (dedrem) if no errors occur.
+        - Clears dedrem if errors are found (e.g., invalid claim after review).
+        - Logs key steps (validation, assignment, dedrem processing) for debugging.
+        - If `is_process` is True, updates the claim status to processed or valuated.
+    """
+    errors = []
+    items = None
+    services = None
+    target_date = get_claim_target_date(claim)
+    if claim.insuree is not None:
+        policies = get_valid_policies_qs(claim.insuree.id, target_date)
+    else:
+        policies = None
+    if validate and claim.status != Claim.STATUS_CHECKED:
+        errors = validate_claim(claim, check_max=True, policies=policies, user=user, process_dedrem_opt=True)
+        logger.debug("ProcessClaimsMutation: claim %s validated, nb of errors: %s", claim.uuid, len(errors))
+        if len(errors) == 0:
+            logger.debug("ProcessClaimsMutation: claim %s assigned, nb of errors: %s", claim.uuid, len(errors))
+    if len(errors) > 0:
+        # OMT-208 the claim is invalid. If there is a dedrem, we need to clear it (caused by a review)
+        deleted_dedrems = ClaimDedRem.objects.filter(claim=claim,).delete()
+        if deleted_dedrems:
+            logger.debug(f"Claim {claim.uuid} is invalid, we deleted its dedrem ({deleted_dedrems})")
+    if is_process:
+        errors += set_claim_processed_or_valuated(claim, errors, user)
+    return errors
+
+
+# refactor back compatibility
+validate_and_process_dedrem_claim = processing_claim
+
 
 def validate_and_process_dedrem_claim(claim, user, is_process):
     errors = validate_claim(claim, False)
