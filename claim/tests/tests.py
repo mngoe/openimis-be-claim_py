@@ -312,3 +312,58 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         self.assertEqual(claim_service.status, ClaimService.STATUS_REJECTED)
         self.assertEqual(claim_service.rejection_reason, REJECTION_REASON_MANUAL_REJECTION)
         
+        
+    def test_bypass_claims_review_mutation_mixed_uuids(self):
+        """
+        Test bypassing review with UUIDs.
+        """
+        mutation = f"""
+            mutation {{
+                bypassClaimsReview(
+                    input: {{
+                        clientMutationId: "test-bypass-review"
+                        clientMutationLabel: "Bypass review with UUIDs"
+                        uuids: ["{self.claim.uuid}"]
+                    }}
+                ) {{
+                    clientMutationId
+                    internalId
+                }}
+            }}
+        """
+
+        response = self.query(mutation, headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
+        self.assertResponseNoErrors(response)
+        
+        # Verify valid claim was processed
+        self.claim.refresh_from_db()
+        self.assertEqual(self.claim.review_status, Claim.REVIEW_BYPASSED)
+        self.assertEqual(self.claim.status, Claim.STATUS_PROCESSED)
+        
+        
+    def test_deliver_claims_review_mutation(self):
+        """
+        Test deliver review with UUIDs.
+        """
+        mutation = f"""
+            mutation {{
+                deliverClaimsReview(
+                    input: {{
+                        clientMutationId: "test-deliver-review"
+                        clientMutationLabel: "Deliver review with UUIDs"
+                        uuids: ["{self.claim.uuid}"]
+                    }}
+                ) {{
+                    clientMutationId
+                    internalId
+                }}
+            }}
+        """
+
+        response = self.query(mutation, headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
+        self.assertResponseNoErrors(response)
+        
+        # Verify valid claim was processed
+        self.claim.refresh_from_db()
+        self.assertEqual(self.claim.review_status, Claim.REVIEW_DELIVERED)
+        self.assertEqual(self.claim.status, Claim.STATUS_PROCESSED)
