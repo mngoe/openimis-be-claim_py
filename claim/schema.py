@@ -22,7 +22,9 @@ from django.core.exceptions import PermissionDenied
 # We do need all queries and mutations in the namespace here.
 from .gql_queries import *  # lgtm [py/polluting-import]
 from .gql_mutations import *  # lgtm [py/polluting-import]
+import logging
 
+logger = logging.getLogger(__name__)
 
 class Query(graphene.ObjectType):
     claims = OrderedDjangoFilterConnectionField(

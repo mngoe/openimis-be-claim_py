@@ -3,9 +3,9 @@ from claim.models import Claim, ClaimDedRem, ClaimItem, ClaimDetail, ClaimServic
 from claim.test_helpers import create_test_claim, create_test_claimservice, create_test_claimitem, \
     mark_test_claim_as_processed, delete_claim_with_itemsvc_dedrem_and_history
 from core.test_helpers import create_test_officer, create_test_interactive_user
-
+from datetime import date, timedelta, datetime
 from claim.validations import get_claim_category, validate_claim, \
-    REJECTION_REASON_WAITING_PERIOD_FAIL, REJECTION_REASON_INVALID_ITEM_OR_SERVICE
+    process_dedrem, REJECTION_REASON_WAITING_PERIOD_FAIL, REJECTION_REASON_INVALID_ITEM_OR_SERVICE, REJECTION_REASON_TARGET_DATE
 from core.models import User, InteractiveUser
 from django.test import TestCase
 from insuree.models import Family, Insuree
@@ -45,6 +45,7 @@ class ValidationTest(TestCase):
         self.service_A_invalid = create_test_service("A", False)
         self.product = create_test_product('Valitst') 
         self.item_1 = create_test_item("D")
+        
 
     def test_get_claim_category_S(self):
         # Given
@@ -1116,4 +1117,53 @@ class ValidationTest(TestCase):
         self.assertEqual(claimservice2.price_adjusted, 750)
         claimservice3.refresh_from_db()
         self.assertIsNone(claimservice3.price_adjusted)
-   
+    def test_validate_claimitem_future_validity(self):
+        # Given
+        future_date = date.today() + timedelta(days=30)
+        item_future = create_test_item("D", valid=True)
+        item_future.validity_from = future_date
+        item_future.save()
+
+        claim = create_test_claim({
+            "date_from": date.today(),
+            "date_to": date.today()
+        })
+        claim_item = create_test_claimitem(claim, custom_props={"item_id": item_future.id})
+
+        # When
+        errors = validate_claim(claim, check_max=True)
+
+        # Then
+        self.assertTrue(any(e['code'] == REJECTION_REASON_TARGET_DATE for e in errors), "Item validity should cause rejection")
+        claim_item.refresh_from_db()
+        self.assertEqual(claim_item.rejection_reason, REJECTION_REASON_TARGET_DATE, "Claim item should be rejected for future validity")
+
+        # tearDown
+        claim_item.delete()
+        claim.delete()
+        item_future.delete()
+
+    def test_validate_claimservice_future_validity(self):
+        # Given
+        future_date = date.today() + timedelta(days=30)
+        service_future = create_test_service("D", valid=True)
+        service_future.validity_from = future_date
+        service_future.save()
+        insuree = create_test_insuree()
+        claim = create_test_claim({
+            "insuree": insuree,
+            "date_from": date.today(),
+            "date_to": date.today()
+        })
+        claim_service = create_test_claimservice(claim, custom_props={"service_id": service_future.id})
+        # When
+        errors = validate_claim(claim, check_max=True)
+        # Then
+        self.assertTrue(any(e['code'] == REJECTION_REASON_TARGET_DATE for e in errors), "Service validity should cause rejection")
+        claim_service.refresh_from_db()
+        self.assertEqual(claim_service.rejection_reason, REJECTION_REASON_TARGET_DATE, "Claim service should be rejected for future validity")
+        # tearDown
+        claim_service.delete()
+        claim.delete()
+        service_future.delete()
+     
