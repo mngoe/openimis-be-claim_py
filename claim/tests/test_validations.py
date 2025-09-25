@@ -305,6 +305,31 @@ class ValidationTest(TestCase):
             claim1.services.first().rejection_reason, 4
         )  # reason is wrong insuree mask
 
+    def test_validate_late_policy(self):
+        # When the insuree already reaches his limit of visits
+        # Given
+        insuree = create_test_insuree(custom_props={'chfid': "testlatepol"})
+        self.assertIsNotNone(insuree)
+        product = create_test_product("LTEPOL")
+        late_insert = datetime.now()
+        policy, insuree_policy = create_test_policy2(
+            product, insuree, link=True, custom_props={
+                "validity_from": late_insert
+            })
+        service = create_test_service("V")
+
+        # The insuree has a patient_category of 6, not matching the service category
+        claim1 = create_test_claim({"insuree_id": insuree.id}, product=self.product)
+        claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
+        claim1.health_facility.save()
+        create_test_claimservice(
+            claim1, custom_props={"service_id": service.id}, product=self.product
+        )
+        errors = validate_claim(claim1, True)
+
+        # Then
+        self.assertEquals(len(errors), 0)
+
     def test_frequency(self):
         # When the insuree already reaches his limit of visits
         # Given
