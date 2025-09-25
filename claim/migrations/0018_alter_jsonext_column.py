@@ -5,23 +5,47 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
 
-    psql_code = 'select 1'
+    psql_code = "select 1"
 
     dependencies = [
-        ('claim', '0017_set_managed_to_true'),
+        ("claim", "0017_set_managed_to_true"),
     ]
 
     operations = [
-        migrations.RunSQL('ALTER TABLE [tblClaim] ALTER COLUMN [JsonExt] NVARCHAR(MAX)'
-                          if settings.MSSQL else psql_code,
-                          reverse_sql='ALTER TABLE [tblClaim] ALTER COLUMN [JsonExt] TEXT'
-                          if settings.MSSQL else psql_code),
-        migrations.RunSQL('ALTER TABLE [tblClaimServices] ALTER COLUMN [JsonExt] NVARCHAR(MAX)'
-                          if settings.MSSQL else psql_code,
-                          reverse_sql='ALTER TABLE [tblClaimServices] ALTER COLUMN [JsonExt] TEXT'
-                          if settings.MSSQL else psql_code),
-        migrations.RunSQL('ALTER TABLE [tblClaimItems] ALTER COLUMN [JsonExt] NVARCHAR(MAX)'
-                          if settings.MSSQL else psql_code,
-                          reverse_sql='ALTER TABLE [tblClaimItems] ALTER COLUMN [JsonExt] TEXT'
-                          if settings.MSSQL else psql_code),
+        migrations.RunSQL(
+            (
+                "ALTER TABLE [tblClaim] ALTER COLUMN [JsonExt] NVARCHAR(MAX)"
+                if settings.MSSQL
+                else psql_code
+            ),
+            reverse_sql=(
+                "ALTER TABLE [tblClaim] ALTER COLUMN [JsonExt] TEXT"
+                if settings.MSSQL
+                else psql_code
+            ),
+        ),
+        migrations.RunSQL(
+            (
+                "ALTER TABLE [tblClaimServices] ALTER COLUMN [JsonExt] NVARCHAR(MAX)"
+                if settings.MSSQL
+                else psql_code
+            ),
+            reverse_sql=(
+                "ALTER TABLE [tblClaimServices] ALTER COLUMN [JsonExt] TEXT"
+                if settings.MSSQL
+                else psql_code
+            ),
+        ),
+        migrations.RunSQL(
+            (
+                "ALTER TABLE [tblClaimItems] ALTER COLUMN [JsonExt] NVARCHAR(MAX)"
+                if settings.MSSQL
+                else psql_code
+            ),
+            reverse_sql=(
+                "ALTER TABLE [tblClaimItems] ALTER COLUMN [JsonExt] TEXT"
+                if settings.MSSQL
+                else psql_code
+            ),
+        ),
     ]

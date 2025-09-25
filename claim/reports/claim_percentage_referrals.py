@@ -1179,8 +1179,14 @@ FROM (SELECT HF."HfID", HF."HFCode", HF."HFName"
 """
 
 
-def claim_percentage_referrals_query(user, region_id=0, district_id=0, date_start="2019-01-01", date_end="2022-12-31",
-                                     **kwargs):
+def claim_percentage_referrals_query(
+    user,
+    region_id=0,
+    district_id=0,
+    date_start="2019-01-01",
+    date_end="2022-12-31",
+    **kwargs
+):
     with connection.cursor() as cur:
         try:
             cur.execute(

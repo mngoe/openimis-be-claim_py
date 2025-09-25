@@ -6,9 +6,8 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0028_claimattachmenttype_claimattachment_predefined_type'),
-        ('claim', '0029_rename_pcpdate_claimserviceitem_created_date_and_more'),
+        ("claim", "0028_claimattachmenttype_claimattachment_predefined_type"),
+        ("claim", "0029_rename_pcpdate_claimserviceitem_created_date_and_more"),
     ]
 
-    operations = [
-    ]
+    operations = []

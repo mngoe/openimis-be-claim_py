@@ -6,13 +6,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0005_claimmutation'),
+        ("claim", "0005_claimmutation"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='claimattachment',
-            name='url',
+            model_name="claimattachment",
+            name="url",
             field=models.TextField(blank=True, null=True),
         ),
     ]

@@ -4,8 +4,8 @@ from django.db import migrations
 
 
 def forwards_func(apps, schema_editor):
-    RoleRight = apps.get_model('core', 'RoleRight')
-    Role = apps.get_model('core', 'Role')
+    RoleRight = apps.get_model("core", "RoleRight")
+    Role = apps.get_model("core", "Role")
 
     # Delete enrollment officer right to interact with claim data
     # Enrollment officer is predefined system role with id 1
@@ -15,19 +15,17 @@ def forwards_func(apps, schema_editor):
     rights_id = [111001, 111009]
     for right_id in rights_id:
         RoleRight.objects.filter(
-            role__in=eo_roles,
-            right_id=right_id,
-            validity_to__isnull=True
+            role__in=eo_roles, right_id=right_id, validity_to__isnull=True
         ).delete()
 
 
 def reverse_func(apps, schema_editor):
-    RoleRight = apps.get_model('core', 'RoleRight')
-    Role = apps.get_model('core', 'Role')
+    RoleRight = apps.get_model("core", "RoleRight")
+    Role = apps.get_model("core", "Role")
     eo_roles = Role.objects.filter(is_system=1, validity_to__isnull=True)
     rights_id = [111001, 111009]
-    for eo_role in v:
-        for right_id in rights_id:
+    for eo_role in rights_id:
+        for right_id in eo_roles:
             RoleRight(
                 role_id=eo_role.id,
                 right_id=right_id,

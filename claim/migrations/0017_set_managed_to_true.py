@@ -6,40 +6,40 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0016_update_django_scheme_with_missing_fields'),
+        ("claim", "0016_update_django_scheme_with_missing_fields"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='claim',
-            options={'managed': True},
+            name="claim",
+            options={"managed": True},
         ),
         migrations.AlterModelOptions(
-            name='claimadmin',
-            options={'managed': True},
+            name="claimadmin",
+            options={"managed": True},
         ),
         migrations.AlterModelOptions(
-            name='claimattachmentscount',
-            options={'managed': True},
+            name="claimattachmentscount",
+            options={"managed": True},
         ),
         migrations.AlterModelOptions(
-            name='claimdedrem',
-            options={'managed': True},
+            name="claimdedrem",
+            options={"managed": True},
         ),
         migrations.AlterModelOptions(
-            name='claimitem',
-            options={'managed': True},
+            name="claimitem",
+            options={"managed": True},
         ),
         migrations.AlterModelOptions(
-            name='claimservice',
-            options={'managed': True},
+            name="claimservice",
+            options={"managed": True},
         ),
         migrations.AlterModelOptions(
-            name='feedback',
-            options={'managed': True},
+            name="feedback",
+            options={"managed": True},
         ),
         migrations.AlterModelOptions(
-            name='feedbackprompt',
-            options={'managed': True},
+            name="feedbackprompt",
+            options={"managed": True},
         ),
     ]

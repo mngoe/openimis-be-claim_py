@@ -1,31 +1,61 @@
-from claim.services import update_claims_dedrems, set_claims_status, ClaimSubmitService, processing_claim
-from claim.models import Claim, ClaimDedRem, ClaimItem, ClaimDetail, ClaimService, ClaimServiceItem, ClaimServiceService
-from claim.test_helpers import create_test_claim, create_test_claimservice, create_test_claimitem, \
-    mark_test_claim_as_processed, delete_claim_with_itemsvc_dedrem_and_history
+from claim.services import (
+    update_claims_dedrems,
+    set_claims_status,
+    ClaimSubmitService,
+    processing_claim,
+)
+from claim.models import (
+    Claim,
+    ClaimDedRem,
+    ClaimItem,
+    ClaimDetail,
+    ClaimService,
+    ClaimServiceItem,
+    ClaimServiceService,
+)
+from claim.test_helpers import (
+    create_test_claim,
+    create_test_claimservice,
+    create_test_claimitem,
+    mark_test_claim_as_processed,
+)
 from core.test_helpers import create_test_officer, create_test_interactive_user
 from datetime import date, timedelta, datetime
-from claim.validations import get_claim_category, validate_claim, \
-    process_dedrem, REJECTION_REASON_WAITING_PERIOD_FAIL, REJECTION_REASON_INVALID_ITEM_OR_SERVICE, REJECTION_REASON_TARGET_DATE
-from core.models import User, InteractiveUser
+from claim.validations import (
+    get_claim_category,
+    validate_claim,
+    REJECTION_REASON_WAITING_PERIOD_FAIL,
+    REJECTION_REASON_INVALID_ITEM_OR_SERVICE,
+    REJECTION_REASON_TARGET_DATE,
+)
 from django.test import TestCase
 from insuree.models import Family, Insuree
 from insuree.test_helpers import create_test_insuree
 from location.models import HealthFacility
 
-from medical.models import ServiceItem, ServiceService
 from product.models import ProductItemOrService
 from medical.test_helpers import create_test_service, create_test_item
-from medical_pricelist.test_helpers import add_service_to_hf_pricelist, add_item_to_hf_pricelist, \
-    update_pricelist_service_detail_in_hf_pricelist, update_pricelist_item_detail_in_hf_pricelist
+from medical_pricelist.test_helpers import (
+    add_service_to_hf_pricelist,
+    add_item_to_hf_pricelist,
+    update_pricelist_service_detail_in_hf_pricelist,
+    update_pricelist_item_detail_in_hf_pricelist,
+)
 from policy.test_helpers import create_test_policy2
-from datetime import date, timedelta, datetime
 from core import filter_validity
+
 # default arguments should not pass a list or a dict because they're mutable but we don't risk mutating them here:
 # noinspection PyDefaultArgument,DuplicatedCode
-from product.test_helpers import create_test_product, create_test_product_service, create_test_product_item
+from product.test_helpers import (
+    create_test_product,
+    create_test_product_service,
+    create_test_product_item,
+)
 from copy import copy
 
 import uuid
+
+
 class ValidationTest(TestCase):
     service_H = None
     service_O = None
@@ -43,9 +73,8 @@ class ValidationTest(TestCase):
         self.service_D = create_test_service("D")
         self.service_A = create_test_service("A")
         self.service_A_invalid = create_test_service("A", False)
-        self.product = create_test_product('Valitst') 
+        self.product = create_test_product("Valitst")
         self.item_1 = create_test_item("D")
-        
 
     def test_get_claim_category_S(self):
         # Given
@@ -128,7 +157,7 @@ class ValidationTest(TestCase):
         claim = create_test_claim(product=self.product)
         claim.date_to = None
         claim.save()
-        service1 = create_test_claimservice(claim, None, product=self.product)
+        create_test_claimservice(claim, None, product=self.product)
 
         # when
         category = get_claim_category(claim)
@@ -136,8 +165,6 @@ class ValidationTest(TestCase):
         # then
         self.assertIsNotNone(category)
         self.assertEquals(category, "V")
-
-    
 
     # This test cannot be performed because the database constraints don't allow a null date_from.
     # def test_validate_claim_target_date(self):
@@ -159,15 +186,22 @@ class ValidationTest(TestCase):
 
     def test_validate_pricelist_hf1(self):
         # When the claimitem points to a pricelist that doesn't correspond to the claim HF
-        hf_without_pricelist = HealthFacility.objects.filter(items_pricelist__id__isnull=True).first()
-        self.assertIsNotNone(hf_without_pricelist, "This test requires a health facility without a price list item")
+        hf_without_pricelist = HealthFacility.objects.filter(
+            items_pricelist__id__isnull=True
+        ).first()
+        self.assertIsNotNone(
+            hf_without_pricelist,
+            "This test requires a health facility without a price list item",
+        )
         # Given
-        
-        claim = create_test_claim({"health_facility_id": hf_without_pricelist.id}, product=self.product)
-        
+
+        claim = create_test_claim(
+            {"health_facility_id": hf_without_pricelist.id}, product=self.product
+        )
+
         service1 = create_test_claimservice(claim, "S", custom_props={})
-        
-        item1 = create_test_claimitem(claim, "D", True,  custom_props={})
+
+        item1 = create_test_claimitem(claim, "D", True, custom_props={})
         # When
         errors = validate_claim(claim, True)
         # Then
@@ -175,18 +209,22 @@ class ValidationTest(TestCase):
         service1.refresh_from_db()
         item1.refresh_from_db()
         self.assertGreaterEqual(len(errors), 1, "Should raise at least one error")
-        error1 = [e for e in errors if e['code'] == 1]  # all services rejected
+        error1 = [e for e in errors if e["code"] == 1]  # all services rejected
         self.assertGreaterEqual(len(error1), 1, "There should be an error code 1")
-        self.assertEquals(item1.rejection_reason, 2, "Database was updated with rejection reason")
-
-
+        self.assertEquals(
+            item1.rejection_reason, 2, "Database was updated with rejection reason"
+        )
 
     def test_validate_polivx(self):
         # When the insuree family is invalid
         # Given
-        invalid_insuree = Insuree.objects.filter(family__in=Family.objects.filter(validity_to__isnull=False)).first()
+        invalid_insuree = Insuree.objects.filter(
+            family__in=Family.objects.filter(validity_to__isnull=False)
+        ).first()
         self.assertIsNotNone(invalid_insuree)
-        claim = create_test_claim({"insuree_id": invalid_insuree.id}, product=self.product)
+        claim = create_test_claim(
+            {"insuree_id": invalid_insuree.id}, product=self.product
+        )
         service1 = create_test_claimservice(claim, "S", product=self.product)
         item1 = create_test_claimitem(claim, "D", product=self.product)
 
@@ -197,9 +235,13 @@ class ValidationTest(TestCase):
         claim.refresh_from_db()
         item1.refresh_from_db()
         self.assertGreaterEqual(len(errors), 1, "Should raise at least one error")
-        error7 = [e for e in errors if e['code'] == 7]
-        self.assertGreaterEqual(len(error7), 1, "There should be 1 error code 7: invalid insuree")
-        self.assertEquals(item1.rejection_reason, 7, "Database was updated with rejection reason")
+        error7 = [e for e in errors if e["code"] == 7]
+        self.assertGreaterEqual(
+            len(error7), 1, "There should be 1 error code 7: invalid insuree"
+        )
+        self.assertEquals(
+            item1.rejection_reason, 7, "Database was updated with rejection reason"
+        )
 
         # tearDown
         service1.delete()
@@ -218,13 +260,15 @@ class ValidationTest(TestCase):
         claim1 = create_test_claim({"insuree_id": insuree.id}, product=self.product)
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
-        service1 = create_test_claimservice(claim1, custom_props={"service_id": service.id}, product=self.product)
+        create_test_claimservice(
+            claim1, custom_props={"service_id": service.id}, product=self.product
+        )
         errors = validate_claim(claim1, True)
         self.assertEquals(len(errors), 0, "The first visit should be accepted")
 
         # a second visit should be denied
         claim2 = create_test_claim({"insuree_id": insuree.id}, product=self.product)
-        service2 = create_test_claimservice(claim2, "V", product=self.product)
+        create_test_claimservice(claim2, "V", product=self.product)
         errors = validate_claim(claim2, True)
         # TODO Temporarily disabled
         # self.assertGreater(len(errors), 0, "The second visit should be refused")
@@ -232,8 +276,6 @@ class ValidationTest(TestCase):
         # Then
         claim1.refresh_from_db()
         claim2.refresh_from_db()
-
-  
 
     def test_validate_patient_category(self):
         # When the insuree already reaches his limit of visits
@@ -244,21 +286,24 @@ class ValidationTest(TestCase):
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
         service = create_test_service("V", custom_props={"patient_category": 1})
 
-
         # The insuree has a patient_category of 6, not matching the service category
         claim1 = create_test_claim({"insuree_id": insuree.id}, product=self.product)
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
-        service1 = create_test_claimservice(claim1, custom_props={"service_id": service.id}, product=self.product)
+        create_test_claimservice(
+            claim1, custom_props={"service_id": service.id}, product=self.product
+        )
         errors = validate_claim(claim1, True)
 
         # Then
         claim1.refresh_from_db()
         self.assertEquals(len(errors), 2)
-        self.assertEquals(errors[0]['code'], 1)  # claimed rejected because all services are rejected
-        self.assertEquals(claim1.services.first().rejection_reason, 4)  # reason is wrong insuree mask
-
-
+        self.assertEquals(
+            errors[0]["code"], 1
+        )  # claimed rejected because all services are rejected
+        self.assertEquals(
+            claim1.services.first().rejection_reason, 4
+        )  # reason is wrong insuree mask
 
     def test_frequency(self):
         # When the insuree already reaches his limit of visits
@@ -266,14 +311,17 @@ class ValidationTest(TestCase):
         insuree = create_test_insuree()
         self.assertIsNotNone(insuree)
         product = create_test_product("CSECT")
-        service = create_test_service("C", custom_props={"code": "G34B", "frequency": 180})
-
+        service = create_test_service(
+            "C", custom_props={"code": "G34B", "frequency": 180}
+        )
 
         # A first claim for a visit should be accepted
         claim1 = create_test_claim({"insuree_id": insuree.id}, product=product)
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
-        service1 = create_test_claimservice(claim1, custom_props={"service_id": service.id}, product=product)
+        create_test_claimservice(
+            claim1, custom_props={"service_id": service.id}, product=product
+        )
         claim_service = ClaimSubmitService(self.user)
         claim, errors = claim_service.submit_claim(claim1, True)
 
@@ -283,15 +331,19 @@ class ValidationTest(TestCase):
         claim2 = create_test_claim({"insuree_id": insuree.id})
         claim2.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim2.health_facility.save()
-        service2 = create_test_claimservice(claim2, custom_props={"service_id": service.id})
+        create_test_claimservice(
+            claim2, custom_props={"service_id": service.id}
+        )
         claim, errors = claim_service.submit_claim(claim2, True)
-        self.assertGreater(len(errors), 0, "The second service should be refused as it is withing 180 days")
+        self.assertGreater(
+            len(errors),
+            0,
+            "The second service should be refused as it is withing 180 days",
+        )
 
         # Then
         claim1.refresh_from_db()
         claim2.refresh_from_db()
-
-
 
     def test_limit_no(self):
         # When the insuree already reaches his limit number
@@ -301,16 +353,21 @@ class ValidationTest(TestCase):
         product = create_test_product("CSECT")
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
         service = create_test_service("C", custom_props={"code": "G34B"})
-        product_service = create_test_product_service(product, service, custom_props={"limit_no_adult": 1})
-        
+        create_test_product_service(
+            product, service, custom_props={"limit_no_adult": 1}
+        )
 
         # A first claim for a visit should be accepted
         claim1 = create_test_claim({"insuree_id": insuree.id}, product=product)
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
-        pricelist_detail = add_service_to_hf_pricelist(service, claim1.health_facility_id)
+        add_service_to_hf_pricelist(
+            service, claim1.health_facility_id
+        )
         claim1.refresh_from_db()
-        service1 = create_test_claimservice(claim1, custom_props={"service_id": service.id, "qty_provided": 1})
+        create_test_claimservice(
+            claim1, custom_props={"service_id": service.id, "qty_provided": 1}
+        )
         claim1.refresh_from_db()
         errors = validate_claim(claim1, True)
         mark_test_claim_as_processed(claim1)
@@ -319,7 +376,9 @@ class ValidationTest(TestCase):
 
         # a second visit should be denied
         claim2 = create_test_claim({"insuree_id": insuree.id})
-        service2 = create_test_claimservice(claim2, custom_props={"service_id": service.id})
+        create_test_claimservice(
+            claim2, custom_props={"service_id": service.id}
+        )
         claim2.refresh_from_db()
         errors = validate_claim(claim2, True)
         self.assertGreater(len(errors), 0, "The second service should be refused")
@@ -327,8 +386,6 @@ class ValidationTest(TestCase):
         # Then
         claim1.refresh_from_db()
         claim2.refresh_from_db()
-
-    
 
     def test_limit_delivery(self):
         # When the insuree already reaches his limit of visits
@@ -338,20 +395,24 @@ class ValidationTest(TestCase):
         product = create_test_product("DELIV", custom_props={"max_no_delivery": 1})
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
         service = create_test_service("D", custom_props={"code": "G34C"})
-        product_service = create_test_product_service(product, service)
-        
+        create_test_product_service(product, service)
 
         # A first claim for a delivery should be accepted
         start_date = date.today() - timedelta(days=12)
         # A first claim for a visit within the waiting period should be refused
-        claim1 = create_test_claim({
-            "insuree_id": insuree.id,
-            "date_from": start_date,
-            "date_to": start_date,
-            "date_claimed": start_date,
-        }, product=product)
-        service1 = create_test_claimservice(claim1, custom_props={"service_id": service.id}, product=product)
-    
+        claim1 = create_test_claim(
+            {
+                "insuree_id": insuree.id,
+                "date_from": start_date,
+                "date_to": start_date,
+                "date_claimed": start_date,
+            },
+            product=product,
+        )
+        create_test_claimservice(
+            claim1, custom_props={"service_id": service.id}, product=product
+        )
+
         errors = validate_claim(claim1, True)
         mark_test_claim_as_processed(claim1)
 
@@ -361,22 +422,28 @@ class ValidationTest(TestCase):
         claim2 = create_test_claim({"insuree_id": insuree.id}, product=product)
         claim2.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim2.health_facility.save()
-        service2 = create_test_claimservice(claim2, custom_props={"service_id": service.id}, product=product)
+        create_test_claimservice(
+            claim2, custom_props={"service_id": service.id}, product=product
+        )
         errors = validate_claim(claim2, True)
-        self.assertGreater(len(errors), 0, "The second service should fail because there is already one delivery")
+        self.assertGreater(
+            len(errors),
+            0,
+            "The second service should fail because there is already one delivery",
+        )
 
         # Then
         claim1.refresh_from_db()
         claim2.refresh_from_db()
-
-     
 
     def test_limit_hospital(self):
         # When the insuree already reaches his limit of visits
         # Given
         insuree = create_test_insuree()
         self.assertIsNotNone(insuree)
-        product = create_test_product("DELIV", custom_props={"max_no_hospitalization": 1})
+        product = create_test_product(
+            "DELIV", custom_props={"max_no_hospitalization": 1}
+        )
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
         service = create_test_service("H", custom_props={"code": "HHHH"})
 
@@ -384,24 +451,31 @@ class ValidationTest(TestCase):
         claim1 = create_test_claim({"insuree_id": insuree.id}, product=product)
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
-        service1 = create_test_claimservice(claim1, custom_props={"service_id": service.id}, product=product)
+        create_test_claimservice(
+            claim1, custom_props={"service_id": service.id}, product=product
+        )
         errors = validate_claim(claim1, True)
         mark_test_claim_as_processed(claim1)
 
-        self.assertEquals(len(errors), 0, "The first hospitalization should be accepted")
+        self.assertEquals(
+            len(errors), 0, "The first hospitalization should be accepted"
+        )
 
         # a second delivery should be denied
         claim2 = create_test_claim({"insuree_id": insuree.id}, product=product)
-        service2 = create_test_claimservice(claim2, custom_props={"service_id": service.id}, product=product)
+        create_test_claimservice(
+            claim2, custom_props={"service_id": service.id}, product=product
+        )
         errors = validate_claim(claim2, True)
-        self.assertGreater(len(errors), 0,
-                           "The second service should fail because there is already one hospitalization")
+        self.assertGreater(
+            len(errors),
+            0,
+            "The second service should fail because there is already one hospitalization",
+        )
 
         # Then
         claim1.refresh_from_db()
         claim2.refresh_from_db()
-
-    
 
     def test_limit_surgery(self):
         # When the insuree already reaches his limit of visits
@@ -412,12 +486,13 @@ class ValidationTest(TestCase):
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
         service = create_test_service("S", custom_props={"code": "SSSS"})
 
-
         # A first claim for a delivery should be accepted
         claim1 = create_test_claim({"insuree_id": insuree.id}, product=product)
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
-        service1 = create_test_claimservice(claim1, custom_props={"service_id": service.id}, product=product)
+        create_test_claimservice(
+            claim1, custom_props={"service_id": service.id}, product=product
+        )
         errors = validate_claim(claim1, True)
         mark_test_claim_as_processed(claim1)
 
@@ -425,15 +500,19 @@ class ValidationTest(TestCase):
 
         # a second delivery should be denied
         claim2 = create_test_claim({"insuree_id": insuree.id}, product=product)
-        service2 = create_test_claimservice(claim2, custom_props={"service_id": service.id}, product=product)
+        create_test_claimservice(
+            claim2, custom_props={"service_id": service.id}, product=product
+        )
         errors = validate_claim(claim2, True)
-        self.assertGreater(len(errors), 0, "The second service should fail because there is already one surgery")
+        self.assertGreater(
+            len(errors),
+            0,
+            "The second service should fail because there is already one surgery",
+        )
 
         # Then
         claim1.refresh_from_db()
         claim2.refresh_from_db()
-
-      
 
     def test_limit_visit(self):
         # When the insuree already reaches his limit of visits
@@ -444,14 +523,15 @@ class ValidationTest(TestCase):
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
         service = create_test_service("V", custom_props={"code": "VVVV"})
 
-
         # A first claim for a delivery should be accepted
         claim1 = create_test_claim({"insuree_id": insuree.id}, product=product)
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
         claim1.date_to = None
         claim1.save()
-        service1 = create_test_claimservice(claim1, custom_props={"service_id": service.id},product=product)
+        create_test_claimservice(
+            claim1, custom_props={"service_id": service.id}, product=product
+        )
         errors = validate_claim(claim1, True)
         mark_test_claim_as_processed(claim1)
 
@@ -461,72 +541,105 @@ class ValidationTest(TestCase):
         claim2 = create_test_claim({"insuree_id": insuree.id})
         claim2.date_to = None
         claim2.save()
-        service2 = create_test_claimservice(claim2, custom_props={"service_id": service.id})
+        create_test_claimservice(
+            claim2, custom_props={"service_id": service.id}
+        )
         errors = validate_claim(claim2, True)
-        self.assertGreater(len(errors), 0, "The second service should fail because there is already one visit")
+        self.assertGreater(
+            len(errors),
+            0,
+            "The second service should fail because there is already one visit",
+        )
 
         # Then
         claim1.refresh_from_db()
         claim2.refresh_from_db()
 
-     
-
     def test_waiting_period(self):
         # When the insuree already reaches his limit of visits
         # Given
         insuree = create_test_insuree()
-        child_insuree = create_test_insuree( with_family = False,
+        child_insuree = create_test_insuree(
+            with_family=False,
             custom_props={
-            "dob": date.today()- timedelta(hours=24 * 365 * 2),
-            "family": insuree.family
-        })
+                "dob": date.today() - timedelta(hours=24 * 365 * 2),
+                "family": insuree.family,
+            },
+        )
         self.assertIsNotNone(insuree)
         product = create_test_product("CSECT")
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
-        policy_child, insuree_policy_child = create_test_policy2(product, child_insuree, link=True)
+        policy_child, insuree_policy_child = create_test_policy2(
+            product, child_insuree, link=True
+        )
         service = create_test_service("C")
-        product_service = create_test_product_service(
-            product, service, custom_props={"waiting_period_adult": 6, "waiting_period_child": 0})
-        
-        
+        create_test_product_service(
+            product,
+            service,
+            custom_props={"waiting_period_adult": 6, "waiting_period_child": 0},
+        )
+
         start_date = policy.effective_date + timedelta(days=2)
         end_date = policy.effective_date + timedelta(days=3)
         # A first claim for a visit within the waiting period should be refused
 
-        claim1 = create_test_claim({"insuree_id": insuree.id,
-            "date_from": start_date,
-            "date_to": None,
-            "date_claimed": end_date,
-        })
-        pricelist_detail = add_service_to_hf_pricelist(service, claim1.health_facility_id)
-        service1 = create_test_claimservice(claim1, custom_props={"service_id": service.id})
+        claim1 = create_test_claim(
+            {
+                "insuree_id": insuree.id,
+                "date_from": start_date,
+                "date_to": None,
+                "date_claimed": end_date,
+            }
+        )
+        add_service_to_hf_pricelist(
+            service, claim1.health_facility_id
+        )
+        create_test_claimservice(
+            claim1, custom_props={"service_id": service.id}
+        )
         claim1.refresh_from_db()
         errors = validate_claim(claim1, True)
-        self.assertEqual(len(errors), 2, "An adult visit within the waiting period should be refused")
-        self.assertEqual(claim1.services.first().rejection_reason, REJECTION_REASON_WAITING_PERIOD_FAIL)
+        self.assertEqual(
+            len(errors), 2, "An adult visit within the waiting period should be refused"
+        )
+        self.assertEqual(
+            claim1.services.first().rejection_reason,
+            REJECTION_REASON_WAITING_PERIOD_FAIL,
+        )
         start_date = policy.effective_date + timedelta(days=183)
         end_date = policy.effective_date + timedelta(days=184)
         # A 2nd claim for a visit within the waiting period should be refused
-        claim2 = create_test_claim({"insuree_id": insuree.id,
-            "date_from": start_date,
-            "date_to": None,
-            "date_claimed": end_date,
-        })
-        service2 = create_test_claimservice(claim2, custom_props={"service_id": service.id})
+        claim2 = create_test_claim(
+            {
+                "insuree_id": insuree.id,
+                "date_from": start_date,
+                "date_to": None,
+                "date_claimed": end_date,
+            }
+        )
+        create_test_claimservice(
+            claim2, custom_props={"service_id": service.id}
+        )
         errors = validate_claim(claim2, True)
-        self.assertEqual(len(errors), 0, "This one should be accepted as after the waiting period")
+        self.assertEqual(
+            len(errors), 0, "This one should be accepted as after the waiting period"
+        )
 
         # a child should not have the waiting period
-        claim3 = create_test_claim({"insuree_id": child_insuree.id,
-            "date_from": start_date,
-            "date_to": None,
-            "date_claimed": end_date,
-        })
-        
-        service3 = create_test_claimservice(claim3, custom_props={"service_id": service.id})
+        claim3 = create_test_claim(
+            {
+                "insuree_id": child_insuree.id,
+                "date_from": start_date,
+                "date_to": None,
+                "date_claimed": end_date,
+            }
+        )
+
+        create_test_claimservice(
+            claim3, custom_props={"service_id": service.id}
+        )
         errors = validate_claim(claim3, True)
         self.assertEqual(len(errors), 0, "The child has no waiting period")
-
 
     def __make_history(self, obj, pivot_date):
         histo = copy(obj)
@@ -536,7 +649,7 @@ class ValidationTest(TestCase):
         histo.validity_to = pivot_date
         histo.legacy_id = obj.id
         histo.save()
-        obj.validity_from=pivot_date
+        obj.validity_from = pivot_date
         obj.save()
 
     def test_product_time_correlation(self):
@@ -553,16 +666,18 @@ class ValidationTest(TestCase):
         claim1 = create_test_claim({"insuree_id": insuree.id})
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
-        service1 = create_test_claimservice(
-            claim1, custom_props={"service_id": service.id}, product=product)
-        item1 = create_test_claimitem(
-            claim1, "D", custom_props={"item_id": item.id}, product=product)
+        create_test_claimservice(
+            claim1, custom_props={"service_id": service.id}, product=product
+        )
+        create_test_claimitem(
+            claim1, "D", custom_props={"item_id": item.id}, product=product
+        )
         errors = validate_claim(claim1, True)
-        self.__make_history(product, (claim1.validity_to or claim1.validity_from) + timedelta(days=1) )
+        self.__make_history(
+            product, (claim1.validity_to or claim1.validity_from) + timedelta(days=1)
+        )
         self.assertEqual(len(errors), 0)
 
-
-     
     def test_submit_claim_dedrem(self):
         # When the insuree already reaches his limit of visits
         # Given
@@ -573,16 +688,17 @@ class ValidationTest(TestCase):
         service = create_test_service("V", custom_props={})
         item = create_test_item("D", custom_props={})
 
-
         claim1 = create_test_claim({"insuree_id": insuree.id})
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
         service1 = create_test_claimservice(
-            claim1, custom_props={"service_id": service.id}, product=product)
+            claim1, custom_props={"service_id": service.id}, product=product
+        )
         item1 = create_test_claimitem(
-            claim1, "D", custom_props={"item_id": item.id}, product=product)
+            claim1, "D", custom_props={"item_id": item.id}, product=product
+        )
         errors = validate_claim(claim1, True)
-        errors = processing_claim(claim1, self.user,is_process=True)
+        errors = processing_claim(claim1, self.user, is_process=True)
         self.assertEqual(len(errors), 0)
 
         # Then
@@ -615,8 +731,6 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.validity_from)
         self.assertIsNone(claim1.validity_to)
 
-       
-
     def test_submit_claim_dedrem_limit_delivery(self):
         # Given
         insuree = create_test_insuree()
@@ -624,23 +738,27 @@ class ValidationTest(TestCase):
         service = create_test_service("D", custom_props={})
         item = create_test_item("D", custom_props={})
 
-        product = create_test_product("BCUL0001", custom_props={
-            "name": "Basic Cover Ultha",
-            "lump_sum": 10_000,
-            "max_amount_delivery": 55,
-        })
+        product = create_test_product(
+            "BCUL0001",
+            custom_props={
+                "name": "Basic Cover Ultha",
+                "lump_sum": 10_000,
+                "max_amount_delivery": 55,
+            },
+        )
 
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
-
 
         # The insuree has a patient_category of 6, not matching the service category
         claim1 = create_test_claim({"insuree_id": insuree.id})
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
         service1 = create_test_claimservice(
-            claim1, custom_props={"service_id": service.id}, product=product)
+            claim1, custom_props={"service_id": service.id}, product=product
+        )
         item1 = create_test_claimitem(
-            claim1, "D", custom_props={"item_id": item.id}, product=product)
+            claim1, "D", custom_props={"item_id": item.id}, product=product
+        )
 
         errors = processing_claim(claim1, self.user, True)
         self.assertEqual(len(errors), 0)
@@ -660,7 +778,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1,  *filter_validity())
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -670,8 +788,6 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.validity_from)
         self.assertIsNone(claim1.validity_to)
 
-   
-
     def test_submit_claim_dedrem_limit_consultation(self):
         # Given
         insuree = create_test_insuree()
@@ -679,15 +795,17 @@ class ValidationTest(TestCase):
         service = create_test_service("C", custom_props={})
         item = create_test_item("C", custom_props={})
 
-        product = create_test_product("BCUL0001", custom_props={
-            "name": "Basic Cover Ultha",
-            "lump_sum": 10000,
-            "max_amount_consultation": 55,
-            "ceiling_interpretation": "I",
-        })
+        product = create_test_product(
+            "BCUL0001",
+            custom_props={
+                "name": "Basic Cover Ultha",
+                "lump_sum": 10000,
+                "max_amount_consultation": 55,
+                "ceiling_interpretation": "I",
+            },
+        )
 
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
-
 
         # The insuree has a patient_category of 6, not matching the service category
         claim1 = create_test_claim({"insuree_id": insuree.id})
@@ -696,9 +814,16 @@ class ValidationTest(TestCase):
         claim1.date_to = None
         claim1.save()
         service1 = create_test_claimservice(
-            claim1, custom_props={"service_id": service.id, 'price_asked': 100}, product=product)
+            claim1,
+            custom_props={"service_id": service.id, "price_asked": 100},
+            product=product,
+        )
         item1 = create_test_claimitem(
-            claim1, "C", custom_props={"item_id": item.id, 'price_asked': 100}, product=product)
+            claim1,
+            "C",
+            custom_props={"item_id": item.id, "price_asked": 100},
+            product=product,
+        )
         errors = processing_claim(claim1, self.user, True)
 
         self.assertEqual(len(errors), 0)
@@ -730,7 +855,6 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.validity_from)
         self.assertIsNone(claim1.validity_to)
 
-   
     def test_submit_claim_dedrem_limit_antenatal(self):
         # Given
         insuree = create_test_insuree()
@@ -738,27 +862,36 @@ class ValidationTest(TestCase):
         service = create_test_service("A", custom_props={})
         item = create_test_item("A", custom_props={})
 
-        product = create_test_product("BCUL0001", custom_props={
-            "name": "Basic Cover Ultha",
-            "lump_sum": 10_000,
-            "max_amount_antenatal": 55,
-        })
+        product = create_test_product(
+            "BCUL0001",
+            custom_props={
+                "name": "Basic Cover Ultha",
+                "lump_sum": 10_000,
+                "max_amount_antenatal": 55,
+            },
+        )
 
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
-
 
         # The insuree has a patient_category of 6, not matching the service category
         claim1 = create_test_claim({"insuree_id": insuree.id})
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
         service1 = create_test_claimservice(
-            claim1, custom_props={
+            claim1,
+            custom_props={
                 "service_id": service.id,
-            }, product=product)
+            },
+            product=product,
+        )
         item1 = create_test_claimitem(
-            claim1, "A", custom_props={
+            claim1,
+            "A",
+            custom_props={
                 "item_id": item.id,
-            }, product=product)
+            },
+            product=product,
+        )
         # errors = validate_claim(claim1, True)
         errors = processing_claim(claim1, self.user, True)
         self.assertEqual(len(errors), 0)
@@ -769,7 +902,7 @@ class ValidationTest(TestCase):
         service1.refresh_from_db()
         self.assertEqual(len(errors), 0)
         self.assertEqual(item1.price_adjusted, 100)
-        self.assertEqual(item1.price_valuated, 55) # limit antenatal
+        self.assertEqual(item1.price_valuated, 55)  # limit antenatal
         self.assertEqual(item1.deductable_amount, 0)
         self.assertEqual(item1.exceed_ceiling_amount, 0)
         self.assertIsNone(item1.exceed_ceiling_amount_category)
@@ -778,7 +911,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1,  *filter_validity())
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -788,7 +921,6 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.validity_from)
         self.assertIsNone(claim1.validity_to)
 
-      
     def test_review_reject_update_dedrem(self):
         """
         This test creates a claim, submits it so that it gets dedrem entries,
@@ -798,32 +930,45 @@ class ValidationTest(TestCase):
         # Given
         insuree = create_test_insuree()
         self.assertIsNotNone(insuree)
-        service = create_test_service("A", custom_props={"name": "test_review_reject_delete_dedrem"})
-        item = create_test_item("A", custom_props={"name": "test_review_reject_delete_dedrem"})
+        service = create_test_service(
+            "A", custom_props={"name": "test_review_reject_delete_dedrem"}
+        )
+        item = create_test_item(
+            "A", custom_props={"name": "test_review_reject_delete_dedrem"}
+        )
 
-        product = create_test_product("BCUL0001", custom_props={
-            "name": "Basic Cover Ultha deldedrem",
-            "lump_sum": 10_000,
-        })
+        product = create_test_product(
+            "BCUL0001",
+            custom_props={
+                "name": "Basic Cover Ultha deldedrem",
+                "lump_sum": 10_000,
+            },
+        )
 
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
-
 
         claim1 = create_test_claim({"insuree_id": insuree.id}, product=product)
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
         service1 = create_test_claimservice(
-            claim1, custom_props={
+            claim1,
+            custom_props={
                 "service_id": service.id,
                 "qty_provided": 2,
-                "origin": ProductItemOrService.ORIGIN_PRICELIST
-            }, product=product)
+                "origin": ProductItemOrService.ORIGIN_PRICELIST,
+            },
+            product=product,
+        )
         item1 = create_test_claimitem(
-            claim1, "A", custom_props={
+            claim1,
+            "A",
+            custom_props={
                 "item_id": item.id,
                 "qty_provided": 3,
-                "origin": ProductItemOrService.ORIGIN_PRICELIST
-                }, product=product)
+                "origin": ProductItemOrService.ORIGIN_PRICELIST,
+            },
+            product=product,
+        )
         errors = validate_claim(claim1, True)
 
         self.assertEqual(len(errors), 0)
@@ -860,8 +1005,6 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(dedrem)
         self.assertEquals(dedrem.rem_g, 90)  # 37*1 + 53*1
 
-    
-
     def test_review_reject_delete_dedrem(self):
         """
         This test creates a claim, submits it so that it gets dedrem entries,
@@ -871,24 +1014,37 @@ class ValidationTest(TestCase):
         # Given
         insuree = create_test_insuree()
         self.assertIsNotNone(insuree)
-        service = create_test_service("A", custom_props={"name": "test_review_reject_delete_dedrem"})
-        item = create_test_item("A", custom_props={"name": "test_review_reject_delete_dedrem"})
+        service = create_test_service(
+            "A", custom_props={"name": "test_review_reject_delete_dedrem"}
+        )
+        item = create_test_item(
+            "A", custom_props={"name": "test_review_reject_delete_dedrem"}
+        )
 
-        product = create_test_product("BCUL0001", custom_props={
-            "name": "Basic Cover Ultha deldedrem",
-            "lump_sum": 10000,
-        })
+        product = create_test_product(
+            "BCUL0001",
+            custom_props={
+                "name": "Basic Cover Ultha deldedrem",
+                "lump_sum": 10000,
+            },
+        )
 
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
-
 
         claim1 = create_test_claim({"insuree_id": insuree.id})
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
         service1 = create_test_claimservice(
-            claim1, custom_props={"service_id": service.id, "qty_provided": 2}, product=product)
+            claim1,
+            custom_props={"service_id": service.id, "qty_provided": 2},
+            product=product,
+        )
         item1 = create_test_claimitem(
-            claim1, "A", custom_props={"item_id": item.id, "qty_provided": 3}, product=product)
+            claim1,
+            "A",
+            custom_props={"item_id": item.id, "qty_provided": 3},
+            product=product,
+        )
         errors = processing_claim(claim1, self.user, True)
 
         self.assertEqual(len(errors), 0)
@@ -929,7 +1085,9 @@ class ValidationTest(TestCase):
         item1.refresh_from_db()
         service1.refresh_from_db()
         self.assertEquals(claim1.status, Claim.STATUS_REJECTED)
-        self.assertEquals(claim1.rejection_reason, REJECTION_REASON_INVALID_ITEM_OR_SERVICE)
+        self.assertEquals(
+            claim1.rejection_reason, REJECTION_REASON_INVALID_ITEM_OR_SERVICE
+        )
         self.assertEquals(item1.status, ClaimDetail.STATUS_REJECTED)
         self.assertEquals(item1.rejection_reason, -1)
         self.assertEquals(service1.status, ClaimDetail.STATUS_REJECTED)
@@ -939,16 +1097,14 @@ class ValidationTest(TestCase):
         dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
         self.assertIsNone(dedrem)
 
-
-
     def test_submit_claim_dedrem_update_pricelist_detail(self):
-        '''
+        """
         This test replicates the functionality of test_submit_claim_dedrem,
         with the additional step of updating items and services prior to dedrem calculation.
         Despite the updates, the results should remain unaffected as the prices
         for these services/items are sourced from the pricelist detail's state at the time of
         coalse(claim.dateto, claim.datefrom).
-        '''
+        """
         insuree = create_test_insuree()
         self.assertIsNotNone(insuree)
         product = create_test_product("VISIT", custom_props={})
@@ -956,19 +1112,28 @@ class ValidationTest(TestCase):
         service = create_test_service("V", custom_props={})
         item = create_test_item("D", custom_props={})
 
-
         claim1 = create_test_claim({"insuree_id": insuree.id})
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
         service1 = create_test_claimservice(
-            claim1, custom_props={"service_id": service.id}, product=product)
+            claim1, custom_props={"service_id": service.id}, product=product
+        )
         item1 = create_test_claimitem(
-            claim1, "D", custom_props={"item_id": item.id}, product=product)
+            claim1, "D", custom_props={"item_id": item.id}, product=product
+        )
         errors = validate_claim(claim1, True)
-        pricelist_detail1 = claim1.health_facility.services_pricelist.details.filter(service=service).first()
-        update_pricelist_service_detail_in_hf_pricelist(pricelist_detail1, custom_props={"price_overrule": 21})
-        pricelist_detail2 = claim1.health_facility.items_pricelist.details.filter(item=item).first()
-        update_pricelist_item_detail_in_hf_pricelist(pricelist_detail2, custom_props={"price_overrule": 37})
+        pricelist_detail1 = claim1.health_facility.services_pricelist.details.filter(
+            service=service
+        ).first()
+        update_pricelist_service_detail_in_hf_pricelist(
+            pricelist_detail1, custom_props={"price_overrule": 21}
+        )
+        pricelist_detail2 = claim1.health_facility.items_pricelist.details.filter(
+            item=item
+        ).first()
+        update_pricelist_item_detail_in_hf_pricelist(
+            pricelist_detail2, custom_props={"price_overrule": 37}
+        )
         claim1.refresh_from_db()
         errors += processing_claim(claim1, self.user, True)
         self.assertEqual(len(errors), 0)
@@ -1003,105 +1168,151 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.validity_from)
         self.assertIsNone(claim1.validity_to)
 
-
     def test_set_status(self):
         class DummyUser:
-            id_for_audit=-1
-            id=1
+            id_for_audit = -1
+            id = 1
+
         insuree = create_test_insuree()
-        officer = create_test_officer(villages=[insuree.current_village or insuree.family.location])
-        claim = create_test_claim(custom_props={'status':Claim.STATUS_CHECKED, 
-                                                'insuree':insuree}, product=self.product)
-        restult =set_claims_status([claim.uuid], 'feedback_status', Claim.FEEDBACK_SELECTED, user = DummyUser())
+        create_test_officer(
+            villages=[insuree.current_village or insuree.family.location]
+        )
+        claim = create_test_claim(
+            custom_props={"status": Claim.STATUS_CHECKED, "insuree": insuree},
+            product=self.product,
+        )
+        set_claims_status(
+            [claim.uuid], "feedback_status", Claim.FEEDBACK_SELECTED, user=DummyUser()
+        )
         claim.refresh_from_db()
         self.assertEqual(claim.feedback_status, Claim.FEEDBACK_SELECTED)
-    
+
     def test_submit_claim_with_different_packatypes(self):
         from claim.apps import ClaimConfig
-        ClaimConfig.verify_quantities=True
+
+        ClaimConfig.verify_quantities = True
         insuree = create_test_insuree()
         self.assertIsNotNone(insuree)
         product = create_test_product("VISIT", custom_props={})
         policy, insuree_policy = create_test_policy2(product, insuree, link=True)
         service = create_test_service(
-            "V", 
+            "V",
             custom_props={
                 "code": "V-DP",
                 "packagetype": "F",
                 "price": 1000,
-                "validity_from": datetime(2000,1,1)
-            }
+                "validity_from": datetime(2000, 1, 1),
+            },
         )
         service2 = create_test_service(
-            "V", 
+            "V",
             custom_props={
                 "code": "V-DP2",
                 "packagetype": "F",
                 "price": 750,
-                "validity_from": datetime(2000,1,1)
-            }
+                "validity_from": datetime(2000, 1, 1),
+            },
         )
         service3 = create_test_service(
-            "V", 
+            "V",
             custom_props={
                 "code": "V-DP3",
                 "packagetype": "P",
                 "price": 750,
-                "validity_from": datetime(2000,1,1)
-            }
+                "validity_from": datetime(2000, 1, 1),
+            },
         )
         item = create_test_item("D", custom_props={})
-        product_service = create_test_product_service(product, service,custom_props={
-                "validity_from": datetime(2000,1,1),
-                'price_origin': ProductItemOrService.ORIGIN_CLAIM
-            } )
-        product_service2 = create_test_product_service(product, service2,custom_props={
-                "validity_from": datetime(2000,1,1),
-                'price_origin': ProductItemOrService.ORIGIN_CLAIM
-            } )
-        product_service3 = create_test_product_service(product, service2,custom_props={
-                "validity_from": datetime(2000,1,1),
-                'price_origin': ProductItemOrService.ORIGIN_CLAIM,
-            } )
-        product_item = create_test_product_item(product, item,custom_props={
-                "validity_from": datetime(2000,1,1),
-                'price_origin': ProductItemOrService.ORIGIN_PRICELIST,
-            } )
-
- 
+        create_test_product_service(
+            product,
+            service,
+            custom_props={
+                "validity_from": datetime(2000, 1, 1),
+                "price_origin": ProductItemOrService.ORIGIN_CLAIM,
+            },
+        )
+        create_test_product_service(
+            product,
+            service2,
+            custom_props={
+                "validity_from": datetime(2000, 1, 1),
+                "price_origin": ProductItemOrService.ORIGIN_CLAIM,
+            },
+        )
+        create_test_product_service(
+            product,
+            service2,
+            custom_props={
+                "validity_from": datetime(2000, 1, 1),
+                "price_origin": ProductItemOrService.ORIGIN_CLAIM,
+            },
+        )
+        create_test_product_item(
+            product,
+            item,
+            custom_props={
+                "validity_from": datetime(2000, 1, 1),
+                "price_origin": ProductItemOrService.ORIGIN_PRICELIST,
+            },
+        )
 
         claim1 = create_test_claim({"insuree_id": insuree.id})
-        pricelist_detail1 = add_service_to_hf_pricelist(service, claim1.health_facility_id)
-        pricelist_detail3 = add_service_to_hf_pricelist(service2, claim1.health_facility_id)
-        pricelist_detail4 = add_service_to_hf_pricelist(service3, claim1.health_facility_id)
-        pricelist_detail2 = add_item_to_hf_pricelist(item, claim1.health_facility_id)
+        add_service_to_hf_pricelist(
+            service, claim1.health_facility_id
+        )
+        add_service_to_hf_pricelist(
+            service2, claim1.health_facility_id
+        )
+        add_service_to_hf_pricelist(
+            service3, claim1.health_facility_id
+        )
+        add_item_to_hf_pricelist(item, claim1.health_facility_id)
 
         claim1 = create_test_claim({"insuree_id": insuree.id})
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
         claimservice1 = create_test_claimservice(
-            claim1, custom_props={"service_id": service.id, 'price_asked': 4000, 'price_valuated': 4000})
-        
-        claimservice2 = create_test_claimservice(
-            claim1, custom_props={"service_id": service2.id, 'price_asked': 4000, 'price_adjusted': None})
-        claimservice3 = create_test_claimservice(
-            claim1, custom_props={"service_id": service3.id, 'price_asked': 4000, 'price_adjusted': None})
-        
-        clalimitem1 = create_test_claimitem(
-            claim1, "D", custom_props={"item_id": item.id, 'price_asked': 4000})
-        claimserviceservice = ClaimServiceService.objects.create(
-            service = service,
-            claim_service = claimservice3,
-            qty_displayed = 5,
-            qty_provided = 4,
-            price_asked = 300,
+            claim1,
+            custom_props={
+                "service_id": service.id,
+                "price_asked": 4000,
+                "price_valuated": 4000,
+            },
         )
-        claimserviceitem = ClaimServiceItem.objects.create(
-            item = item,
-            claim_service = claimservice3,
-            qty_displayed = 2,
-            qty_provided = 3,
-            price_asked = 500,
+
+        claimservice2 = create_test_claimservice(
+            claim1,
+            custom_props={
+                "service_id": service2.id,
+                "price_asked": 4000,
+                "price_adjusted": None,
+            },
+        )
+        claimservice3 = create_test_claimservice(
+            claim1,
+            custom_props={
+                "service_id": service3.id,
+                "price_asked": 4000,
+                "price_adjusted": None,
+            },
+        )
+
+        clalimitem1 = create_test_claimitem(
+            claim1, "D", custom_props={"item_id": item.id, "price_asked": 4000}
+        )
+        ClaimServiceService.objects.create(
+            service=service,
+            claim_service=claimservice3,
+            qty_displayed=5,
+            qty_provided=4,
+            price_asked=300,
+        )
+        ClaimServiceItem.objects.create(
+            item=item,
+            claim_service=claimservice3,
+            qty_displayed=2,
+            qty_provided=3,
+            price_asked=500,
         )
         # set the service price to 1000 lower than the price_adjusted
         errors = validate_claim(claim1, True)
@@ -1117,6 +1328,7 @@ class ValidationTest(TestCase):
         self.assertEqual(claimservice2.price_adjusted, 750)
         claimservice3.refresh_from_db()
         self.assertIsNone(claimservice3.price_adjusted)
+
     def test_validate_claimitem_future_validity(self):
         # Given
         future_date = date.today() + timedelta(days=30)
@@ -1124,19 +1336,25 @@ class ValidationTest(TestCase):
         item_future.validity_from = future_date
         item_future.save()
 
-        claim = create_test_claim({
-            "date_from": date.today(),
-            "date_to": date.today()
-        })
-        claim_item = create_test_claimitem(claim, custom_props={"item_id": item_future.id})
+        claim = create_test_claim({"date_from": date.today(), "date_to": date.today()})
+        claim_item = create_test_claimitem(
+            claim, custom_props={"item_id": item_future.id}
+        )
 
         # When
         errors = validate_claim(claim, check_max=True)
 
         # Then
-        self.assertTrue(any(e['code'] == REJECTION_REASON_TARGET_DATE for e in errors), "Item validity should cause rejection")
+        self.assertTrue(
+            any(e["code"] == REJECTION_REASON_TARGET_DATE for e in errors),
+            "Item validity should cause rejection",
+        )
         claim_item.refresh_from_db()
-        self.assertEqual(claim_item.rejection_reason, REJECTION_REASON_TARGET_DATE, "Claim item should be rejected for future validity")
+        self.assertEqual(
+            claim_item.rejection_reason,
+            REJECTION_REASON_TARGET_DATE,
+            "Claim item should be rejected for future validity",
+        )
 
         # tearDown
         claim_item.delete()
@@ -1150,20 +1368,26 @@ class ValidationTest(TestCase):
         service_future.validity_from = future_date
         service_future.save()
         insuree = create_test_insuree()
-        claim = create_test_claim({
-            "insuree": insuree,
-            "date_from": date.today(),
-            "date_to": date.today()
-        })
-        claim_service = create_test_claimservice(claim, custom_props={"service_id": service_future.id})
+        claim = create_test_claim(
+            {"insuree": insuree, "date_from": date.today(), "date_to": date.today()}
+        )
+        claim_service = create_test_claimservice(
+            claim, custom_props={"service_id": service_future.id}
+        )
         # When
         errors = validate_claim(claim, check_max=True)
         # Then
-        self.assertTrue(any(e['code'] == REJECTION_REASON_TARGET_DATE for e in errors), "Service validity should cause rejection")
+        self.assertTrue(
+            any(e["code"] == REJECTION_REASON_TARGET_DATE for e in errors),
+            "Service validity should cause rejection",
+        )
         claim_service.refresh_from_db()
-        self.assertEqual(claim_service.rejection_reason, REJECTION_REASON_TARGET_DATE, "Claim service should be rejected for future validity")
+        self.assertEqual(
+            claim_service.rejection_reason,
+            REJECTION_REASON_TARGET_DATE,
+            "Claim service should be rejected for future validity",
+        )
         # tearDown
         claim_service.delete()
         claim.delete()
         service_future.delete()
-     

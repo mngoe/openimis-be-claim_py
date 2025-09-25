@@ -7,25 +7,38 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0001_initial'),
+        ("claim", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='BatchRun',
+            name="BatchRun",
             fields=[
-                ('id', models.AutoField(db_column='RunID', primary_key=True, serialize=False)),
-                ('legacy_id', models.IntegerField(blank=True, db_column='LegacyID', null=True)),
-                ('run_date', core.fields.DateTimeField(db_column='RunDate')),
-                ('validity_from', core.fields.DateTimeField(db_column='ValidityFrom')),
-                ('validity_to', core.fields.DateTimeField(blank=True, db_column='ValidityTo', null=True)),
-                ('audit_user_id', models.IntegerField(db_column='AuditUserID')),
-                ('run_year', models.IntegerField(db_column='RunYear')),
-                ('run_month', models.SmallIntegerField(db_column='RunMonth')),
+                (
+                    "id",
+                    models.AutoField(
+                        db_column="RunID", primary_key=True, serialize=False
+                    ),
+                ),
+                (
+                    "legacy_id",
+                    models.IntegerField(blank=True, db_column="LegacyID", null=True),
+                ),
+                ("run_date", core.fields.DateTimeField(db_column="RunDate")),
+                ("validity_from", core.fields.DateTimeField(db_column="ValidityFrom")),
+                (
+                    "validity_to",
+                    core.fields.DateTimeField(
+                        blank=True, db_column="ValidityTo", null=True
+                    ),
+                ),
+                ("audit_user_id", models.IntegerField(db_column="AuditUserID")),
+                ("run_year", models.IntegerField(db_column="RunYear")),
+                ("run_month", models.SmallIntegerField(db_column="RunMonth")),
             ],
             options={
-                'db_table': 'tblBatchRun',
-                'managed': False,
+                "db_table": "tblBatchRun",
+                "managed": False,
             },
         ),
     ]

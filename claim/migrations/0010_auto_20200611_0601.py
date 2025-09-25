@@ -6,20 +6,22 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0009_auto_20200421_1657'),
+        ("claim", "0009_auto_20200421_1657"),
     ]
 
     operations = [
         migrations.DeleteModel(
-            name='BatchRun',
+            name="BatchRun",
         ),
         migrations.DeleteModel(
-            name='ClaimDiagnosisCode',
+            name="ClaimDiagnosisCode",
         ),
         migrations.DeleteModel(
-            name='Officer',
+            name="Officer",
         ),
-        migrations.RunSQL('ALTER TABLE [tblClaim] ADD [JsonExt] TEXT'
-                          if settings.MSSQL else
-                          'ALTER TABLE "tblClaim" ADD "JsonExt" jsonb')
+        migrations.RunSQL(
+            "ALTER TABLE [tblClaim] ADD [JsonExt] TEXT"
+            if settings.MSSQL
+            else 'ALTER TABLE "tblClaim" ADD "JsonExt" jsonb'
+        ),
     ]
