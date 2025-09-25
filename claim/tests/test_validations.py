@@ -23,7 +23,6 @@ from medical_pricelist.test_helpers import add_service_to_hf_pricelist, add_item
     update_pricelist_service_detail_in_hf_pricelist, update_pricelist_item_detail_in_hf_pricelist, \
     create_test_service_pricelist, create_test_item_pricelist
 from policy.test_helpers import create_test_policy, create_test_policy2
-from core import filter_validity
 
 
 # default arguments should not pass a list or a dict because they're mutable but we don't risk mutating them here:
@@ -619,7 +618,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -692,7 +691,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -760,7 +759,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -828,7 +827,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -918,7 +917,7 @@ class ValidationTest(TestCase):
         # update_claims_dedrems([claim1.uuid], self.user)
 
         # Then dedrem should have been updated
-        dedrem = ClaimDedRem.objects.filter(claim=claim1, *filter_validity()).first()
+        dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
         # self.assertIsNotNone(dedrem)
         # self.assertEquals(dedrem.rem_g, 90)  # 37*1 + 53*1
 
@@ -1064,7 +1063,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
