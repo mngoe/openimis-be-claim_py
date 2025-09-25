@@ -31,7 +31,7 @@ from program import models as program_models
 from product.models import ProductItemOrService
 from medical.models import Item, Service
 
-from claim.utils import process_items_relations, process_services_relations, approved_amount
+from claim.utils import process_items_relations, process_services_relations
 from claim.services import validate_claim_data as service_validate_claim_data, \
         update_or_create_claim as service_update_or_create_claim, check_unique_claim_code, submit_claim,\
             validate_and_process_dedrem_claim as service_validate_and_process_dedrem_claim,\
