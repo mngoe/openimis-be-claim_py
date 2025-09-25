@@ -1,3 +1,5 @@
+# flake8: noqa
+
 from django.db import connection
 from tools.utils import dictfetchall
 

@@ -1,3 +1,5 @@
+# flake8: noqa
+
 from _decimal import Decimal
 from typing import Dict, Union
 

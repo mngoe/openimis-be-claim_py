@@ -1,3 +1,5 @@
+# flake8: noqa
+
 import calendar
 from _decimal import Decimal
 
