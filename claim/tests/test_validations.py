@@ -1138,7 +1138,7 @@ class ValidationTest(TestCase):
         future_validity_end = future_validity_start + timedelta(days=365)
 
         product = create_test_product("LATE_P")
-        policy = create_test_policy2(
+        create_test_policy2(
             product,
             insuree,
             custom_props={
@@ -1150,13 +1150,13 @@ class ValidationTest(TestCase):
 
         service = create_test_service("V")
         product_service = create_test_product_service(product, service)
-        pricelist_detail = add_service_to_hf_pricelist(service, hf_id=self.test_hf.id)
 
         # Create a claim dated before the policy validity_from
         claim = create_test_claim({
             "insuree_id": insuree.id,
             "health_facility_id": self.test_hf.id
         })
+        pricelist_detail = add_service_to_hf_pricelist(service, claim.health_facility_id)
         claim_service = create_test_claimservice(claim, custom_props={"service_id": service.id})
 
         # When validating the claim
