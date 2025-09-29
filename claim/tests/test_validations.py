@@ -1138,6 +1138,7 @@ class ValidationTest(TestCase):
         future_validity_end = future_validity_start + timedelta(days=365)
 
         product = create_test_product("LATE_P")
+        policy = create_test_policy2(
             product,
             insuree,
             custom_props={
