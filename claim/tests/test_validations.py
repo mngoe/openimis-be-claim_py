@@ -1147,16 +1147,19 @@ class ValidationTest(TestCase):
             },
             link=True
         )
-
         service = create_test_service("V")
-        product_service = create_test_product_service(product, service)
 
         # Create a claim dated before the policy validity_from
-        claim = create_test_claim({
-            "insuree_id": insuree.id
-        })
-        pricelist_detail = add_service_to_hf_pricelist(service, claim.health_facility_id)
-        claim_service = create_test_claimservice(claim, custom_props={"service_id": service.id})
+        claim = create_test_claim(
+            {"insuree_id": insuree.id},
+            product=self.product
+        )
+        claim.health_facility.care_type = claim.health_facility.CARE_TYPE_BOTH
+        claim.health_facility.save()
+        claim_service = create_test_claimservice(
+            claim, custom_props={"service_id": service.id},
+            product=self.product
+        )
 
         # When validating the claim
         errors = validate_claim(claim, True)
@@ -1169,6 +1172,4 @@ class ValidationTest(TestCase):
         # tearDown
         claim_service.delete()
         claim.delete()
-        product_service.delete()
-        pricelist_detail.delete()
         service.delete()
