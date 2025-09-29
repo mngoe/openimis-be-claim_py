@@ -1153,8 +1153,7 @@ class ValidationTest(TestCase):
 
         # Create a claim dated before the policy validity_from
         claim = create_test_claim({
-            "insuree_id": insuree.id,
-            "health_facility_id": self.test_hf.id
+            "insuree_id": insuree.id
         })
         pricelist_detail = add_service_to_hf_pricelist(service, claim.health_facility_id)
         claim_service = create_test_claimservice(claim, custom_props={"service_id": service.id})
