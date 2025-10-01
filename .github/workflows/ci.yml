@@ -15,12 +15,10 @@ on:
         required: false
 
 
-
 jobs:
   call:
     name: Default CI Flow
     uses: mngoe/openimis-be_py/.github/workflows/ci_module.yml@test-csu
-
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     with:
