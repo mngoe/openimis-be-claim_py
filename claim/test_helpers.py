@@ -1,6 +1,6 @@
 from claim.validations import get_claim_category, approved_amount 
 from program.test_helpers import create_test_program
-from claim.models import Claim, ClaimService, ClaimItem, ClaimDedRem, ClaimAdmin 
+from claim.models import Claim, ClaimService, ClaimItem, ClaimDedRem, ClaimAdmin, ClaimServiceItem, ClaimServiceService 
 from claim.services import claim_create, update_sum_claims
 from medical.test_helpers import get_item_of_type, get_service_of_category, create_test_diagnosis
 from uuid import uuid4
@@ -33,7 +33,7 @@ def create_test_claim(custom_props=None, user=DummyUser(), product=None):
         insuree = Insuree.objects.filter(id=custom_props['insuree_id']).first()
     else:
         insuree = create_test_insuree()
-        custom_props["insuree"] = insuree
+    custom_props["insuree"] = insuree
         
     test_hf = None
     if 'health_facility_id' in custom_props:
@@ -140,6 +140,8 @@ def delete_claim_with_itemsvc_dedrem_and_history(claim):
     # first delete old versions of the claim
     ClaimDedRem.objects.filter(claim=claim).delete()
     old_claims = Claim.objects.filter(legacy_id=claim.id)
+    ClaimServiceItem.objects.filter(claim_service__claim=claim).delete()
+    ClaimServiceService.objects.filter(claim_service__claim=claim).delete()
     ClaimItem.objects.filter(claim__in=old_claims).delete()
     ClaimService.objects.filter(claim__in=old_claims).delete()
     old_claims.delete()
