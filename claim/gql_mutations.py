@@ -4,11 +4,13 @@ import pathlib
 import base64
 from urllib.parse import urlparse
 import graphene
+
 from django.db.models import Count, Case, When, IntegerField, Q, Prefetch
 
 from core.models import MutationLog
 from .apps import ClaimConfig
-from claim.validations import approved_amount
+
+from claim.validations import approved_amount, REJECTION_REASON_INVALID_CLAIM, REJECTION_REASON_MANUAL_REJECTION
 from core import filter_validity, assert_string_length
 from core.schema import TinyInt, SmallInt, OpenIMISMutation
 from core.gql.gql_mutations import mutation_on_uuids_from_filter
@@ -28,7 +30,7 @@ from claim.services import validate_claim_data as service_validate_claim_data, \
         update_or_create_claim as service_update_or_create_claim, submit_claim,\
             validate_and_process_dedrem_claim as service_validate_and_process_dedrem_claim,\
             create_feedback_prompt as service_create_feedback_prompt, update_claims_dedrems,\
-                set_feedback_prompt_validity_to_to_current_date, set_claims_status
+                set_feedback_prompt_validity_to_to_current_date, set_claims_status, reject_claim
 from django.db import transaction
 
 logger = logging.getLogger(__name__)
@@ -654,6 +656,74 @@ class SubmitClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
         return errors
 
 
+class RejectClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
+    """
+    Reject one or several claims.
+    """
+    __filter_handlers = {
+        'services': 'services__service__code__in',
+        'items': 'items__item__code__in'
+    }
+    _mutation_module = "claim"
+    _mutation_class = "RejectClaimsMutation"
+
+    class Input(OpenIMISMutation.Input):
+        uuids = graphene.List(graphene.String)
+        additional_filters = graphene.String()
+        explanation = graphene.String()
+
+
+    @classmethod
+    def _parse_submission_stats(cls, claim_submission_stats):
+        return {
+            "rejected": claim_submission_stats["rejected"],
+            "items_rejected": claim_submission_stats["items_rejected"],
+            "services_rejected": claim_submission_stats["services_rejected"],
+            "header": "Claims rejected",
+        }
+
+
+    @classmethod
+    @mutation_on_uuids_from_filter(Claim, ClaimGQLType, 'additional_filters', __filter_handlers)
+    def async_mutate(cls, user, **data):
+        if not user.has_perms(ClaimConfig.gql_mutation_submit_claims_perms):
+            raise PermissionDenied(_("unauthorized"))
+        logger.debug("RejectClaimsMutation: Asyn Mutate Start %s", "")
+        
+        uuids = data.get("uuids", [])
+        client_mutation_id = data.get("client_mutation_id", None)
+        explanation = data.get("explanation")
+        errors = []
+        c_errors = []
+        
+        claims = Claim.objects \
+            .filter(uuid__in=uuids, validity_to__isnull=True) \
+            .prefetch_related(Prefetch('items', queryset=ClaimItem.objects.filter(
+                *filter_validity(), 
+                Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True))))) \
+            .prefetch_related(Prefetch('services', queryset=ClaimService.objects.filter(
+                *filter_validity(),
+                Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True))))) 
+        
+        remaining_uuid = list(map(str.upper, uuids))
+        for claim in claims:
+            remaining_uuid.remove(claim.uuid.upper())
+            claim_errors = reject_claim(claim, user, explanation)
+            if claim_errors:
+                errors.append({
+                    'title': claim.code,
+                    'list': claim_errors
+                })
+        
+        if len(remaining_uuid):
+            c_errors.append( {'code': REJECTION_REASON_MANUAL_REJECTION,
+                            'message': _("claim.validation.claim_uuid_not_found") + ','.join(remaining_uuid) })
+        
+        cls.add_submission_stats_to_mutation_log(client_mutation_id, uuids)
+        logger.debug("RejectClaimsMutation: claims %s done, errors: %s", uuids, len(c_errors))
+
+        return errors if errors else c_errors
+
 
 def create_feedback_prompt(claim_uuid, user):
     current_claim = Claim.objects.get(uuid=claim_uuid)
@@ -813,7 +883,7 @@ class DeliverClaimsReviewMutation(OpenIMISMutation):
         errors = set_claims_status(data['uuids'], 'review_status', Claim.REVIEW_DELIVERED,
                                    {'audit_user_id_review': user.id_for_audit})
         # OMT-208 update the dedrem for the reviewed claims
-        errors += update_claims_dedrems(data["uuids"], user)
+        errors += update_claims_dedrems(data["uuids"], user, 'review_status', Claim.REVIEW_DELIVERED)
 
         return errors
 
