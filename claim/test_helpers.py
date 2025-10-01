@@ -4,10 +4,7 @@ from claim.models import Claim, ClaimService, ClaimItem, ClaimDedRem, ClaimAdmin
 from claim.services import claim_create, update_sum_claims
 from medical.test_helpers import get_item_of_type, get_service_of_category, create_test_diagnosis
 from uuid import uuid4
-from location.models import HealthFacility, Location
-from product.models import ProductItem, ProductService, ProductItemOrService, Product
-from product.test_helpers import create_test_product_service, create_test_product_item, create_test_product
-from medical_pricelist.test_helpers import add_service_to_hf_pricelist, add_item_to_hf_pricelist
+from location.models import HealthFacility
 from insuree.test_helpers import create_test_insuree
 from policy.test_helpers import create_test_policy2
 from insuree.models import Insuree

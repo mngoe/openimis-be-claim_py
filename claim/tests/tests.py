@@ -10,6 +10,7 @@ from claim import schema as claim_schema
 from graphene.test import Client
 from graphene import Schema
 
+
 from claim.models import Claim, ClaimItem, ClaimService
 from claim.test_helpers import create_test_claim_admin, create_test_claim
 from claim.services import REJECTION_REASON_MANUAL_REJECTION
@@ -20,7 +21,6 @@ from policy.test_helpers import create_test_policy2
 from product.test_helpers import create_test_product, create_test_product_service
 from core.test_helpers import create_test_officer
 from insuree.test_helpers import create_test_insuree
-from location.models import Location
 from medical.test_helpers import create_test_service
 from medical_pricelist.test_helpers import add_service_to_hf_pricelist, \
     create_test_service_pricelist, create_test_item_pricelist

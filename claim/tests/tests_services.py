@@ -3,15 +3,12 @@ from unittest import mock
 from location.test_helpers import create_test_health_facility,create_test_village
 from insuree.test_helpers import create_test_insuree
 from policy.test_helpers import create_test_policy2
-from product.test_helpers import (
-    create_test_product
-)
+from product.test_helpers import create_test_product
 from claim.test_helpers import create_test_claim_admin, create_test_claim
 from claim.models import Claim, ClaimItem, ClaimService,ClaimDetail
 from medical.models import  Diagnosis
 from medical.test_helpers import create_test_item, create_test_service
 from medical_pricelist.test_helpers import  create_test_service_pricelist, create_test_item_pricelist
-
 import datetime
 from claim.services import *
 import core

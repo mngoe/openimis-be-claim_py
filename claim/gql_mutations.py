@@ -4,11 +4,12 @@ import pathlib
 import base64
 from urllib.parse import urlparse
 import graphene
-import graphene_django_optimizer
+
 from django.db.models import Count, Case, When, IntegerField, Q, Prefetch
 
 from core.models import MutationLog
 from .apps import ClaimConfig
+
 from claim.validations import approved_amount, REJECTION_REASON_INVALID_CLAIM, REJECTION_REASON_MANUAL_REJECTION
 from core import filter_validity, assert_string_length
 from core.schema import TinyInt, SmallInt, OpenIMISMutation
@@ -20,7 +21,7 @@ from django.utils.translation import gettext as _
 from graphene import InputObjectType
 from claim.gql_queries import ClaimGQLType
 from claim.models import Claim, Feedback, ClaimItem, ClaimService, ClaimAttachment, \
-    GeneralClaimAttachmentType, ClaimAttachmentType
+     GeneralClaimAttachmentType, ClaimAttachmentType
 from claim.attachment_strategies import *
 from program import models as program_models
 from medical.models import Item, Service

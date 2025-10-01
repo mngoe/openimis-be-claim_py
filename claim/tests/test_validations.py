@@ -1,4 +1,5 @@
-from claim.services import update_claims_dedrems, set_claims_status, ClaimSubmitService, processing_claim
+from claim.services import update_claims_dedrems, set_claims_status
+
 from claim.models import Claim, ClaimDedRem, ClaimItem, ClaimDetail, ClaimService, ClaimServiceItem, ClaimServiceService
 from claim.test_helpers import create_test_claim, create_test_claimservice, create_test_claimitem, \
     mark_test_claim_as_processed, delete_claim_with_itemsvc_dedrem_and_history
@@ -7,15 +8,14 @@ from datetime import date, timedelta, datetime
 
 
 from claim.validations import get_claim_category, validate_claim, validate_assign_prod_to_claimitems_and_services, \
-    process_dedrem, REJECTION_REASON_WAITING_PERIOD_FAIL, REJECTION_REASON_INVALID_ITEM_OR_SERVICE, REJECTION_REASON_TARGET_DATE
+    process_dedrem, REJECTION_REASON_WAITING_PERIOD_FAIL, REJECTION_REASON_INVALID_ITEM_OR_SERVICE
+from core.models import InteractiveUser
 
-from core.models import User, InteractiveUser
 from django.test import TestCase
 from insuree.models import Family, Insuree
 from insuree.test_helpers import create_test_insuree
 from location.models import HealthFacility
 from medical_pricelist.test_helpers import add_service_to_hf_pricelist, add_item_to_hf_pricelist
-from medical.models import ServiceItem, ServiceService
 from product.models import ProductItemOrService
 
 from medical.test_helpers import create_test_service, create_test_item

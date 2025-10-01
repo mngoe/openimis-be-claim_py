@@ -1,5 +1,6 @@
 import os
 import importlib
+from . import handle_claimdoc_attachment
 
 dir_path = os.path.dirname(__file__)
 for file in os.listdir(dir_path):
