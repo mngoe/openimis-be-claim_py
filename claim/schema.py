@@ -84,6 +84,21 @@ class Query(graphene.ObjectType):
         ClaimAttachmentTypeGQLType
     )
 
+    claim_history = OrderedDjangoFilterConnectionField(
+        ClaimGQLType,
+        claim_uuid=graphene.String(required=True),
+        diagnosisVariance=graphene.Int(),
+        code_is_not=graphene.String(),
+        orderBy=graphene.List(of_type=graphene.String),
+        items=graphene.List(of_type=graphene.String),
+        services=graphene.List(of_type=graphene.String),
+        json_ext=graphene.JSONString(),
+        attachment_status=graphene.Int(required=False),
+        care_type=graphene.String(required=False),
+        show_restored=graphene.Boolean(required=False),
+        rejection_code=graphene.Int(required=False)
+    )
+
     def resolve_insuree_name_by_chfid(self, info, **kwargs):
         if not info.context.user.has_perms(ClaimConfig.gql_mutation_create_claims_perms)\
                 and not info.context.user.has_perms(ClaimConfig.gql_mutation_update_claims_perms):
@@ -276,6 +291,45 @@ class Query(graphene.ObjectType):
                                   insuree__chf_id=kwargs['chfid'], insuree__validity_to__isnull=True,
                                   validity_to__isnull=True).order_by("date_claimed")
         return qs
+
+    def resolve_claim_history(self, info, **kwargs):
+        claim_uuid = kwargs.get('claim_uuid')
+
+        try:
+            target_claim = Claim.objects.get(uuid=claim_uuid)
+        except Claim.DoesNotExist:
+            return Claim.objects.none()
+
+        if (
+            not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms)
+            and settings.ROW_SECURITY
+        ):
+            raise PermissionDenied(_("unauthorized"))
+
+        query = Claim.objects.filter(
+            code=target_claim.code,
+            validity_to__isnull=False
+        )
+
+        filters = []
+
+        if "care_type" in kwargs and kwargs["care_type"]:
+            filters.append(Q(care_type=kwargs["care_type"]))
+
+        if "attachment_status" in kwargs:
+            status = kwargs["attachment_status"]
+            if status == 1:  # WITH
+                filters.append(Q(attachments__isnull=False))
+            elif status == 2:  # WITHOUT
+                filters.append(Q(attachments__isnull=True))
+
+        if "code_is_not" in kwargs and kwargs["code_is_not"]:
+            filters.append(~Q(code=kwargs["code_is_not"]))
+
+        if filters:
+            query = query.filter(*filters).distinct()
+
+        return gql_optimizer.query(query, info)
 
 
 class Mutation(graphene.ObjectType):
