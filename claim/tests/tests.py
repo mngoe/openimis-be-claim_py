@@ -367,3 +367,48 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         self.claim.refresh_from_db()
         self.assertEqual(self.claim.review_status, Claim.REVIEW_DELIVERED)
         self.assertEqual(self.claim.status, Claim.STATUS_PROCESSED)
+
+    def test_claim_history_query(self):
+        historical_claim1 = create_test_claim(custom_props={
+            "code": self.claim.code,
+            "validity_to": "2023-01-01 00:00:00",
+            "insuree_id": self.insuree.id,
+            "health_facility_id": self.hf.id,
+            "status": Claim.STATUS_ENTERED
+        })
+        historical_claim2 = create_test_claim(custom_props={
+            "code": self.claim.code,
+            "validity_to": "2023-01-02 00:00:00",
+            "insuree_id": self.insuree.id,
+            "health_facility_id": self.hf.id,
+            "status": Claim.STATUS_CHECKED
+        })
+
+        response = self.query(
+            '''
+            query {
+                claimHistory(claimUuid: "%s") {
+                    totalCount
+                    edges {
+                        node {
+                            uuid
+                            code
+                            validityTo
+                            status
+                        }
+                    }
+                }
+            }
+            ''' % str(self.claim.uuid),
+            headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"}
+        )
+        content = json.loads(response.content)
+        self.assertResponseNoErrors(response)
+        self.assertEqual(content['data']['claimHistory']['totalCount'], 2)
+        edges = content['data']['claimHistory']['edges']
+        self.assertEqual(edges[0]['node']['code'], self.claim.code)
+        self.assertIsNotNone(edges[0]['node']['validityTo'])
+        self.assertEqual(edges[0]['node']['status'], Claim.STATUS_ENTERED)
+        self.assertEqual(edges[1]['node']['code'], self.claim.code)
+        self.assertIsNotNone(edges[1]['node']['validityTo'])
+        self.assertEqual(edges[1]['node']['status'], Claim.STATUS_CHECKED)
