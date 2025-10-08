@@ -353,14 +353,12 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
             "code": self.claim.code,
             "validity_to": "2023-01-01 00:00:00",
             "insuree_id": self.insuree.id,
-            "health_facility_id": self.hf.id,
             "status": Claim.STATUS_ENTERED
         })
         historical_claim2 = create_test_claim(custom_props={
             "code": self.claim.code,
             "validity_to": "2023-01-02 00:00:00",
             "insuree_id": self.insuree.id,
-            "health_facility_id": self.hf.id,
             "status": Claim.STATUS_CHECKED
         })
 
