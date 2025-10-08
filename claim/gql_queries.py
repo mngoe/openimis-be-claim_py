@@ -109,6 +109,8 @@ class ClaimGQLType(DjangoObjectType):
 
     @classmethod
     def get_queryset(cls, queryset, info):
+        if info.field_name == "claimHistory":
+            return queryset
         return Claim.get_queryset(queryset, info).all()
 
 

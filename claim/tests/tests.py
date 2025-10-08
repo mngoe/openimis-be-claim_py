@@ -14,7 +14,8 @@ from graphene.test import Client
 from graphene import Schema
 
 from claim.models import Claim
-from core.models.user import ClaimAdmin
+from claim.models import ClaimAdmin
+
 
 import datetime
 from policy.models import Policy
@@ -25,6 +26,7 @@ from insuree.test_helpers import create_test_insuree
 from location.models import Location
 from medical.test_helpers import create_test_service
 from medical_pricelist.test_helpers import add_service_to_hf_pricelist
+from claim.test_helpers import create_test_claim
 
 
 class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
@@ -345,4 +347,47 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         self.assertEqual(claim.feedback_status, Claim.FEEDBACK_SELECTED)
         self.assertEqual(claim.review_status, Claim.REVIEW_DELIVERED)
 
+    def test_claim_history_query(self):
+        historical_claim1 = create_test_claim(custom_props={
+            "code": self.claim.code,
+            "validity_to": "2023-01-01 00:00:00",
+            "insuree_id": self.insuree.id,
+            "health_facility_id": self.hf.id,
+            "status": Claim.STATUS_ENTERED
+        })
+        historical_claim2 = create_test_claim(custom_props={
+            "code": self.claim.code,
+            "validity_to": "2023-01-02 00:00:00",
+            "insuree_id": self.insuree.id,
+            "health_facility_id": self.hf.id,
+            "status": Claim.STATUS_CHECKED
+        })
 
+        response = self.query(
+            '''
+            query {
+                claimHistory(claimUuid: "%s") {
+                    totalCount
+                    edges {
+                        node {
+                            uuid
+                            code
+                            validityTo
+                            status
+                        }
+                    }
+                }
+            }
+            ''' % str(self.claim.uuid),
+            headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"}
+        )
+        content = json.loads(response.content)
+        self.assertResponseNoErrors(response)
+        self.assertEqual(content['data']['claimHistory']['totalCount'], 2)
+        edges = content['data']['claimHistory']['edges']
+        self.assertEqual(edges[0]['node']['code'], self.claim.code)
+        self.assertIsNotNone(edges[0]['node']['validityTo'])
+        self.assertEqual(edges[0]['node']['status'], Claim.STATUS_ENTERED)
+        self.assertEqual(edges[1]['node']['code'], self.claim.code)
+        self.assertIsNotNone(edges[1]['node']['validityTo'])
+        self.assertEqual(edges[1]['node']['status'], Claim.STATUS_CHECKED)
