@@ -67,6 +67,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
             cls.service, hf_id=cls.claim_admin.health_facility.id)
         cls.product_service = create_test_product_service(
             cls.product, cls.service, custom_props={"limit_no_adult": 20})
+        cls.claim = create_test_claim(custom_props={"insuree_id": cls.insuree.id})
 
     def test_claims_query(self):
 
