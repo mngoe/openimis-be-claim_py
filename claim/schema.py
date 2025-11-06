@@ -4,7 +4,7 @@ from enum import Enum
 from core.models import Officer, MutationLog
 from insuree.models import Insuree
 from location.models import HealthFacility, Location, LocationManager
-from .services import check_unique_claim_code
+from .services import check_unique_claim_code,check_unique_claim_pre_authorization_code
 import django
 from core.schema import signal_mutation_module_validate, signal_mutation_module_after_mutating
 from django.db.models import OuterRef, Subquery, Avg, Q
@@ -36,7 +36,8 @@ class Query(graphene.ObjectType):
         json_ext=graphene.JSONString(),
         attachment_status=graphene.Int(required=False),
         care_type=graphene.String(required=False),
-        show_restored=graphene.Boolean(required=False)
+        show_restored=graphene.Boolean(required=False),
+        is_normal_claim=graphene.Boolean(required=False)
         )
 
     claim = graphene.Field(
@@ -65,6 +66,11 @@ class Query(graphene.ObjectType):
     validate_claim_code = graphene.Field(
         graphene.Boolean,
         claim_code=graphene.String(required=True),
+        description="Checks that the specified claim code is unique."
+    )
+    validate_claim_pre_authorization_code = graphene.Field(
+        graphene.Boolean,
+        claim_pre_authorization_code=graphene.String(required=True),
         description="Checks that the specified claim code is unique."
     )
     fsp_from_claim = graphene.Field(
@@ -165,6 +171,12 @@ class Query(graphene.ObjectType):
             raise PermissionDenied(_("unauthorized"))
         errors = check_unique_claim_code(code=kwargs['claim_code'])
         return False if errors else True
+    
+    def resolve_validate_claim_pre_authorization_code(self, info, **kwargs):
+        if not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms):
+            raise PermissionDenied(_("unauthorized"))
+        errors = check_unique_claim_pre_authorization_code(code_pre_authorization=kwargs['claim_pre_authorization_code'])
+        return False if errors else True
 
     def resolve_claim(self, info, id=None, uuid=None, **kwargs):
         if (
@@ -249,6 +261,13 @@ class Query(graphene.ObjectType):
         #        )
         code_is_not = kwargs.get("code_is_not", None)
         
+        is_normal_claim = kwargs.get("is_normal_claim", None)
+        if is_normal_claim:
+            filters.append(
+                Q(is_pre_authorization=False) |
+                (Q(is_pre_authorization=True) & Q(status_pre_authorization=16))
+            )
+
         if len(filters):
             query = query.filter(*filters)   
         if code_is_not:
@@ -347,6 +366,10 @@ class Mutation(graphene.ObjectType):
     update_claim_attachment = UpdateAttachmentMutation.Field()
     delete_claim_attachment = DeleteAttachmentMutation.Field()
     submit_claims = SubmitClaimsMutation.Field()
+    submit_claims_pre_authorization=SubmitClaimsPreAuthorizationMutation.Field()
+    submit_claims_to_medical=submitClaimsToMedicalMutation.Field()
+    submit_to_normal_claim=submitToNormalClaimMutation.Field()
+    reject_claim_pre_authorization=rejectClaimPreAuthorizationMutation.Field()
     select_claims_for_feedback = SelectClaimsForFeedbackMutation.Field()
     deliver_claim_feedback = DeliverClaimFeedbackMutation.Field()
     bypass_claims_feedback = BypassClaimsFeedbackMutation.Field()

@@ -19,7 +19,7 @@ from claim.models import Prescriber,PrescriberMutation,Speciality,Status,Claim, 
 from product.models import ProductItemOrService
 
 from claim.utils import process_items_relations, process_services_relations
-from .validations import validate_claim, validate_assign_prod_to_claimitems_and_services, process_dedrem, \
+from .validations import validate_claim,validate_claim_pre_authorization, validate_assign_prod_to_claimitems_and_services, process_dedrem, \
     approved_amount, get_claim_category
 from django.db.models import Subquery, F, OuterRef, Sum, FloatField
 from django.db.models.functions import Coalesce
@@ -399,6 +399,11 @@ def check_unique_claim_code(code):
         return [{"message": "Claim code %s already exists" % code}]
     return []
 
+def check_unique_claim_pre_authorization_code(code_pre_authorization):
+    if Claim.objects.filter(code_pre_authorization=code_pre_authorization, validity_to__isnull=True).exists():
+        return [{"message": "Claim code_pre_authorization %s already exists" % code_pre_authorization}]
+    return []
+
 
 def reset_claim_before_update(claim):
     claim.date_to = None
@@ -432,6 +437,19 @@ def _get_autogenerating_func() -> Callable[[Dict], Callable]:
 
 
 def claim_create(data, user, autogenerate_code = False):
+    code_pre_authorization=data.get("code_pre_authorization")
+    if code_pre_authorization!=None:
+        from core import datetime
+        now = datetime.datetime.now()
+        date_pre_authorization=now
+        data["date_pre_authorization"]=date_pre_authorization
+    code=data.get("code")
+    if code==None and code_pre_authorization==None:
+        raise ValidationError(_("mutation.claim_is_missing_code"))
+    if data.get("is_pre_authorization", False)==True:
+        data["status_pre_authorization"]=Claim.STATUS_PRE_AUTHORIZATION_ENTERED
+        
+   
     prescriber_uuid = data.pop("prescriber_uuid", None)
     if prescriber_uuid:
         prescriber = Prescriber.objects.filter(uuid=prescriber_uuid).first()
@@ -512,6 +530,7 @@ def update_or_create_claim(data, user):
 def validate_claim_data(data, user):
     services = data.get('services') if 'services' in data else []
     incoming_code = data.get('code')
+    incoming_code_pre_authorization = data.get('code_pre_authorization')
     claim_uuid = data.get("uuid", None)
     restore = data.get('restore', None)
     current_claim = Claim.objects.filter(uuid=claim_uuid).first()
@@ -543,7 +562,10 @@ def validate_claim_data(data, user):
             if service["qty_provided"] > 1 and not service.get("explanation"):
                 raise ValidationError(_("mutation.service_explanation_required"))
 
-    if len(incoming_code) > ClaimConfig.max_claim_length:
+    if incoming_code!=None and len(incoming_code) > ClaimConfig.max_claim_length:
+        raise ValidationError(_("mutation.code_pre_auth_name_too_long"))
+    
+    if incoming_code_pre_authorization!=None and len(incoming_code_pre_authorization) > ClaimConfig.max_claim_length:
         raise ValidationError(_("mutation.code_name_too_long"))
 
     if not restore and current_code != incoming_code and check_unique_claim_code(incoming_code):
@@ -576,6 +598,18 @@ def submit_claim(claim, user):
     return c_errors
 
 
+def submit_claim_pre_authorization(claim, user):
+    c_errors = []
+    claim.save_history()
+    logger.debug("SubmitClaimsMutation: validating claim %s", claim.uuid)
+    c_errors += validate_claim_pre_authorization(claim, True)
+    logger.debug("SubmitClaimsMutation: claim %s validated, nb of errors: %s", claim.uuid, len(c_errors))
+    c_errors += set_claim_submitted_pre_authorization(claim, c_errors, user)
+    logger.debug("SubmitClaimsMutation: claim %s set submitted", claim.uuid)
+    return c_errors
+
+
+
 def set_claim_submitted(claim, errors, user):
     try:
         claim.audit_user_id_submit = user.id_for_audit
@@ -586,6 +620,26 @@ def set_claim_submitted(claim, errors, user):
             claim.status = Claim.STATUS_CHECKED
             from core.utils import TimeUtils
             claim.submit_stamp = TimeUtils.now()
+            claim.category = get_claim_category(claim)
+        claim.save()
+        return []
+    except Exception as exc:
+        return {
+            'title': claim.code,
+            'list': [{
+                'message': _("claim.mutation.failed_to_change_status_of_claim") % {'code': claim.code},
+                'detail': claim.uuid}]
+        }
+    
+def set_claim_submitted_pre_authorization(claim, errors, user):
+    try:
+        claim.audit_user_id_submit = user.id_for_audit
+        if errors:
+            claim.status_pre_authorization = Claim.STATUS_PRE_AUTHORIZATION_REJECTED
+        else:
+            claim.status_pre_authorization = Claim.STATUS_PRE_AUTHORIZATION_SUBMITED_TO_ADMIN
+            from core.utils import TimeUtils
+            claim.submit_pre_authorization_stamp = TimeUtils.now()
             claim.category = get_claim_category(claim)
         claim.save()
         return []

@@ -34,12 +34,15 @@ from medical.models import Item, Service
 
 from claim.utils import process_items_relations, process_services_relations
 from claim.services import PrescriberService, SpecialityService,validate_claim_data as service_validate_claim_data, \
-        update_or_create_claim as service_update_or_create_claim, check_unique_claim_code, submit_claim,\
+        update_or_create_claim as service_update_or_create_claim, check_unique_claim_code, submit_claim,submit_claim_pre_authorization,\
             validate_and_process_dedrem_claim as service_validate_and_process_dedrem_claim,\
             create_feedback_prompt as service_create_feedback_prompt, update_claims_dedrems,\
                 set_feedback_prompt_validity_to_to_current_date, set_claims_status
 from django.db import transaction
 import requests
+
+REJECTION_REASON_CLAIM_HAS_NO_CODE = 22
+VISIT_TYPE_EMERGENCY="E"
 
 logger = logging.getLogger(__name__)
 
@@ -231,10 +234,10 @@ class AttachmentInputType(Attachment, OpenIMISMutation.Input):
 class ClaimInputType(OpenIMISMutation.Input):
     id = graphene.Int(required=False, read_only=True)
     uuid = graphene.String(required=False)
-    code = ClaimCodeInputType(required=True)
+    code = ClaimCodeInputType(required=False)
     autogenerate = graphene.Boolean(required=False)
     insuree_id = graphene.Int(required=True)
-    date_from = graphene.Date(required=True)
+    date_from = graphene.Date(required=False)
     date_to = graphene.Date(required=False)
     icd_id = graphene.Int(required=True)
     icd_1_id = graphene.Int(required=False)
@@ -242,7 +245,7 @@ class ClaimInputType(OpenIMISMutation.Input):
     icd_3_id = graphene.Int(required=False)
     icd_4_id = graphene.Int(required=False)
     review_status = TinyInt(required=False)
-    date_claimed = graphene.Date(required=True)
+    date_claimed = graphene.Date(required=False)
     date_processed = graphene.Date(required=False)
     health_facility_id = graphene.Int(required=True)
     refer_from_id = graphene.Int(required=False)
@@ -261,9 +264,12 @@ class ClaimInputType(OpenIMISMutation.Input):
     feedback = graphene.Field(FeedbackInputType, required=False)
     care_type = graphene.String(required=False)
     pre_authorization = graphene.Boolean(required=False)
+    is_pre_authorization = graphene.Boolean(required=False)
     patient_condition = graphene.String(required=False)
     referral_code = graphene.String(required=False)
     prescriber_uuid=graphene.String(required=True)
+    code_pre_authorization=graphene.String(required=False)
+    date_pre_authorization_emergency=graphene.DateTime(required=False)
 
     items = graphene.List(ClaimItemInputType, required=False)
     services = graphene.List(ClaimServiceInputType, required=False)
@@ -360,7 +366,30 @@ class CreateClaimMutation(OpenIMISMutation):
             from core.utils import TimeUtils
             data['validity_from'] = TimeUtils.now()
             attachments = data.pop('attachments') if 'attachments' in data else None
-            
+
+            is_pre_authorization = data.get("is_pre_authorization", False)
+            code_pre_authorization = data.get("code_pre_authorization", None)
+            if is_pre_authorization==False:
+                if data.get("code")==None :
+                     raise ValidationError(
+                    _("mutation.claims.missingfields.code"))
+                if  data.get("date_from")==None :
+                     raise ValidationError(
+                    _("mutation.claims.missingfields.dateForm"))
+                if  data.get("date_claimed")==None:
+                     raise ValidationError(
+                    _("mutation.claims.missingfields.dateClaimed"))
+                
+            if is_pre_authorization==True and code_pre_authorization==None:
+                     raise ValidationError(
+                    _("mutation.claims.missingfields.code_pre_authorization"))
+            if is_pre_authorization==True:
+                print("daty TAYYY")
+                print( data.get("date_pre_authorization_emergency"))
+                if data.get("date_pre_authorization_emergency")==None and data.get("visit_type")==VISIT_TYPE_EMERGENCY :
+                    raise ValidationError(
+                    _("mutation.claims.missingfields.date_emergency"))
+                   
             claim = update_or_create_claim(data, user)
             if attachments:
                 create_attachments(claim.id, attachments)
@@ -547,6 +576,27 @@ class ClaimSubmissionStatsMixin:
         )
 
         return {**claim_stats, **item_stats, **service_stats}
+    
+    @classmethod
+    def _generate_claim_submission_stats_pre_authorization(cls, uuids):
+        claims_query = Claim.objects.filter(uuid__in=list(uuids))
+        claim_item_query = ClaimItem.objects.filter(claim__in=claims_query)
+        claim_service_query = ClaimService.objects.filter(claim__in=claims_query)
+        claim_stats = claims_query.aggregate(
+            submitted=Count('uuid', output_field=IntegerField()),
+            checked=Count(Case(When(status_pre_authorization=4, then=1), output_field=IntegerField())),
+            rejected=Count(Case(When(status_pre_authorization=1, then=1), output_field=IntegerField())),
+        )
+        item_stats = claim_item_query.aggregate(
+            items_passed=Count(Case(When(status=1, then=1), output_field=IntegerField())),
+            items_rejected=Count(Case(When(status=2, then=1), output_field=IntegerField())),
+        )
+        service_stats = claim_service_query.aggregate(
+            services_passed=Count(Case(When(status=1, then=1), output_field=IntegerField())),
+            services_rejected=Count(Case(When(status=2, then=1), output_field=IntegerField())),
+        )
+
+        return {**claim_stats, **item_stats, **service_stats}
 
     @classmethod
     def _parse_submission_stats(cls, claim_submission_stats):
@@ -556,6 +606,17 @@ class ClaimSubmissionStatsMixin:
     def add_submission_stats_to_mutation_log(cls, client_mutation_id, uuids):
         mutation_log = MutationLog.objects.filter(client_mutation_id=client_mutation_id).first()
         claim_submission_stats = cls._generate_claim_submission_stats(uuids)
+        parsed_stats = cls._parse_submission_stats(claim_submission_stats)
+        if isinstance(mutation_log.json_ext, dict):
+            mutation_log.json_ext["claim_stats"] = parsed_stats
+        else:
+            mutation_log.json_ext = {"claim_stats": parsed_stats}
+        mutation_log.save()
+
+    @classmethod
+    def add_submission_stats_to_mutation_log_pre_authorization(cls, client_mutation_id, uuids):
+        mutation_log = MutationLog.objects.filter(client_mutation_id=client_mutation_id).first()
+        claim_submission_stats = cls._generate_claim_submission_stats_pre_authorization(uuids)
         parsed_stats = cls._parse_submission_stats(claim_submission_stats)
         if isinstance(mutation_log.json_ext, dict):
             mutation_log.json_ext["claim_stats"] = parsed_stats
@@ -614,7 +675,14 @@ class SubmitClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
         remaining_uuid = list(map(str.upper,uuids))
         for claim in claims:
             remaining_uuid.remove(claim.uuid.upper())
-            c_errors += submit_claim(claim, user)
+            if claim.code==None:
+                c_errors+=  [{'code': REJECTION_REASON_CLAIM_HAS_NO_CODE,
+                    'message': _("claim.has-no-code") % {
+                        'code': claim.code_pre_authorization
+                    },
+                    'detail': claim.uuid}]
+            else:
+                c_errors += submit_claim(claim, user)
             if c_errors:
                 errors.append({
                     'title': claim.code,
@@ -628,6 +696,184 @@ class SubmitClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
         cls.add_submission_stats_to_mutation_log(client_mutation_id, uuids)
         logger.debug("SubmitClaimsMutation: claim done, errors: %s", len(errors))
         return errors
+
+
+
+
+class SubmitClaimsPreAuthorizationMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
+    """
+    Submit one or several claims.
+    """
+    __filter_handlers = {
+        'services': 'services__service__code__in',
+        'items': 'items__item__code__in'
+    }
+
+    _mutation_module = "claim"
+    _mutation_class = "SubmitClaimsPreAuthorizationMutation"
+
+    class Input(OpenIMISMutation.Input):
+        uuids = graphene.List(graphene.String)
+        additional_filters = graphene.String()
+
+    @classmethod
+    def _parse_submission_stats(cls, claim_submission_stats):
+        return {
+            "submitted": claim_submission_stats["submitted"],
+            "checked": claim_submission_stats["checked"],
+            "rejected": claim_submission_stats["rejected"],
+            "items_passed": claim_submission_stats["items_passed"],
+            "items_rejected": claim_submission_stats["items_rejected"],
+            "services_passed": claim_submission_stats["services_passed"],
+            "services_rejected": claim_submission_stats["services_rejected"],
+            "header": "Claims submitted",
+            # failed
+        }
+
+    @classmethod
+    @mutation_on_uuids_from_filter(Claim, ClaimGQLType, 'additional_filters', __filter_handlers)
+    def async_mutate(cls, user, **data):
+        if not user.has_perms(ClaimConfig.gql_mutation_submit_claims_perms):
+            raise PermissionDenied(_("unauthorized"))
+        errors = []
+        uuids = data.get("uuids", [])
+        client_mutation_id = data.get("client_mutation_id", None)
+        c_errors = []
+        claims = Claim.objects \
+                .filter(uuid__in=uuids,
+                        validity_to__isnull=True) \
+            .prefetch_related(Prefetch('items', queryset=ClaimItem.objects.filter(
+                *filter_validity(), 
+                Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True))))) \
+            .prefetch_related(Prefetch('services', queryset=ClaimService.objects.filter(
+                *filter_validity(),
+                Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True))))) 
+        remaining_uuid = list(map(str.upper,uuids))
+        for claim in claims:
+            remaining_uuid.remove(claim.uuid.upper())
+            if claim.code_pre_authorization==None:
+                c_errors+=  [{'code': REJECTION_REASON_CLAIM_HAS_NO_CODE,
+                    'message': _("claim.has-no-code") % {
+                        'code': claim.code_pre_authorization
+                    },
+                    'detail': claim.uuid}]
+            else:
+                c_errors += submit_claim_pre_authorization(claim, user)
+            if c_errors:
+                errors.append({
+                    'title': claim.code,
+                    'list': c_errors
+                })
+        if len(remaining_uuid):
+            c_errors.append( {'code': REJECTION_REASON_INVALID_CLAIM,
+                            'message': _("claim.validation.claim_uuid_not_found") + ','.join(remaining_uuid) })
+        if len(errors) == 1:
+            errors = errors[0]['list']
+        cls.add_submission_stats_to_mutation_log_pre_authorization(client_mutation_id, uuids)
+        logger.debug("SubmitClaimsMutation: claim done, errors: %s", len(errors))
+        return errors
+
+
+class submitClaimsToMedicalMutation(OpenIMISMutation):
+    """
+    Submit one claim to medical officer.
+    
+    """
+
+    _mutation_module = "claim"
+    _mutation_class = "submitClaimsToMedicalMutation"
+
+    class Input(OpenIMISMutation.Input):
+        uuid = graphene.String(required=True)
+
+
+    @classmethod
+    def async_mutate(cls, user, **data):
+        if not user.has_perms(ClaimConfig.gql_validate_admin_HF_pre_auth_perms):
+            raise PermissionDenied(_("unauthorized"))
+        errors = []
+        uuid = data.get("uuid", None)
+        client_mutation_id = data.get("client_mutation_id", None)
+        claim = Claim.objects.filter(uuid=uuid,validity_to__isnull=True).first() 
+        claim.save_history()
+        claim.status_pre_authorization=Claim.STATUS_PRE_AUTHORIZATION_SUBMITED_TO_DOCTOR
+        claim.save()
+        print(claim.status_pre_authorization)
+        
+        return errors
+
+
+class submitToNormalClaimMutation(OpenIMISMutation):
+    """
+    Submit one claim to medical officer.
+    
+    """
+
+    _mutation_module = "claim"
+    _mutation_class = "submitToNormalClaimMutation"
+
+    class Input(OpenIMISMutation.Input):
+        uuid = graphene.String(required=True)
+
+
+    @classmethod
+    def async_mutate(cls, user, **data):
+        if not user.has_perms(ClaimConfig.gql_validate_medical_pre_auth_perms):
+            raise PermissionDenied(_("unauthorized"))
+        errors = []
+        uuid = data.get("uuid", None)
+        client_mutation_id = data.get("client_mutation_id", None)
+        claim = Claim.objects.filter(uuid=uuid,validity_to__isnull=True).first() 
+        
+        claim.save_history()
+        claim.audit_user_id_pre_auth = user.id_for_audit
+        from core import datetime
+        now = datetime.datetime.now()
+        claim.date_pre_authorization_decision=now
+        claim.status_pre_authorization=Claim.STATUS_PRE_AUTHORIZATION_VALIDATED
+        claim.save()
+        print(claim.status_pre_authorization)
+        return errors
+
+
+class rejectClaimPreAuthorizationMutation(OpenIMISMutation):
+    """
+    Submit one claim to medical officer.
+    
+    """
+
+    _mutation_module = "claim"
+    _mutation_class = "rejectClaimPreAuthorizationMutation"
+
+    class Input(OpenIMISMutation.Input):
+        uuid = graphene.String(required=True)
+        reason = graphene.String(required=True)
+
+
+    @classmethod
+    def async_mutate(cls, user, **data):
+        if not user.has_perms(ClaimConfig.gql_reject_pre_auth_perms):
+            raise PermissionDenied(_("unauthorized"))
+        errors = []
+        uuid = data.get("uuid", None)
+        reason = data.get("reason", None)
+        print(uuid)
+        print(reason)
+        client_mutation_id = data.get("client_mutation_id", None)
+        claim = Claim.objects.filter(uuid=uuid,validity_to__isnull=True).first() 
+        claim.save_history()
+        claim.audit_user_id_pre_auth = user.id_for_audit
+        from core import datetime
+        now = datetime.datetime.now()
+        claim.date_pre_authorization_decision=now
+        claim.status_pre_authorization=Claim.STATUS_PRE_AUTHORIZATION_REJECTED
+        claim.rejection_pre_authorization_reason=reason
+        claim.save()
+        print(claim.status_pre_authorization)
+        return errors
+
+
+
 
 
 

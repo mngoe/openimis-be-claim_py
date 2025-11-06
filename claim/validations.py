@@ -40,6 +40,9 @@ REJECTION_REASON_QTY_OVER_LIMIT = 16
 REJECTION_REASON_WAITING_PERIOD_FAIL = 17
 REJECTION_REASON_MAX_ANTENATAL = 19
 REJECTION_REASON_INVALID_CLAIM = 20
+REJECTION_REASON_CLAIM_HAS_NO_CODE = 22
+REJECTION_REASON_ITEM_NOT_PRE_AUTHORIZATION = 21
+
 
 def validate_claim(claim, check_max):
     """
@@ -107,6 +110,44 @@ def validate_claim(claim, check_max):
         claim.save()
     logger.debug(f"Validation found {len(errors)} error(s)")
     return errors
+
+
+
+def validate_claim_pre_authorization(claim, check_max):
+    """
+    Based on the legacy validation, this method returns standard codes along with details
+    :param claim: claim to be verified
+    :param check_max: max amount to validate. Everything above will be rejected
+    :return: (result_code, error_details)
+    """
+    logger.debug(f"Validating claim {claim.uuid}")
+    if ClaimConfig.default_validations_disabled:
+        return []
+    errors = []
+    for service in claim.services.all():
+        if service.service.pre_authorization_required!=True:
+            errors+=[{'code': REJECTION_REASON_ITEM_NOT_PRE_AUTHORIZATION,
+                    'message': _("claim.validation.claimservice_validity_notpreAuth") % {
+                        'code': claim.code
+                    },
+                    'detail': claim.uuid}]
+            service.status=ClaimService.STATUS_REJECTED
+            service.qty_approved=0
+            service.save()
+            # service.update(status=ClaimService.STATUS_REJECTED, qty_approved=0)
+    
+    for item in claim.items.all():
+        if item.item.pre_authorization_required!=True:
+            errors+=[{'code': REJECTION_REASON_ITEM_NOT_PRE_AUTHORIZATION,
+                    'message': _("claim.validation.claimitem_validity_validity_notpreAuth") % {
+                        'code': claim.code
+                    },
+                    'detail': claim.uuid}]
+            item.status=ClaimItem.STATUS_REJECTED
+            item.qty_approved=0
+            item.save()
+    return errors
+    
 
 
 def validate_claimitems(claim):
