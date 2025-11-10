@@ -1,0 +1,14 @@
+msgid "claim_notification.sms_on_submitted"
+msgstr "Une préauthorisation %(code)s a été soumise et demande votre validation."
+
+msgid "claim_notification.sms_on_pending"
+msgstr "Rappel : la préauthorisation %(code)s est toujours en attente de validation."
+
+msgid "claim_notification.sms_on_approved"
+msgstr "La préauthorisation %(code)s a été approuvée."
+
+msgid "claim_notification.sms_on_rejected"
+msgstr "La préauthorisation %(code)s a été refusée."
+
+msgid "claim_notification.on_admin_validation"
+msgstr "La préauthorisation %(code)s a été validée par l'administrateur FOSA".

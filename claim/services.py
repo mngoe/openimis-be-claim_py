@@ -3,6 +3,8 @@ import xml.etree.ElementTree as ET
 import logging
 from typing import Callable, Dict
 
+from claim.notification_client import ClaimNotificationSender
+from claim.notification_templates import ClaimNotificationKeys
 from medical.models import Item, Service
 from location import models as location_models
 import core
@@ -606,6 +608,9 @@ def submit_claim_pre_authorization(claim, user):
     logger.debug("SubmitClaimsMutation: claim %s validated, nb of errors: %s", claim.uuid, len(c_errors))
     c_errors += set_claim_submitted_pre_authorization(claim, c_errors, user)
     logger.debug("SubmitClaimsMutation: claim %s set submitted", claim.uuid)
+
+    ##Notification logic
+    ClaimNotificationSender.send_preauthorization_notifications(claim, ClaimNotificationKeys.ON_SUBMITTED);
     return c_errors
 
 
