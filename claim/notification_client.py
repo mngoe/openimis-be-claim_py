@@ -25,13 +25,13 @@ class ClaimNotificationClient:
 
             users = []
             for ur in user_roles:
-                users.append(ur.user._u)
+                users.append(ur.user)
 
             return users
         
         return []
 
-    def get_context(self, preauth , key):
+    def get_context(self, preauth, key, user):  # Ajout du paramètre 'user' qui était manquant
         context = {"code": preauth.code}
         return context
 
@@ -66,8 +66,9 @@ class ClaimNotificationClient:
     
 class ClaimNotificationSender:
     @classmethod
-    def send_preauthorization_notifications(self, preauth, key):
-        providers= get_notification_providers()
+    def send_preauthorization_notifications(cls, preauth, key):  # ✅ Ajout de 'cls'
+        print("mandeha le notif")
+        providers = get_notification_providers()
         for provider in providers:
-            client=ClaimNotificationClient(provider=provider())
+            client = ClaimNotificationClient(provider=provider())
             client.send_preauthorization_notifications(preauth, key)

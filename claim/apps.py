@@ -37,7 +37,10 @@ DEFAULT_CFG = {
     "additional_diagnosis_number_allowed": 4,
     "claim_max_restore": None,
     "allowed_domains_attachments": [],
-    "verify_quantities": False
+    "verify_quantities": False,
+    "task_interval_hours": 24,
+    "task_first_call_hour": 8,
+    "task_last_call_hour": 20
 }
 
 
@@ -81,6 +84,12 @@ class ClaimConfig(AppConfig):
     autogenerate_func = None
     additional_diagnosis_number_allowed = None  # Currently code supports 4 diagnoses maximum, going above will not work
     allowed_domains_attachments = None
+    
+    __SCHEDULED_TASK_NAME = 'claim.tasks.process_claim_task'
+
+    task_interval_hours = None
+    task_first_call_hour = None
+    task_last_call_hour = None
 
     def __load_config(self, cfg):
         for field in cfg:
@@ -91,3 +100,44 @@ class ClaimConfig(AppConfig):
         from core.models import ModuleConfiguration
         cfg = ModuleConfiguration.get_or_default(MODULE_NAME, DEFAULT_CFG)
         self.__load_config(cfg)
+        self.__load_task_schedule(cfg)
+
+    def __load_task_schedule(self, cfg):
+        try:
+            from openIMIS.settings import SCHEDULER_JOBS
+            scheduled_task_config = [d for d in SCHEDULER_JOBS
+                                    if d.get('method', None) == self.__SCHEDULED_TASK_NAME]
+            if scheduled_task_config:
+                self.__assign_task_times_from_scheduled_task(scheduled_task_config[0])
+            else:
+                self.__assign_task_times_from_config(cfg)
+        except Exception as e:
+            self.__assign_task_times_from_config(cfg)
+
+    def __assign_task_times_from_config(self, cfg):
+        ClaimConfig.task_interval_hours = cfg.get('task_interval_hours', 1)
+        ClaimConfig.task_first_call_hour = cfg.get('task_first_call_hour', 0)
+        ClaimConfig.task_last_call_hour = cfg.get('task_last_call_hour', 23)
+
+    def __assign_task_times_from_scheduled_task(self, task_config):
+        hour = task_config['kwargs'].get('hour', None)
+        if hour is None:
+            return self.__assign_task_times_from_config({})
+        if isinstance(hour, int) or str(hour).isdigit():
+            hour = int(hour)
+            ClaimConfig.task_interval_hours = 24
+            ClaimConfig.task_first_call_hour = hour
+            ClaimConfig.task_last_call_hour = hour
+        elif ',' in str(hour):
+            hours = [int(x) for x in hour.split(',')]
+            ClaimConfig.task_interval_hours = hours[1] - hours[0] if len(hours) > 1 else 1
+            ClaimConfig.task_first_call_hour = hours[0]
+            ClaimConfig.task_last_call_hour = hours[-1]
+        elif '-' in str(hour):
+            hours = [int(x) for x in hour.split('-')]
+            ClaimConfig.task_interval_hours = 1
+            ClaimConfig.task_first_call_hour = hours[0]
+            ClaimConfig.task_last_call_hour = hours[1]
+        else:
+            raise NotImplementedError(f"Unknown hour format {hour} in task configuration")
+
