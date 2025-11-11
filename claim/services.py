@@ -2,6 +2,8 @@ import importlib
 import xml.etree.ElementTree as ET
 import logging
 from typing import Callable, Dict
+import threading
+
 
 from claim.notification_client import ClaimNotificationSender
 from claim.notification_templates import ClaimNotificationKeys
@@ -609,8 +611,17 @@ def submit_claim_pre_authorization(claim, user):
     c_errors += set_claim_submitted_pre_authorization(claim, c_errors, user)
     logger.debug("SubmitClaimsMutation: claim %s set submitted", claim.uuid)
 
-    ##Notification logic
-    ClaimNotificationSender.send_preauthorization_notifications(claim, ClaimNotificationKeys.ON_SUBMITTED);
+    def send_notifications_async():
+        try:
+            print("submited")
+            ClaimNotificationSender.send_preauthorization_notifications(
+                claim, ClaimNotificationKeys.ON_SUBMITTED
+            )
+        except Exception as e:
+            logger.warning(f"Async notification failed for claim {claim.uuid}: {e}")
+
+    threading.Thread(target=send_notifications_async, daemon=True).start()
+
     return c_errors
 
 

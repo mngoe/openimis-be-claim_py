@@ -6,6 +6,7 @@ import pathlib
 import base64
 from urllib.parse import urlparse
 from typing import Callable, Dict
+import threading
 
 from claim.notification_client import ClaimNotificationSender
 from claim.notification_templates import ClaimNotificationKeys
@@ -800,9 +801,22 @@ class submitClaimsToMedicalMutation(OpenIMISMutation):
         claim.save()
         print(claim.status_pre_authorization)
 
-        #NotificationLogic
-        ClaimNotificationSender.send_preauthorization_notifications(claim, ClaimNotificationKeys.ON_ADMIN_FOSA_VALIDATION)
-        
+        def notify_admin_fosa_validation_async(c):
+            try:
+                print("approve admin fosa")
+                ClaimNotificationSender.send_preauthorization_notifications(
+                    c, ClaimNotificationKeys.ON_ADMIN_FOSA_VALIDATION
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Async notification failed for ADMIN_FOSA_VALIDATION (claim {c.uuid}): {e}"
+                )
+
+        threading.Thread(
+            target=notify_admin_fosa_validation_async,
+            args=(claim,),
+            daemon=True,
+        ).start()
         return errors
 
 
@@ -837,8 +851,21 @@ class submitToNormalClaimMutation(OpenIMISMutation):
         claim.save()
         print(claim.status_pre_authorization)
 
-        #Notification logic
-        ClaimNotificationSender.send_preauthorization_notifications(claim,ClaimNotificationKeys.ON_APPROVED)
+        def notify_admin_fosa_validation_async(claim):
+            try:
+                print("approve")
+                ClaimNotificationSender.send_preauthorization_notifications(
+                    claim, ClaimNotificationKeys.ON_APPROVED
+                )
+            except Exception as e:
+                logger.warning(f"Async notification failed for ADMIN_FOSA_VALIDATION (claim {claim.uuid}): {e}")
+
+        threading.Thread(
+            target=notify_admin_fosa_validation_async,
+            args=(claim,),
+            daemon=True
+        ).start()
+
         return errors
 
 
@@ -877,8 +904,20 @@ class rejectClaimPreAuthorizationMutation(OpenIMISMutation):
         claim.save()
         print(claim.status_pre_authorization)
 
-        #Notification logic
-        ClaimNotificationSender.send_preauthorization_notifications(claim,ClaimNotificationKeys.ON_REJECTED)
+        def notify_admin_fosa_validation_async(claim):
+            try:
+                print("rejete")
+                ClaimNotificationSender.send_preauthorization_notifications(
+                    claim, ClaimNotificationKeys.ON_REJECTED
+                )
+            except Exception as e:
+                logger.warning(f"Async notification failed for ADMIN_FOSA_VALIDATION (claim {claim.uuid}): {e}")
+
+        threading.Thread(
+            target=notify_admin_fosa_validation_async,
+            args=(claim,),
+            daemon=True
+        ).start()
         return errors
 
 
