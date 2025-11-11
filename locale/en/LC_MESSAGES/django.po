@@ -231,3 +231,18 @@ msgstr "Claim needs to be rejected to be restored"
 
 msgid "mutation.restored_from_does_not_exist"
 msgstr "The claim you want to restore does not exist"
+
+msgid "claim_notification.sms_on_submitted"
+msgstr "A preauthorization %(code)s has been submitted and requires your validation."
+
+msgid "claim_notification.sms_on_pending"
+msgstr "Reminder: the preauthorization %(code)s is still pending validation."
+
+msgid "claim_notification.sms_on_approved"
+msgstr "The preauthorization %(code)s has been approved."
+
+msgid "claim_notification.sms_on_rejected"
+msgstr "The preauthorization %(code)s has been rejected."
+
+msgid "claim_notification.on_admin_validation"
+msgstr "The preauthorization %(code)s has been validated by the FOSA administrator."
