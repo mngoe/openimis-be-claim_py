@@ -1127,4 +1127,49 @@ class ValidationTest(TestCase):
         self.assertEqual(claimservice2.price_adjusted, 750)
         claimservice3.refresh_from_db()
         self.assertIsNone(claimservice3.price_adjusted)
-   
+
+    def test_validate_claim_before_policy_start(self):
+        # When the policy validity starts after the claim date
+        # Given
+        insuree = create_test_insuree()
+        self.assertIsNotNone(insuree)
+
+        future_validity_start = datetime.today() + timedelta(days=10)
+        future_validity_end = future_validity_start + timedelta(days=365)
+
+        product = create_test_product("LATE_P")
+        create_test_policy2(
+            product,
+            insuree,
+            custom_props={
+                "validity_from": future_validity_start,
+                "validity_to": future_validity_end + timedelta(days=1)
+            },
+            link=True
+        )
+        service = create_test_service("V")
+
+        # Create a claim dated before the policy validity_from
+        claim = create_test_claim(
+            {"insuree_id": insuree.id},
+            product=self.product
+        )
+        claim.health_facility.care_type = claim.health_facility.CARE_TYPE_BOTH
+        claim.health_facility.save()
+        claim_service = create_test_claimservice(
+            claim, custom_props={"service_id": service.id},
+            product=self.product
+        )
+
+        # When validating the claim
+        errors = validate_claim(claim, True)
+
+        # Then: Expect success
+        claim.refresh_from_db()
+        print(f"There is the error: {errors}")
+        self.assertEquals(len(errors), 0)
+
+        # tearDown
+        claim_service.delete()
+        claim.delete()
+        service.delete()
