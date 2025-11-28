@@ -86,7 +86,6 @@ It is dedicated to be deployed as a module of [openimis-be_py](https://github.co
   * attachments in output are served from the python (django) os process, generating load (memory consumption) on the application server, customisation of the view to output a redirect to a static file server is recommended
   * in an attempt to prevent encoding problems, files are written as binaries on the filesystem, please ensure the mounted file system supports python binary access (wb flag)
 
-
 ## openIMIS Modules Dependencies
 * core.models.VersionedModel
 * core.models.InteractiveUser
