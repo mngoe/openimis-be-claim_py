@@ -1,28 +1,35 @@
-import datetime
 import graphene
 from core import prefix_filterset, ExtendedConnection, filter_validity
-from graphene.utils.deduplicator import deflate
 from graphene_django import DjangoObjectType
 from insuree.schema import InsureeGQLType
 from location.schema import HealthFacilityGQLType
 from medical.schema import DiagnosisGQLType
 from claim_batch.schema import BatchRunGQLType
 from .apps import ClaimConfig
-from claim.models import (ClaimDedRem, Claim, Feedback, ClaimItem, ClaimService, ClaimAttachment,
-                          ClaimAttachmentType, ClaimServiceService, ClaimServiceItem)
-from core.models.user import ClaimAdmin
+from claim.models import (
+    ClaimDedRem,
+    Claim,
+    Feedback,
+    ClaimItem,
+    ClaimService,
+    ClaimAttachment,
+    ClaimAttachmentType,
+    ClaimServiceService,
+    ClaimServiceItem,
+)
 from django.utils.translation import gettext as _
 from django.core.exceptions import PermissionDenied
 from core.schema import ClaimAdminGQLType
+
 
 class ClaimDedRemGQLType(DjangoObjectType):
     """
     Details about Claim demands and remunerated amounts
     """
+
     class Meta:
         model = ClaimDedRem
         interfaces = (graphene.relay.Node,)
-
 
 
 class ClaimGQLType(DjangoObjectType):
@@ -79,32 +86,43 @@ class ClaimGQLType(DjangoObjectType):
             "pre_authorization": ["exact"],
             **prefix_filterset("icd__", DiagnosisGQLType._meta.filter_fields),
             **prefix_filterset("admin__", ClaimAdminGQLType._meta.filter_fields),
-            **prefix_filterset("health_facility__", HealthFacilityGQLType._meta.filter_fields),
+            **prefix_filterset(
+                "health_facility__", HealthFacilityGQLType._meta.filter_fields
+            ),
             **prefix_filterset("insuree__", InsureeGQLType._meta.filter_fields),
-            **prefix_filterset("batch_run__", BatchRunGQLType._meta.filter_fields)
+            **prefix_filterset("batch_run__", BatchRunGQLType._meta.filter_fields),
         }
         connection_class = ExtendedConnection
 
     def resolve_attachments_count(self, info):
         if not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms):
             raise PermissionDenied(_("unauthorized"))
-        return self.attachments.filter(legacy_id__isnull=True).filter(validity_to__isnull=True).count()
+        return (
+            self.attachments.filter(legacy_id__isnull=True)
+            .filter(validity_to__isnull=True)
+            .count()
+        )
 
     def resolve_items(self, info):
         if not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms):
             raise PermissionDenied(_("unauthorized"))
-        return self.items.filter(legacy_id__isnull=True).filter(validity_to__isnull=True)
+        return self.items.filter(legacy_id__isnull=True).filter(
+            validity_to__isnull=True
+        )
 
     def resolve_services(self, info):
         if not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms):
             raise PermissionDenied(_("unauthorized"))
-        return self.services.filter(legacy_id__isnull=True).filter(validity_to__isnull=True)
+        return self.services.filter(legacy_id__isnull=True).filter(
+            validity_to__isnull=True
+        )
 
     def resolve_client_mutation_id(self, info):
         if not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms):
             raise PermissionDenied(_("unauthorized"))
-        claim_mutation = self.mutations.select_related(
-            'mutation').filter(mutation__status=0).first()
+        claim_mutation = (
+            self.mutations.select_related("mutation").filter(mutation__status=0).first()
+        )
         return claim_mutation.mutation.client_mutation_id if claim_mutation else None
 
     @classmethod
@@ -143,10 +161,7 @@ class ClaimAttachmentTypeGQLType(DjangoObjectType):
     class Meta:
         model = ClaimAttachmentType
         interfaces = (graphene.relay.Node,)
-        filter_fields = {
-            "id": ["exact"],
-            "claim_general_type": ["exact"]
-        }
+        filter_fields = {"id": ["exact"], "claim_general_type": ["exact"]}
         connection_class = ExtendedConnection
 
 

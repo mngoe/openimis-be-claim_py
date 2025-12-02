@@ -1,3 +1,5 @@
+# flake8: noqa
+
 from _decimal import Decimal
 from typing import Dict, Union
 
@@ -7397,7 +7399,13 @@ STATUS_ENTERED = 2
 STATUS_CHECKED = 4
 STATUS_PROCESSED = 8
 STATUS_VALUATED = 16
-AVAILABLE_STATUSES = [STATUS_REJECTED, STATUS_ENTERED, STATUS_CHECKED, STATUS_PROCESSED, STATUS_VALUATED]
+AVAILABLE_STATUSES = [
+    STATUS_REJECTED,
+    STATUS_ENTERED,
+    STATUS_CHECKED,
+    STATUS_PROCESSED,
+    STATUS_VALUATED,
+]
 
 DEFAULT_INSUREE_ID = -6
 
@@ -7411,12 +7419,22 @@ def coalesce_amounts(*values):
     return next((v for v in values if v is not None), Decimal(0.00))
 
 
-def generate_claim_detail(element: Union[ClaimItem, ClaimService],
-                          claim_data: Dict,
-                          price_approved: Decimal,
-                          element_type: str) -> Dict:
-    element_name = element.item.name if element_type == CLAIM_ELEMENT_TYPE_ITEM else element.service.name
-    element_code = element.item.code if element_type == CLAIM_ELEMENT_TYPE_ITEM else element.service.code
+def generate_claim_detail(
+    element: Union[ClaimItem, ClaimService],
+    claim_data: Dict,
+    price_approved: Decimal,
+    element_type: str,
+) -> Dict:
+    element_name = (
+        element.item.name
+        if element_type == CLAIM_ELEMENT_TYPE_ITEM
+        else element.service.name
+    )
+    element_code = (
+        element.item.code
+        if element_type == CLAIM_ELEMENT_TYPE_ITEM
+        else element.service.code
+    )
 
     claim_detail = {
         **claim_data,
@@ -7433,23 +7451,24 @@ def generate_claim_detail(element: Union[ClaimItem, ClaimService],
         "e_name": element_name,
         "e_code": element_code,
         "e_type": element_type,
-
     }
 
     return claim_detail
 
 
-def claim_history_query(user,
-                        date_start="2009-01-01",
-                        date_end="2032-12-31",
-                        scope=SCOPE_FULL,
-                        requested_region_id=ALL_REGIONS,
-                        requested_district_id=ALL_DISTRICTS,
-                        requested_product_id=ALL_PRODUCTS,
-                        requested_hf_id=ALL_HFS,
-                        requested_claim_status=STATUS_ALL,
-                        requested_insuree_id=DEFAULT_INSUREE_ID,
-                        **kwargs):
+def claim_history_query(
+    user,
+    date_start="2009-01-01",
+    date_end="2032-12-31",
+    scope=SCOPE_FULL,
+    requested_region_id=ALL_REGIONS,
+    requested_district_id=ALL_DISTRICTS,
+    requested_product_id=ALL_PRODUCTS,
+    requested_hf_id=ALL_HFS,
+    requested_claim_status=STATUS_ALL,
+    requested_insuree_id=DEFAULT_INSUREE_ID,
+    **kwargs,
+):
     # /!\ This report is exactly the same as Claim Overview, except that there is an additional parameter: the Insuree ID
     # The same comments/warnings apply here.
 
@@ -7470,20 +7489,26 @@ def claim_history_query(user,
         validated_parameters["product"] = product
     region_id = int(requested_region_id)
     if region_id != ALL_REGIONS:
-        region = Location.objects.filter(validity_to=None, type='R', id=region_id).first()
+        region = Location.objects.filter(
+            validity_to=None, type="R", id=region_id
+        ).first()
         if not region:
             return {"error": "Error - the requested region does not exist"}
         validated_parameters["region"] = region
     district_id = int(requested_district_id)
     if district_id != ALL_DISTRICTS:
         district_filters = Q(validity_to__isnull=True) & Q(type="D") & Q(id=district_id)
-        if region_id != ALL_REGIONS:  # The FE pickers allow you to select a district without a region, so additional steps are required
+        if (
+            region_id != ALL_REGIONS
+        ):  # The FE pickers allow you to select a district without a region, so additional steps are required
             district_filters &= Q(parent_id=region_id)
         district = Location.objects.filter(district_filters).first()
         if not district:
             return {"error": "Error - the requested district does not exist"}
         validated_parameters["district"] = district
-        if region_id == ALL_REGIONS:  # The FE pickers allow you to select a district without a region, so additional steps are required
+        if (
+            region_id == ALL_REGIONS
+        ):  # The FE pickers allow you to select a district without a region, so additional steps are required
             validated_parameters["region"] = district.parent
     hf_id = int(requested_hf_id)
     if hf_id != ALL_HFS:
@@ -7502,19 +7527,25 @@ def claim_history_query(user,
         "date_start": date_start,
         "date_end": date_end,
         "scope": scope,
-        "product": "All products" if product_id == ALL_PRODUCTS else f"{validated_parameters['product'].code} - {validated_parameters['product'].name}",
+        "product": (
+            "All products"
+            if product_id == ALL_PRODUCTS
+            else f"{validated_parameters['product'].code} - {validated_parameters['product'].name}"
+        ),
         "insuree": f"{validated_parameters['insuree'].chf_id} - {validated_parameters['insuree'].other_names} {validated_parameters['insuree'].last_name}",
         "status": "All statuses" if claim_status == STATUS_ALL else str(claim_status),
     }
 
     # Preparing filters based on received parameters
-    claim_filters = Q(validity_to__isnull=True) \
-                    & Q(admin__validity_to__isnull=True) \
-                    & Q(insuree_id=insuree_id) \
-                    & (
-                            (Q(date_to__isnull=False) & Q(date_to__range=(date_start, date_end)))
-                            | (Q(date_from__range=(date_start, date_end)))
-                    )
+    claim_filters = (
+        Q(validity_to__isnull=True)
+        & Q(admin__validity_to__isnull=True)
+        & Q(insuree_id=insuree_id)
+        & (
+            (Q(date_to__isnull=False) & Q(date_to__range=(date_start, date_end)))
+            | (Q(date_from__range=(date_start, date_end)))
+        )
+    )
     if hf_id != ALL_HFS:
         claim_filters &= Q(health_facility_id=hf_id)
         hf = validated_parameters["hf"]
@@ -7527,34 +7558,44 @@ def claim_history_query(user,
         header["hf"] = "All health facilities"
         if district_id != ALL_DISTRICTS:
             claim_filters &= Q(health_facility__location_id=district_id)
-            header["district"] = f"{validated_parameters['district'].code} - {validated_parameters['district'].name}"
-            header["region"] = f"{validated_parameters['region'].code} - {validated_parameters['region'].name}"
+            header["district"] = (
+                f"{validated_parameters['district'].code} - {validated_parameters['district'].name}"
+            )
+            header["region"] = (
+                f"{validated_parameters['region'].code} - {validated_parameters['region'].name}"
+            )
         elif region_id != ALL_REGIONS:
             claim_filters &= Q(health_facility__location__parent_id=region_id)
             header["district"] = "All districts"
-            header["region"] = f"{validated_parameters['region'].code} - {validated_parameters['region'].name}"
+            header["region"] = (
+                f"{validated_parameters['region'].code} - {validated_parameters['region'].name}"
+            )
         else:
             header["district"] = "All districts"
             header["region"] = "All regions"
     if claim_status != STATUS_ALL:
         claim_filters &= Q(status=claim_status)
     if product_id != ALL_PRODUCTS:
-        claim_filters &= Q(items__product_id=product_id) | Q(services__product_id=product_id)
+        claim_filters &= Q(items__product_id=product_id) | Q(
+            services__product_id=product_id
+        )
 
     # The .distinct() will not work on MSSQL (because it generates a DISTINCT ON(...) clause)
     # If this report has to be generated with an MSSQL database, this part will need to be changed.
     # An easy way would be to make a set of claim codes - during the for loop, check if the code is in the set:
     # if it's not in the set -> process the claim and add its code to the set
     # if it's already in the set -> continue
-    claim_queryset = Claim.objects.filter(claim_filters) \
-                                  .distinct("date_claimed", "insuree__chf_id", "code") \
-                                  .order_by("date_claimed", "insuree__chf_id", "code") \
-                                  .prefetch_related("items") \
-                                  .prefetch_related("items__item") \
-                                  .prefetch_related("insuree") \
-                                  .prefetch_related("services") \
-                                  .prefetch_related("services__service") \
-                                  .prefetch_related("admin")
+    claim_queryset = (
+        Claim.objects.filter(claim_filters)
+        .distinct("date_claimed", "insuree__chf_id", "code")
+        .order_by("date_claimed", "insuree__chf_id", "code")
+        .prefetch_related("items")
+        .prefetch_related("items__item")
+        .prefetch_related("insuree")
+        .prefetch_related("services")
+        .prefetch_related("services__service")
+        .prefetch_related("admin")
+    )
 
     total_claimed = Decimal(0.0)
     total_approved = Decimal(0.0)
@@ -7591,10 +7632,13 @@ def claim_history_query(user,
 
         for item in claim.items.order_by("item__code"):
 
-            price_approved = coalesce_amounts(item.price_approved, item.price_asked) \
-                             * coalesce_amounts(item.qty_approved, item.qty_provided)
+            price_approved = coalesce_amounts(
+                item.price_approved, item.price_asked
+            ) * coalesce_amounts(item.qty_approved, item.qty_provided)
 
-            claim_element = generate_claim_detail(item, new_data_claim, price_approved, CLAIM_ELEMENT_TYPE_ITEM)
+            claim_element = generate_claim_detail(
+                item, new_data_claim, price_approved, CLAIM_ELEMENT_TYPE_ITEM
+            )
             data.append(claim_element)
 
             if item.remunerated_amount:
@@ -7602,10 +7646,13 @@ def claim_history_query(user,
 
         for service in claim.services.order_by("service__code"):
 
-            price_approved = coalesce_amounts(service.price_approved, service.price_asked) \
-                             * coalesce_amounts(service.qty_approved, service.qty_provided)
+            price_approved = coalesce_amounts(
+                service.price_approved, service.price_asked
+            ) * coalesce_amounts(service.qty_approved, service.qty_provided)
 
-            claim_element = generate_claim_detail(service, new_data_claim, price_approved, CLAIM_ELEMENT_TYPE_SERVICE)
+            claim_element = generate_claim_detail(
+                service, new_data_claim, price_approved, CLAIM_ELEMENT_TYPE_SERVICE
+            )
             data.append(claim_element)
 
             if service.remunerated_amount:
@@ -7619,8 +7666,4 @@ def claim_history_query(user,
         "total_paid": total_paid,
     }
 
-    return {
-        "data": data,
-        "header": [header],
-        "footer": [footer]
-    }
+    return {"data": data, "header": [header], "footer": [footer]}

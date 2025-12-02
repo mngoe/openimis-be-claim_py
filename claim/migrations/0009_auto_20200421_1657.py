@@ -9,49 +9,177 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0008_create_claim_attachments_count_view'),
+        ("claim", "0008_create_claim_attachments_count_view"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='ClaimAttachmentsCount',
+            name="ClaimAttachmentsCount",
             fields=[
-                ('claim', models.OneToOneField(on_delete=django.db.models.deletion.DO_NOTHING, primary_key=True, related_name='attachments_count', serialize=False, to='claim.Claim')),
-                ('value', models.IntegerField(db_column='attachments_count')),
+                (
+                    "claim",
+                    models.OneToOneField(
+                        on_delete=django.db.models.deletion.DO_NOTHING,
+                        primary_key=True,
+                        related_name="attachments_count",
+                        serialize=False,
+                        to="claim.Claim",
+                    ),
+                ),
+                ("value", models.IntegerField(db_column="attachments_count")),
             ],
             options={
-                'db_table': 'claim_ClaimAttachmentsCountView',
-                'managed': False,
+                "db_table": "claim_ClaimAttachmentsCountView",
+                "managed": False,
             },
         ),
         migrations.CreateModel(
-            name='ClaimDedRem',
+            name="ClaimDedRem",
             fields=[
-                ('validity_from', core.fields.DateTimeField(db_column='ValidityFrom', default=datetime.datetime.now)),
-                ('validity_to', core.fields.DateTimeField(blank=True, db_column='ValidityTo', null=True)),
-                ('legacy_id', models.IntegerField(blank=True, db_column='LegacyID', null=True)),
-                ('id', models.AutoField(db_column='ExpenditureID', primary_key=True, serialize=False)),
-                ('ded_g', models.DecimalField(blank=True, db_column='DedG', decimal_places=2, max_digits=18, null=True)),
-                ('ded_op', models.DecimalField(blank=True, db_column='DedOP', decimal_places=2, max_digits=18, null=True)),
-                ('ded_ip', models.DecimalField(blank=True, db_column='DedIP', decimal_places=2, max_digits=18, null=True)),
-                ('rem_g', models.DecimalField(blank=True, db_column='RemG', decimal_places=2, max_digits=18, null=True)),
-                ('rem_op', models.DecimalField(blank=True, db_column='RemOP', decimal_places=2, max_digits=18, null=True)),
-                ('rem_ip', models.DecimalField(blank=True, db_column='RemIP', decimal_places=2, max_digits=18, null=True)),
-                ('rem_consult', models.DecimalField(blank=True, db_column='RemConsult', decimal_places=2, max_digits=18, null=True)),
-                ('rem_surgery', models.DecimalField(blank=True, db_column='RemSurgery', decimal_places=2, max_digits=18, null=True)),
-                ('rem_delivery', models.DecimalField(blank=True, db_column='RemDelivery', decimal_places=2, max_digits=18, null=True)),
-                ('rem_hospitalization', models.DecimalField(blank=True, db_column='RemHospitalization', decimal_places=2, max_digits=18, null=True)),
-                ('rem_antenatal', models.DecimalField(blank=True, db_column='RemAntenatal', decimal_places=2, max_digits=18, null=True)),
-                ('audit_user_id', models.IntegerField(db_column='AuditUserID')),
+                (
+                    "validity_from",
+                    core.fields.DateTimeField(
+                        db_column="ValidityFrom", default=datetime.datetime.now
+                    ),
+                ),
+                (
+                    "validity_to",
+                    core.fields.DateTimeField(
+                        blank=True, db_column="ValidityTo", null=True
+                    ),
+                ),
+                (
+                    "legacy_id",
+                    models.IntegerField(blank=True, db_column="LegacyID", null=True),
+                ),
+                (
+                    "id",
+                    models.AutoField(
+                        db_column="ExpenditureID", primary_key=True, serialize=False
+                    ),
+                ),
+                (
+                    "ded_g",
+                    models.DecimalField(
+                        blank=True,
+                        db_column="DedG",
+                        decimal_places=2,
+                        max_digits=18,
+                        null=True,
+                    ),
+                ),
+                (
+                    "ded_op",
+                    models.DecimalField(
+                        blank=True,
+                        db_column="DedOP",
+                        decimal_places=2,
+                        max_digits=18,
+                        null=True,
+                    ),
+                ),
+                (
+                    "ded_ip",
+                    models.DecimalField(
+                        blank=True,
+                        db_column="DedIP",
+                        decimal_places=2,
+                        max_digits=18,
+                        null=True,
+                    ),
+                ),
+                (
+                    "rem_g",
+                    models.DecimalField(
+                        blank=True,
+                        db_column="RemG",
+                        decimal_places=2,
+                        max_digits=18,
+                        null=True,
+                    ),
+                ),
+                (
+                    "rem_op",
+                    models.DecimalField(
+                        blank=True,
+                        db_column="RemOP",
+                        decimal_places=2,
+                        max_digits=18,
+                        null=True,
+                    ),
+                ),
+                (
+                    "rem_ip",
+                    models.DecimalField(
+                        blank=True,
+                        db_column="RemIP",
+                        decimal_places=2,
+                        max_digits=18,
+                        null=True,
+                    ),
+                ),
+                (
+                    "rem_consult",
+                    models.DecimalField(
+                        blank=True,
+                        db_column="RemConsult",
+                        decimal_places=2,
+                        max_digits=18,
+                        null=True,
+                    ),
+                ),
+                (
+                    "rem_surgery",
+                    models.DecimalField(
+                        blank=True,
+                        db_column="RemSurgery",
+                        decimal_places=2,
+                        max_digits=18,
+                        null=True,
+                    ),
+                ),
+                (
+                    "rem_delivery",
+                    models.DecimalField(
+                        blank=True,
+                        db_column="RemDelivery",
+                        decimal_places=2,
+                        max_digits=18,
+                        null=True,
+                    ),
+                ),
+                (
+                    "rem_hospitalization",
+                    models.DecimalField(
+                        blank=True,
+                        db_column="RemHospitalization",
+                        decimal_places=2,
+                        max_digits=18,
+                        null=True,
+                    ),
+                ),
+                (
+                    "rem_antenatal",
+                    models.DecimalField(
+                        blank=True,
+                        db_column="RemAntenatal",
+                        decimal_places=2,
+                        max_digits=18,
+                        null=True,
+                    ),
+                ),
+                ("audit_user_id", models.IntegerField(db_column="AuditUserID")),
             ],
             options={
-                'db_table': 'tblClaimDedRem',
-                'managed': False,
+                "db_table": "tblClaimDedRem",
+                "managed": False,
             },
         ),
         migrations.AlterField(
-            model_name='claimattachment',
-            name='validity_from',
-            field=core.fields.DateTimeField(db_column='ValidityFrom', default=datetime.datetime.now),
+            model_name="claimattachment",
+            name="validity_from",
+            field=core.fields.DateTimeField(
+                db_column="ValidityFrom", default=datetime.datetime.now
+            ),
         ),
     ]

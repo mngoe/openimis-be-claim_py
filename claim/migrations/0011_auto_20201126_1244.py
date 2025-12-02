@@ -8,13 +8,13 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0010_auto_20200611_0601'),
+        ("claim", "0010_auto_20200611_0601"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='claimattachment',
-            name='date',
+            model_name="claimattachment",
+            name="date",
             field=core.fields.DateField(blank=True, default=core.utils.TimeUtils.now),
         ),
     ]

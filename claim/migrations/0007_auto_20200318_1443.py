@@ -6,13 +6,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0006_claimattachment_url'),
+        ("claim", "0006_claimattachment_url"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='claimattachment',
-            name='legacy_id',
-            field=models.UUIDField(blank=True, db_column='LegacyID', null=True),
+            model_name="claimattachment",
+            name="legacy_id",
+            field=models.UUIDField(blank=True, db_column="LegacyID", null=True),
         ),
     ]
