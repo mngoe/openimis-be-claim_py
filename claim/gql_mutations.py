@@ -290,10 +290,10 @@ def create_attachment(claim_id, data):
     from core import datetime
 
     now = datetime.datetime.now()
-    general_type = data['general_type'] if data.get("general_type") else GeneralClaimAttachmentType.FILE # default to adjust FHIR attachments type fallback to FILE
+    general_type = data['general_type'] if data.get("general_type") else GeneralClaimAttachmentType.FILE  # default to adjust FHIR attachments type fallback to FILE
     data['module'] = 'claim'
     if not data.get('predefined_type'):
-        data['predefined_type'] = 'default'  # default to adjust for FHIR predefined is fallbacked to default    
+        data['predefined_type'] = 'default'  # default to adjust for FHIR predefined is fallbacked to default
     if general_type == GeneralClaimAttachmentType.URL:
         parsed_url = urlparse(data["url"])
         if ClaimConfig.allowed_domains_attachments and not any(

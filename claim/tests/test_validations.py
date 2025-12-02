@@ -29,9 +29,8 @@ from claim.validations import (
     REJECTION_REASON_TARGET_DATE,
 )
 from django.test import TestCase
-from insuree.models import Family, Insuree
 from insuree.test_helpers import create_test_insuree
-from location.models import HealthFacility
+from location.test_helpers import create_test_health_facility
 
 from product.models import ProductItemOrService
 from medical.test_helpers import create_test_service, create_test_item
@@ -186,9 +185,9 @@ class ValidationTest(TestCase):
 
     def test_validate_pricelist_hf1(self):
         # When the claimitem points to a pricelist that doesn't correspond to the claim HF
-        hf_without_pricelist = HealthFacility.objects.filter(
-            items_pricelist__id__isnull=True
-        ).first()
+        hf_without_pricelist = create_test_health_facility(code="HF_NP")
+        hf_without_pricelist.items_pricelist = None
+        hf_without_pricelist.services_pricelist = None
         self.assertIsNotNone(
             hf_without_pricelist,
             "This test requires a health facility without a price list item",
@@ -215,12 +214,10 @@ class ValidationTest(TestCase):
             item1.rejection_reason, 2, "Database was updated with rejection reason"
         )
 
-    def test_validate_polivx(self):
+    def test_validate_policy(self):
         # When the insuree family is invalid
         # Given
-        invalid_insuree = Insuree.objects.filter(
-            family__in=Family.objects.filter(validity_to__isnull=False)
-        ).first()
+        invalid_insuree = create_test_insuree(family_custom_props={"validity_to": "2019-01-01"})
         self.assertIsNotNone(invalid_insuree)
         claim = create_test_claim(
             {"insuree_id": invalid_insuree.id}, product=self.product
@@ -784,15 +781,14 @@ class ValidationTest(TestCase):
         item1 = create_test_claimitem(
             claim1, "D", custom_props={"item_id": item.id}, product=product
         )
+        errors = processing_claim(claim1, self.user, is_process=True)
 
-        errors = processing_claim(claim1, self.user, True)
         self.assertEqual(len(errors), 0)
-
         # Then
         claim1.refresh_from_db()
         item1.refresh_from_db()
         service1.refresh_from_db()
-        self.assertEqual(len(errors), 0)
+
         self.assertEqual(item1.price_adjusted, 100)
         self.assertEqual(item1.price_valuated, 55)
         self.assertEqual(item1.deductable_amount, 0)
@@ -1382,7 +1378,7 @@ class ValidationTest(TestCase):
         )
         claim.health_facility.care_type = claim.health_facility.CARE_TYPE_BOTH
         claim.health_facility.save()
-        claim_service = create_test_claimservice(
+        create_test_claimservice(
             claim, custom_props={"service_id": service.id},
             product=self.product
         )
@@ -1395,10 +1391,6 @@ class ValidationTest(TestCase):
         print(f"There is the error: {errors}")
         self.assertEquals(len(errors), 0)
 
-        # tearDown
-        claim_service.delete()
-        claim.delete()
-        service.delete()
     def test_validate_claimitem_future_validity(self):
         # Given
         future_date = date.today() + timedelta(days=30)

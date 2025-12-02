@@ -352,11 +352,12 @@ class ClaimSubmitServiceTestCase(TestCase):
     def test_service_create_hook(self):
         item = create_test_item("D", custom_props={})
         service = create_test_service("V")
+        service_super = create_test_service("V", custom_props={'packagetype': 'F'})
         claim = create_test_claim()
         service_items_dict = {
             "qty_provided": 7,
             "price_asked": 11,
-            "service_id": 23,
+            "service_id": service_super.id,
             "status": 1,
             "validity_from": "2019-06-01",
             "validity_to": None,
@@ -410,10 +411,11 @@ class ClaimSubmitServiceTestCase(TestCase):
     def test_calcul_amount_service(self):
         item = create_test_item("D", custom_props={})
         service = create_test_service("V")
+        service_super = create_test_service("V", custom_props={'packagetype': 'F'})
         service_items_dict = {
             "qty_provided": 5,
             "price_asked": 50,
-            "service_id": 23,
+            "service_id": service_super.id,
             "status": 1,
             "validity_from": "2019-06-01",
             "validity_to": None,

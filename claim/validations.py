@@ -1,5 +1,4 @@
-from django.db.models import Q
-import itertools
+
 import logging
 from collections import namedtuple, defaultdict
 from decimal import Decimal
@@ -134,7 +133,6 @@ def get_policy_and_product_info(policies, items, services):
         products_id = [p.product_id for p in policies]
 
     return policies_id, products_id
-
 
 
 def calculate_hospital_visit(product, hospitalization, hf_level):
@@ -357,7 +355,7 @@ def calculate_price_adjusted(
     """Calculate adjusted price for claim detail."""
     pl_price = (
         itemsvc_pricelist_detail.price_overrule
-        if itemsvc_pricelist_detail and itemsvc_pricelist_detail.price_overrule
+        if itemsvc_pricelist_detail.price_overrule
         else claim_detail.itemsvc.price
     )
     if claim_detail.price_approved is not None:
@@ -1098,7 +1096,7 @@ def merge_deductible(claim_deductibles, deductibles):
                 claim_deductibles[k] = [deductibles[k]]
 
 
-def validate_claim(claim, check_max, process_dedrem_opt=True, policies=None, user=None):
+def validate_claim(claim, check_max, process_dedrem_opt=True, policies=None, is_process=None, user=None):
     logger.debug(f"Validating claim {claim.uuid}")
     if ClaimConfig.default_validations_disabled:
         return []
@@ -1404,7 +1402,7 @@ def validate_claim(claim, check_max, process_dedrem_opt=True, policies=None, use
             dedrem_errors = process_dedrem(
                 claim,
                 user,
-                is_process=True,
+                is_process=is_process,
                 policies=policies,
                 items=items,
                 services=services,
@@ -1702,6 +1700,15 @@ def validate_insuree(claim, insuree, policies=None):
                 "detail": claim.uuid,
             }
         ]
+    if not insuree.family or insuree.family.validity_to is not None:
+        errors += [
+            {
+                "code": REJECTION_REASON_FAMILY,
+                "message": _("claim.validation.family.family_validity")
+                % {"code": claim.code, "insuree": str(insuree)},
+                "detail": claim.uuid,
+            }
+        ]
     if not policies:
         errors += [
             {
@@ -1711,6 +1718,7 @@ def validate_insuree(claim, insuree, policies=None):
                 "detail": claim.uuid,
             }
         ]
+
     if len(errors) > 0:
         claim.reject(REJECTION_REASON_FAMILY)
     return errors

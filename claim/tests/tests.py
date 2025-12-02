@@ -3,7 +3,6 @@ from core.models.openimis_graphql_test_case import (
     openIMISGraphQLTestCase,
     BaseTestContext,
 )
-from core.utils import filter_validity
 from core.test_helpers import create_test_interactive_user
 from graphql_jwt.shortcuts import get_token
 
@@ -13,8 +12,6 @@ from graphene.test import Client
 from graphene import Schema
 
 from claim.models import Claim
-from claim.models import ClaimAdmin
-
 
 import datetime
 from policy.models import Policy
@@ -22,9 +19,9 @@ from policy.test_helpers import create_test_policy2
 from product.test_helpers import create_test_product, create_test_product_service
 from core.test_helpers import create_test_officer
 from insuree.test_helpers import create_test_insuree
-from medical.test_helpers import create_test_service
+from medical.test_helpers import create_test_service, create_test_diagnosis
 from medical_pricelist.test_helpers import add_service_to_hf_pricelist
-from claim.test_helpers import create_test_claim
+from claim.test_helpers import create_test_claim, create_test_claim_admin
 
 
 class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
@@ -40,6 +37,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
     service = None
     product_service = None
     claim_admin = None
+    icd = None
 
     @classmethod
     def setUpClass(cls):
@@ -60,7 +58,8 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
             custom_props={"value": 1000, "status": Policy.STATUS_ACTIVE},
         )
         cls.service = create_test_service("A")
-        cls.claim_admin = ClaimAdmin.objects.filter(*filter_validity()).first()
+        cls.claim_admin = create_test_claim_admin()
+        cls.icd = create_test_diagnosis()
         cls.svc_pl_detail = add_service_to_hf_pricelist(
             cls.service, hf_id=cls.claim_admin.health_facility.id
         )
@@ -184,7 +183,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
                 insureeId: {self.insuree.id}
                 adminId: {self.claim_admin.id}
                 dateFrom: "2023-12-06"
-                icdId: 2
+                icdId: {self.icd.id}
                 jsonExt: "{{}}"
                 feedbackStatus: 1
                 reviewStatus: 1
@@ -236,7 +235,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
                 insureeId: {self.insuree.id}
                 adminId: {self.claim_admin.id}
                 dateFrom: "{str(date_from)}"
-                icdId: 2
+                icdId: {self.icd.id}
                 jsonExt: "{{}}"
                 feedbackStatus: 1
                 reviewStatus: 1
@@ -399,13 +398,13 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         self.assertEqual(claim.review_status, Claim.REVIEW_DELIVERED)
 
     def test_claim_history_query(self):
-        historical_claim1 = create_test_claim(custom_props={
+        create_test_claim(custom_props={
             "code": self.claim.code,
             "validity_to": "2023-01-01 00:00:00",
             "insuree_id": self.insuree.id,
             "status": Claim.STATUS_ENTERED
         })
-        historical_claim2 = create_test_claim(custom_props={
+        create_test_claim(custom_props={
             "code": self.claim.code,
             "validity_to": "2023-01-02 00:00:00",
             "insuree_id": self.insuree.id,
