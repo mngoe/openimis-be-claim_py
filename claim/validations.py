@@ -6,7 +6,7 @@ from core import utils
 from core.datetimes.shared import datetimedelta
 from core.utils import filter_validity
 from django.db import connection
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, F
 from django.db.models.functions import Coalesce
 from django.utils.translation import gettext as _
 from insuree.models import InsureePolicy
@@ -1436,16 +1436,72 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
 
 def approved_amount(claim):
     app_item_value = claim.items \
-        .annotate(value=Coalesce("qty_approved", "qty_provided") * Coalesce("price_approved", "price_asked")) \
+        .annotate(value=Coalesce(F("qty_approved"), F("qty_provided")) * Coalesce(F("price_approved"), F("price_asked"))) \
         .filter(validity_to__isnull=True, status=ClaimItem.STATUS_PASSED) \
-        .aggregate(Sum("value"))
+        .aggregate(Sum("value"))['value__sum'] or 0
+
     app_service_value = claim.services \
-        .annotate(value=Coalesce("qty_approved", "qty_provided") * Coalesce("price_approved", "price_asked")) \
+        .annotate(value=Coalesce(F("qty_approved"), F("qty_provided")) * Coalesce(F("price_approved"), F("price_asked"))) \
         .filter(validity_to__isnull=True, status=ClaimService.STATUS_PASSED) \
-        .aggregate(Sum("value"))
-    return (app_item_value['value__sum'] if app_item_value['value__sum'] else 0) + \
-           (app_service_value['value__sum']
-            if app_service_value['value__sum'] else 0)
+        .aggregate(Sum("value"))['value__sum'] or 0
+
+    app_sub_item_value = ClaimServiceItem.objects \
+        .filter(
+            claim_service__claim=claim,
+            claim_service__validity_to__isnull=True,
+            claim_service__status=ClaimService.STATUS_PASSED,
+        ) \
+        .annotate(value=F("qty_displayed") * F("price_asked")) \
+        .aggregate(Sum("value"))['value__sum'] or 0
+
+    app_sub_service_value = ClaimServiceService.objects \
+        .filter(
+            claim_service__claim=claim,
+            claim_service__validity_to__isnull=True,
+            claim_service__status=ClaimService.STATUS_PASSED,
+        ) \
+        .annotate(value=F("qty_displayed") * F("price_asked")) \
+        .aggregate(Sum("value"))['value__sum'] or 0
+
+    total = app_item_value + app_service_value + app_sub_item_value + app_sub_service_value
+
+    plafond_total_f = 0
+    reel_total_f = 0
+    for cs in claim.services.filter(validity_to__isnull=True, status=ClaimService.STATUS_PASSED):
+        if cs.service and cs.service.packagetype == 'F':
+            qty = cs.qty_approved or cs.qty_provided or 1
+
+            reel_service = cs.price_asked or 0
+                
+            sub_services_total = ClaimServiceService.objects \
+                .filter(
+                    claim_service__claim=claim,
+                    claim_service__id=cs.id,
+                    claim_service__validity_to__isnull=True,
+                    claim_service__status=ClaimService.STATUS_PASSED,
+                ) \
+                .annotate(value=F("qty_displayed") * F("price_asked")) \
+                .aggregate(total=Sum("value"))["total"] or 0
+
+            sub_items_total = ClaimServiceItem.objects \
+                .filter(
+                    claim_service__claim=claim,
+                    claim_service__id=cs.id,
+                    claim_service__validity_to__isnull=True,
+                    claim_service__status=ClaimService.STATUS_PASSED,
+                ) \
+                .annotate(value=F("qty_displayed") * F("price_asked")) \
+                .aggregate(total=Sum("value"))["total"] or 0
+
+            total_cs = reel_service + sub_services_total + sub_items_total
+
+            reel_total_f += total_cs
+            plafond_total_f += (cs.service.price or 0) * qty
+
+    if reel_total_f > 0:
+        total = total - reel_total_f + min(reel_total_f, plafond_total_f)
+
+    return total
 
 
 Deductible = namedtuple('Deductible', ['amount', 'type', 'prev'])
