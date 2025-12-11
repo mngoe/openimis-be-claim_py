@@ -37,7 +37,7 @@ from django.db.models.functions import Coalesce
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import PermissionDenied, ValidationError, ObjectDoesNotExist
 from uuid import UUID
-
+import datetime
 logger = logging.getLogger(__name__)
 
 
@@ -705,6 +705,8 @@ def set_claim_processed_or_valuated(claim, errors, user):
             claim.approved = approved_amount(claim)
             if with_relative_prices(claim):
                 claim.status = Claim.STATUS_PROCESSED
+                claim.process_stamp = datetime.datetime.now()
+                claim.date_processed = datetime.date.today()
             else:
                 claim.status = Claim.STATUS_VALUATED
                 claim.valuated = claim.approved
