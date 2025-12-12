@@ -217,7 +217,8 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         db_column='ReferTo', blank=True, null=True)
     icd = models.ForeignKey(
         medical_models.Diagnosis, models.DO_NOTHING, db_column='ICDID',
-        related_name="claim_icds")
+        related_name="claim_icds",
+        blank=True, null=True)
     icd_1 = models.ForeignKey(
         medical_models.Diagnosis, models.DO_NOTHING, db_column='ICDID1',
         related_name="claim_icd1s",

@@ -236,7 +236,7 @@ class ClaimInputType(OpenIMISMutation.Input):
     insuree_id = graphene.Int(required=True)
     date_from = graphene.Date(required=True)
     date_to = graphene.Date(required=False)
-    icd_id = graphene.Int(required=True)
+    icd_id = graphene.Int(required=False)
     icd_1_id = graphene.Int(required=False)
     icd_2_id = graphene.Int(required=False)
     icd_3_id = graphene.Int(required=False)
