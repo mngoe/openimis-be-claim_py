@@ -194,7 +194,7 @@ class Query(graphene.ObjectType):
 
             last_year = datetime.date.today() + datetimedelta(years=-1)
             diag_avg = (
-                Claim.objects.filter(*filter_validity(**kwargs))
+                Claim.objects.filter(*Claim.filter_validity(**kwargs))
                 .filter(date_claimed__gt=last_year)
                 .values("icd__code")
                 .filter(icd__code=OuterRef("icd__code"))
@@ -204,7 +204,7 @@ class Query(graphene.ObjectType):
             variance_filter = Q(claimed__gt=(1 + variance / 100) * Subquery(diag_avg))
             if not ClaimConfig.gql_query_claim_diagnosis_variance_only_on_existing:
                 diags = (
-                    Claim.objects.filter(*filter_validity(**kwargs))
+                    Claim.objects.filter(*Claim.filter_validity(**kwargs))
                     .filter(date_claimed__gt=last_year)
                     .values("icd__code")
                     .distinct()
@@ -252,7 +252,7 @@ class Query(graphene.ObjectType):
         result = (
             Insuree.objects.filter(
                 chf_id=kwargs["insuree_code"],
-                *filter_validity(validity=kwargs["date_claimed"]),
+                *Insuree.filter_validity(validity=kwargs["date_claimed"]),
             )
             .first()
             .health_facility

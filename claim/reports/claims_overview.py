@@ -7588,13 +7588,13 @@ def claims_overview_query(
         .distinct("date_claimed", "insuree__chf_id", "code")
         .order_by("date_claimed", "insuree__chf_id", "code")
         .prefetch_related(
-            Prefetch("items", queryset=ClaimItem.objects.filter(*filter_validity()))
+            Prefetch("items", queryset=ClaimItem.objects.filter(*ClaimItem.filter_validity()))
         )
         .prefetch_related("items__item")
         .prefetch_related("insuree")
         .prefetch_related(
             Prefetch(
-                "services", queryset=ClaimService.objects.filter(*filter_validity())
+                "services", queryset=ClaimService.objects.filter(*ClaimService.filter_validity())
             )
         )
         .prefetch_related("services__service")

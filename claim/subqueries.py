@@ -116,14 +116,14 @@ total_srv_approved_exp = Coalesce(
 
 
 def update_claim_remunerated(claims_qs, ratio=1, updates={}):
-    ClaimItem.objects.filter(claim__in=claims_qs, *filter_validity()).filter(
+    ClaimItem.objects.filter(claim__in=claims_qs, *ClaimItem.filter_validity()).filter(
         Q(Q(rejection_reason__isnull=True) | Q(rejection_reason=0))
     ).update(
         remunerated_amount=ExpressionWrapper(
             ratio * elm_approved_exp(), output_field=DecimalField()
         )
     )
-    ClaimService.objects.filter(claim__in=claims_qs, *filter_validity()).filter(
+    ClaimService.objects.filter(claim__in=claims_qs, *ClaimItem.filter_validity()).filter(
         Q(Q(rejection_reason__isnull=True) | Q(rejection_reason=0))
     ).update(
         remunerated_amount=ExpressionWrapper(
@@ -149,7 +149,7 @@ def update_claim_total(
     service_subquery = Subquery(
         ClaimItem.objects.filter(
             claim=OuterRef("pk"),
-            *filter_validity(),
+            *ClaimItem.filter_validity(),
         )
         .filter(Q(Q(rejection_reason__isnull=True) | Q(rejection_reason=0)))
         .values("claim_id")
@@ -161,7 +161,7 @@ def update_claim_total(
     item_subquery = Subquery(
         ClaimService.objects.filter(
             claim=OuterRef("pk"),
-            *filter_validity(),
+            *ClaimService.filter_validity(),
         )
         .filter(Q(Q(rejection_reason__isnull=True) | Q(rejection_reason=0)))
         .values("claim_id")

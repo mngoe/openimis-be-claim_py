@@ -68,7 +68,7 @@ def initialize_dedrem_processing(claim, services):
 
 def archive_old_dedrems(claim):
     """Archive existing dedrems for the claim."""
-    ClaimDedRem.objects.filter(claim_id=claim.id, *filter_validity()).update(
+    ClaimDedRem.objects.filter(claim_id=claim.id, *ClaimDedRem.filter_validity()).update(
         validity_to=datetime.now()
     )
 
@@ -1117,7 +1117,7 @@ def validate_claim(claim, check_max, process_dedrem_opt=True, policies=None, is_
                 item_id__in=item_ids,
                 items_pricelist=claim.health_facility.items_pricelist,
                 items_pricelist__validity_to__isnull=True,
-                *filter_validity(validity=target_date),
+                *ItemsPricelistDetail.filter_validity(validity=target_date),
             ).prefetch_related("item")
         }
         # root_items = set(i.item for i in item_pricelist_dict.values())
@@ -1128,7 +1128,7 @@ def validate_claim(claim, check_max, process_dedrem_opt=True, policies=None, is_
                 service_id__in=service_ids,
                 services_pricelist=claim.health_facility.services_pricelist,
                 services_pricelist__validity_to__isnull=True,
-                *filter_validity(validity=target_date),
+                *ServicesPricelistDetail.filter_validity(validity=target_date),
             ).prefetch_related("service")
         }
         root_services = set(s.service for s in service_pricelist_dict.values())
@@ -2005,8 +2005,8 @@ def get_claim_category(claim, services=None):
     if services is None:
         services = Service.objects.filter(
             claimservice__claim=claim,
-            *filter_validity(validity=target_date),
-            *filter_validity(validity=target_date, prefix="claimservice__"),
+            *Service.filter_validity(validity=target_date),
+            *ClaimService.filter_validity(validity=target_date, prefix="claimservice__"),
         )
 
     claim_service_categories = [service.category for service in services]

@@ -153,7 +153,7 @@ class ClaimAttachmentGQLType(DjangoObjectType):
 
     @classmethod
     def get_queryset(cls, queryset, info):
-        queryset = queryset.filter(*filter_validity())
+        queryset = queryset.filter(*ClaimAttachment.filter_validity())
         return queryset
 
 

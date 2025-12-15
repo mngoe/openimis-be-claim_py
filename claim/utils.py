@@ -12,6 +12,7 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 from core import filter_validity
 from policy.models import Policy
+from insuree.models import InsureePolicy
 from claim.subqueries import (
     total_elm_approved_exp,
 )
@@ -74,8 +75,8 @@ def generic_amount_claimdetail(elt):
 def get_valid_policies_qs(insuree_id, target_date):
     return Policy.objects.filter(
         insuree_policies__insuree_id=insuree_id,
-        *filter_validity(validity=target_date),
-        *filter_validity(validity=target_date, prefix="insuree_policies__"),
+        *Policy.filter_validity(validity=target_date),
+        *InsureePolicy.filter_validity(validity=target_date, prefix="insuree_policies__"),
         effective_date__lte=target_date,
         expiry_date__gte=target_date,
         status__in=[Policy.STATUS_ACTIVE, Policy.STATUS_EXPIRED],
@@ -128,9 +129,9 @@ def get_claim_product(
     if not target_date:
         target_date = get_claim_target_date(claim)
     if items is None:
-        items = claim.items.filter(*filter_validity(validity=target_date))
+        items = claim.items.filter(*ClaimItem.filter_validity(validity=target_date))
     if services is None:
-        services = claim.services.filter(*filter_validity(validity=target_date))
+        services = claim.services.filter(*ClaimService.filter_validity(validity=target_date))
 
     qs = Product.objects
     if assigned:
@@ -148,8 +149,8 @@ def get_claim_product(
             policies__insuree_policies__insuree_id=claim.insuree.id,
             policies__insuree_policies__effective_date__lte=target_date,
             policies__insuree_policies__expiry_date__gte=target_date,
-            *filter_validity(validity=target_date, prefix="policies__"),
-            *filter_validity(
+            *Policy.filter_validity(validity=target_date, prefix="policies__"),
+            *InsureePolicy.filter_validity(
                 validity=target_date, prefix="policies__insuree_policies__"
             ),
         ).filter(
@@ -163,14 +164,14 @@ def get_claim_product(
             Prefetch(
                 "items",
                 queryset=ProductItem.objects.filter(
-                    *filter_validity(validity=target_date)
+                    *ProductItem.filter_validity(validity=target_date)
                 ).prefetch_related("item"),
             )
         ).prefetch_related(
             Prefetch(
                 "services",
                 queryset=ProductService.objects.filter(
-                    *filter_validity(validity=target_date)
+                    *ProductService.filter_validity(validity=target_date)
                 ).prefetch_related("service"),
             )
         )

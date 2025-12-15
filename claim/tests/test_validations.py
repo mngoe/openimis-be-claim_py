@@ -738,7 +738,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *ClaimDedRem.filter_validity())
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -799,7 +799,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *ClaimDedRem.filter_validity())
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -932,7 +932,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *ClaimDedRem.filter_validity())
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)
@@ -1022,7 +1022,7 @@ class ValidationTest(TestCase):
         update_claims_dedrems(None, self.user, [claim1])
 
         # Then dedrem should have been updated
-        dedrem = ClaimDedRem.objects.filter(claim=claim1, *filter_validity()).first()
+        dedrem = ClaimDedRem.objects.filter(claim=claim1, *ClaimDedRem.filter_validity()).first()
         self.assertIsNotNone(dedrem)
         self.assertEquals(dedrem.rem_g, 90)  # 37*1 + 53*1
 
@@ -1174,7 +1174,7 @@ class ValidationTest(TestCase):
         self.assertIsNotNone(claim1.process_stamp)
         self.assertIsNotNone(claim1.date_processed)
 
-        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *filter_validity())
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1, *ClaimDedRem.filter_validity())
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
         self.assertEqual(dedrem1.policy_id, item1.policy_id)

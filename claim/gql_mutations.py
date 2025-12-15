@@ -440,7 +440,7 @@ class CreateAttachmentMutation(OpenIMISMutation):
             if "client_mutation_label" in data:
                 data.pop("client_mutation_label")
             claim_uuid = data.pop("claim_uuid")
-            queryset = Claim.objects.filter(*filter_validity())
+            queryset = Claim.objects.filter(*Claim.filter_validity())
             if settings.ROW_SECURITY:
                 from location.schema import LocationManager
 
@@ -477,7 +477,7 @@ class UpdateAttachmentMutation(OpenIMISMutation):
         try:
             if not user.has_perms(ClaimConfig.gql_mutation_update_claims_perms):
                 raise PermissionDenied(_("unauthorized"))
-            queryset = ClaimAttachment.objects.filter(*filter_validity())
+            queryset = ClaimAttachment.objects.filter(*ClaimAttachment.filter_validity())
             if settings.ROW_SECURITY:
                 from location.schema import LocationManager
 
@@ -551,7 +551,7 @@ class DeleteAttachmentMutation(OpenIMISMutation):
         try:
             if not user.has_perms(ClaimConfig.gql_mutation_update_claims_perms):
                 raise PermissionDenied(_("unauthorized"))
-            queryset = ClaimAttachment.objects.filter(*filter_validity())
+            queryset = ClaimAttachment.objects.filter(*ClaimAttachment.filter_validity())
             if settings.ROW_SECURITY:
                 from location.schema import LocationManager
 
@@ -675,7 +675,7 @@ class SubmitClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
                 Prefetch(
                     "items",
                     queryset=ClaimItem.objects.filter(
-                        *filter_validity(),
+                        *ClaimItem.filter_validity(),
                         Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True)),
                     ),
                 )
@@ -684,7 +684,7 @@ class SubmitClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
                 Prefetch(
                     "services",
                     queryset=ClaimService.objects.filter(
-                        *filter_validity(),
+                        *ClaimService.filter_validity(),
                         Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True)),
                     ),
                 )
@@ -975,7 +975,7 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                     claim_service = claim.services.filter(id=service_id).first()
                     if claim_service:
                         service_element = Service.objects.filter(
-                            *filter_validity(), code=claim_service_code
+                            *Service.filter_validity(), code=claim_service_code
                         ).first()
                         if service_element:
                             claim_service_to_update = claim_service.services.filter(
@@ -1005,7 +1005,7 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                     claim_service = claim.services.filter(id=service_id).first()
                     if claim_service:
                         item_element = Item.objects.filter(
-                            *filter_validity(), code=claim_item_code
+                            *Item.filter_validity(), code=claim_item_code
                         ).first()
                         if item_element:
                             claim_item_to_update = claim_service.items.filter(
@@ -1088,11 +1088,11 @@ class ProcessClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
         claims = (
             Claim.objects.filter(uuid__in=uuids)
             .prefetch_related(
-                Prefetch("items", queryset=ClaimItem.objects.filter(*filter_validity()))
+                Prefetch("items", queryset=ClaimItem.objects.filter(*ClaimItem.filter_validity()))
             )
             .prefetch_related(
                 Prefetch(
-                    "services", queryset=ClaimService.objects.filter(*filter_validity())
+                    "services", queryset=ClaimService.objects.filter(*ClaimService.filter_validity())
                 )
             )
         )
@@ -1154,13 +1154,13 @@ class DeleteClaimsMutation(OpenIMISMutation):
                 Claim.objects.filter(uuid=claim_uuid)
                 .prefetch_related(
                     Prefetch(
-                        "items", queryset=ClaimItem.objects.filter(*filter_validity())
+                        "items", queryset=ClaimItem.objects.filter(*ClaimItem.filter_validity())
                     )
                 )
                 .prefetch_related(
                     Prefetch(
                         "services",
-                        queryset=ClaimService.objects.filter(*filter_validity()),
+                        queryset=ClaimService.objects.filter(*ClaimService.filter_validity()),
                     )
                 )
                 .first()

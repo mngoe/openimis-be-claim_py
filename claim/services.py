@@ -750,7 +750,7 @@ def with_relative_prices(claim):
 
 def set_claims_status(uuids, field, status, audit_data=None, user=None):
     errors = []
-    claims = Claim.objects.filter(uuid__in=uuids, *filter_validity())
+    claims = Claim.objects.filter(uuid__in=uuids, *Claim.filter_validity())
     remaining_uuid = list(set(map(str.upper, uuids)))
     for claim in claims:
         remaining_uuid.remove(claim.uuid.upper())
@@ -806,7 +806,7 @@ def create_feedback_prompt(current_claim, user):
         villages.append(current_claim.insuree.family.location)
     officer = (
         Officer.objects.filter(
-            *filter_validity(),
+            *Officer.filter_validity(),
             officer_villages__location__in=villages,
             phone__isnull=False,
         )
@@ -815,7 +815,7 @@ def create_feedback_prompt(current_claim, user):
     )
     if not officer:
         bad_officer = Officer.objects.filter(
-            *filter_validity(),
+            *Officer.filter_validity(),
             officer_villages__location__in=villages,
         ).first()
         if bad_officer:
