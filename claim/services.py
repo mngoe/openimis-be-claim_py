@@ -7,7 +7,6 @@ from medical.models import Item, Service
 
 import core
 from core.models import Officer
-from core.utils import filter_validity
 from django.db import connection, transaction
 from gettext import gettext as _
 

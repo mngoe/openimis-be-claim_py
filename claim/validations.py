@@ -14,7 +14,6 @@ from claim.models import (
 from core import utils
 from datetime import datetime
 from core.datetimes.shared import datetimedelta
-from core.utils import filter_validity
 from django.db.models import Q
 from django.db.models.functions import Coalesce
 from django.utils.translation import gettext as _

@@ -9,7 +9,7 @@ from django.db.models import Count, Case, When, IntegerField, Q, Prefetch
 
 from core.models import MutationLog
 from .apps import ClaimConfig
-from core import filter_validity, assert_string_length
+from core import assert_string_length
 from core.schema import TinyInt, SmallInt, OpenIMISMutation
 from core.gql.gql_mutations import mutation_on_uuids_from_filter
 from django.conf import settings

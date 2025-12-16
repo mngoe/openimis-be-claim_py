@@ -41,7 +41,6 @@ from medical_pricelist.test_helpers import (
     update_pricelist_item_detail_in_hf_pricelist,
 )
 from policy.test_helpers import create_test_policy2
-from core import filter_validity
 
 # default arguments should not pass a list or a dict because they're mutable but we don't risk mutating them here:
 # noinspection PyDefaultArgument,DuplicatedCode

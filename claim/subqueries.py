@@ -12,7 +12,6 @@ from django.db.models import (
     When,
 )
 from django.db.models.functions import Coalesce
-from core import filter_validity
 from claim.models import ClaimItem, ClaimService
 
 # row_id = models.BinaryField(db_column='RowID', blank=True, null=True)

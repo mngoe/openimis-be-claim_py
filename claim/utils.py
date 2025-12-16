@@ -10,7 +10,6 @@ from claim.models import (
 from medical.models import Item, Service
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
-from core import filter_validity
 from policy.models import Policy
 from insuree.models import InsureePolicy
 from claim.subqueries import (

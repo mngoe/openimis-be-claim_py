@@ -11,7 +11,6 @@ from core.schema import (
 from django.db.models import OuterRef, Subquery, Avg, Q
 import graphene_django_optimizer as gql_optimizer
 from core.schema import OrderedDjangoFilterConnectionField, OfficerGQLType
-from core import filter_validity
 from django.conf import settings
 from .models import ClaimMutation, Claim
 from django.utils.translation import gettext as _

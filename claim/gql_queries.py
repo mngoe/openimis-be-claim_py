@@ -1,5 +1,5 @@
 import graphene
-from core import prefix_filterset, ExtendedConnection, filter_validity
+from core import prefix_filterset, ExtendedConnection
 from graphene_django import DjangoObjectType
 from insuree.schema import InsureeGQLType
 from location.schema import HealthFacilityGQLType
