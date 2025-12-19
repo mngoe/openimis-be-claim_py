@@ -40,7 +40,7 @@ def on_migration_reverse(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0042_date_field_fix'),
+        ('claim', '0044_claim_icd_nullable'),
     ]
 
     operations = [
