@@ -434,8 +434,11 @@ def _get_autogenerating_func() -> Callable[[Dict], Callable]:
 def claim_create(data, user, autogenerate_code = False):
     restore = data.pop('restore', None)
     autogenerate_code = data.pop('autogenerate', None)
+    restored_claim = None
     if restore:
-        data["restore"] = Claim.objects.filter(uuid=restore).first()
+        restored_claim = Claim.objects.filter(uuid=restore).first()
+        if restored_claim:
+            data["restore"] = restored_claim
     
     if autogenerate_code:
         data['code'] = __autogenerate_claim_code()
@@ -444,6 +447,10 @@ def claim_create(data, user, autogenerate_code = False):
     set_reduced_attr(claim, data, ['items', 'services'])
     claim.save()
     claim_create_items_and_services(claim, data, user)
+
+    if restored_claim and restored_claim.status == Claim.STATUS_REJECTED:
+        restored_claim.status = Claim.STATUS_REINITIALIZED
+        restored_claim.save()
     return claim
 
 
