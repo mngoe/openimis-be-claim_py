@@ -262,6 +262,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         db_column='TestNumber', max_length=255, blank=True, null=True)
     tdr = models.BooleanField(db_column='TDRResult', blank=True, null=True)
     care_type = models.CharField(db_column='CareType', max_length=4, blank=True, null=True)
+    pregnancy_age = models.PositiveSmallIntegerField(db_column='PregnancyAge', blank=True, null=True)
 
     # row_id = models.BinaryField(db_column='RowID', blank=True, null=True)
 
