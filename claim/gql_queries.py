@@ -215,7 +215,7 @@ class ClaimServiceItemGQLType(DjangoObjectType):
 
 class PregnancyAgeGQLType(graphene.ObjectType):
     """
-    Informations sur l'âge de grossesse calculé pour une assurée.
+    Information on the calculated pregnancy age for the defined date.
     """
     pregnancy_age = graphene.Int()
     claim_date_to = graphene.DateTime()
