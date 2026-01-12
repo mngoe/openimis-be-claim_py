@@ -2,7 +2,7 @@ import graphene
 from enum import Enum
 
 from core.models import Officer, MutationLog
-from insuree.models import Insuree
+from insuree.models import Insuree, Family
 from location.models import HealthFacility, Location, LocationManager
 from .services import check_unique_claim_code
 import django
@@ -21,6 +21,10 @@ import ast
 # We do need all queries and mutations in the namespace here.
 from .gql_queries import *  # lgtm [py/polluting-import]
 from .gql_mutations import *  # lgtm [py/polluting-import]
+from policy.apps import PolicyConfig
+from product.models import Product
+from policy.models import Policy
+from datetime import timedelta
 
 
 class Query(graphene.ObjectType):
@@ -82,6 +86,13 @@ class Query(graphene.ObjectType):
 
     claim_attachment_type = DjangoFilterConnectionField(
         ClaimAttachmentTypeGQLType
+    )
+    
+    pregnancy_age = graphene.Field(
+        PregnancyAgeGQLType,
+        claim_date_to=graphene.DateTime(required=True),
+        family_id=graphene.Int(required=True),
+        product=graphene.Int(required=True)
     )
 
     def resolve_insuree_name_by_chfid(self, info, **kwargs):
@@ -277,6 +288,50 @@ class Query(graphene.ObjectType):
                                   validity_to__isnull=True).order_by("date_claimed")
         return qs
 
+    def resolve_pregnancy_age(self, info, claim_date_to, family_id, product, **kwargs):
+        user = info.context.user
+        if not user.has_perms(PolicyConfig.gql_query_policies_perms):
+            raise PermissionDenied(_("unauthorized"))
+
+        family = Family.objects.get(id=family_id)
+
+        product_obj = Product.objects.filter(
+            Q(validity_to__isnull=True),
+            Q(id=product) | Q(legacy_id=product),
+        ).order_by('-validity_from').first()
+        if not product_obj:
+            raise ValidationError("Provided product not available")
+
+        claim_date = claim_date_to.date()
+        policy = Policy.objects.filter(
+            family=family,
+            product=product_obj,
+            start_date__lte=claim_date,
+            expiry_date__gte=claim_date,
+            status=Policy.STATUS_ACTIVE,
+        ).order_by('-start_date').first()
+
+        if not policy or policy.pregnancy_age is None:
+            return PregnancyAgeGQLType(
+                pregnancy_age=None,
+                claim_date_to=claim_date_to,
+                family_id=family_id,
+                product=product,
+                )
+
+        start = policy.start_date
+        end = claim_date
+        monday_start = start - timedelta(days=start.weekday())
+        monday_end = end - timedelta(days=end.weekday())
+        weeks_passed = (monday_end - monday_start).days // 7
+        pregnancy_age = policy.pregnancy_age + weeks_passed
+
+        return PregnancyAgeGQLType(
+            pregnancy_age=pregnancy_age,
+            claim_date_to=claim_date_to,
+            family_id=family_id,
+            product=product,
+        )
 
 class Mutation(graphene.ObjectType):
     create_claim = CreateClaimMutation.Field()
