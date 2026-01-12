@@ -211,3 +211,13 @@ class ClaimServiceItemGQLType(DjangoObjectType):
 
     class Meta:
         model = ClaimServiceItem
+
+
+class PregnancyAgeGQLType(graphene.ObjectType):
+    """
+    Information on the calculated pregnancy age for the defined date.
+    """
+    pregnancy_age = graphene.Int()
+    claim_date_to = graphene.DateTime()
+    family_id = graphene.Int()
+    product = graphene.Int()
