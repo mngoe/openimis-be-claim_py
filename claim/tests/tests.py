@@ -13,7 +13,7 @@ from graphene import Schema
 from claim.models import Claim, ClaimItem, ClaimService
 from claim.test_helpers import create_test_claim_admin, create_test_claim
 from claim.services import REJECTION_REASON_MANUAL_REJECTION
-
+import datetime
 
 from policy.models import Policy
 from policy.test_helpers import create_test_policy2
@@ -367,3 +367,95 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         self.claim.refresh_from_db()
         self.assertEqual(self.claim.review_status, Claim.REVIEW_DELIVERED)
         self.assertEqual(self.claim.status, Claim.STATUS_PROCESSED)
+
+    def test_pregnancy_age_ok(self):
+        # Configure policy
+        policy = Policy.objects.filter(family=self.insuree.family, product=self.product).first()
+        policy.pregnancy_age = 10  # 10 weeks at start date
+        policy.start_date = datetime.date(2026, 1, 1)
+        policy.expiry_date = datetime.date(2026, 12, 31)
+        policy.save()
+
+        # Claim date 5 weeks later
+        claim_date_to = datetime.datetime(2026, 2, 5, 0, 0)
+
+        query = """
+        query pregnancyAge($claimDateTo: DateTime!, $familyId: Int!, $product: Int!) {
+        pregnancyAge(
+            claimDateTo: $claimDateTo,
+            familyId: $familyId,
+            product: $product
+        ) {
+            pregnancyAge
+            claimDateTo
+            familyId
+            product
+        }
+        }
+        """
+
+        variables = {
+            "claimDateTo": claim_date_to.isoformat(),
+            "familyId": self.insuree.family.id,
+            "product": self.product.id,
+        }
+
+        response = self.query(
+            query,
+            variables=variables,
+            headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"},
+        )
+        content = json.loads(response.content)
+        self.assertResponseNoErrors(response)
+
+        node = content["data"]["pregnancyAge"]
+        self.assertIsNotNone(node)
+        self.assertEqual(node["pregnancyAge"], 15)
+        self.assertEqual(node["familyId"], self.insuree.family.id)
+        self.assertEqual(node["product"], self.product.id)
+
+
+    def test_pregnancy_age_no_valid_policy(self):
+        # Setup invalid policy
+        policy = Policy.objects.filter(family=self.insuree.family, product=self.product).first()
+        policy.pregnancy_age = None  # No pregnancy age
+        policy.start_date = datetime.date(2026, 1, 1)
+        policy.expiry_date = datetime.date(2026, 1, 15)  # Expired before claim date
+        policy.save()
+
+        # Claim date after expiry date
+        claim_date_to = datetime.datetime(2026, 2, 5, 0, 0)
+
+        query = """
+        query pregnancyAge($claimDateTo: DateTime!, $familyId: Int!, $product: Int!) {
+        pregnancyAge(
+            claimDateTo: $claimDateTo,
+            familyId: $familyId,
+            product: $product
+        ) {
+            pregnancyAge
+            claimDateTo
+            familyId
+            product
+        }
+        }
+        """
+
+        variables = {
+            "claimDateTo": claim_date_to.isoformat(),
+            "familyId": self.insuree.family.id,
+            "product": self.product.id,
+        }
+
+        response = self.query(
+            query,
+            variables=variables,
+            headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"},
+        )
+        content = json.loads(response.content)
+        self.assertResponseNoErrors(response)
+
+        node = content["data"]["pregnancyAge"]
+        self.assertIsNotNone(node)
+        self.assertIsNone(node["pregnancyAge"])
+        self.assertEqual(node["familyId"], self.insuree.family.id)
