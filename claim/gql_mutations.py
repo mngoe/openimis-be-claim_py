@@ -265,6 +265,7 @@ class ClaimInputType(OpenIMISMutation.Input):
     test_number = graphene.String(required=False)
     tdr = graphene.Boolean(required=False)
     pregnancy_age = graphene.Int(required=False)
+    source = graphene.String(required=False)
 
 
 class CreateClaimInputType(ClaimInputType):

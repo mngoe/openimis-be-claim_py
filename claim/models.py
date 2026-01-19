@@ -263,6 +263,21 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     tdr = models.BooleanField(db_column='TDRResult', blank=True, null=True)
     care_type = models.CharField(db_column='CareType', max_length=4, blank=True, null=True)
     pregnancy_age = models.PositiveSmallIntegerField(db_column='PregnancyAge', blank=True, null=True)
+    SOURCE_WEB = "WEB"
+    SOURCE_MOBILE = "MOB"
+    SOURCE_XML = "XML"
+    CLAIM_SOURCE_CHOICES = (
+        (SOURCE_WEB, "Web"),
+        (SOURCE_MOBILE, "Mobile"),
+        (SOURCE_XML, "Import XML"),
+    )
+    source = models.CharField(
+        max_length=10,
+        choices=CLAIM_SOURCE_CHOICES,
+        blank=True,
+        null=True,
+        default=None,
+    )
 
     # row_id = models.BinaryField(db_column='RowID', blank=True, null=True)
 
