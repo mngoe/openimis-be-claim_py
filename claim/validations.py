@@ -1454,16 +1454,7 @@ def approved_amount(claim):
         .annotate(value=F("qty_displayed") * F("price_asked")) \
         .aggregate(Sum("value"))['value__sum'] or 0
 
-    app_sub_service_value = ClaimServiceService.objects \
-        .filter(
-            claim_service__claim=claim,
-            claim_service__validity_to__isnull=True,
-            claim_service__status=ClaimService.STATUS_PASSED,
-        ) \
-        .annotate(value=F("qty_displayed") * F("price_asked")) \
-        .aggregate(Sum("value"))['value__sum'] or 0
-
-    total = app_item_value + app_service_value + app_sub_item_value + app_sub_service_value
+    total = app_item_value + app_service_value + app_sub_item_value
 
     plafond_total_f = 0
     reel_total_f = 0
