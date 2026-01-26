@@ -1414,7 +1414,7 @@ class ValidationTest(TestCase):
         # Create a claim with the service package
         claim = create_test_claim({"insuree_id": insuree.id})
         claim_service = create_test_claimservice(
-            claim, custom_props={"service_id": package_service.id, "qty_provided": 1, "price_asked": 0}
+            claim, custom_props={"service_id": package_service.id, "qty_provided": 1, "price_asked": 200}
         )
         
         # Add sub-item and sub-service to the claim_service
@@ -1444,7 +1444,62 @@ class ValidationTest(TestCase):
         
         # Then: Verify that the total includes sub-items and sub-services.
         expected_total = (2 * 50) + (1 * 200)  # 100 + 200 = 300
-        self.assertEqual(approved, expected_total, "Le montant approuvé doit inclure les sous-items et sous-services du package")
+        self.assertEqual(approved, expected_total, "def test_approved_amount_with_package(self):
+        # Given: Create an insuree and a service package
+        insuree = create_test_insuree()
+        sub_item = create_test_item("D", custom_props={"price": 50})
+        sub_service = create_test_service("D", custom_props={"price": 200})
+        package_service = create_test_service("A", custom_props={"packagetype": "P", "price": 1000})
+        
+        # Link sub-item and sub-service to the package
+        ServiceItem.objects.create(
+            servicelinkedItem=package_service,
+            item=sub_item,
+            qty_provided=2
+        )
+        ServiceService.objects.create(
+            servicelinkedService=package_service,
+            service=sub_service,
+            qty_provided=1
+        )
+        
+        # Create a claim with the service package
+        claim = create_test_claim({"insuree_id": insuree.id})
+        claim_service = create_test_claimservice(
+            claim, custom_props={"service_id": package_service.id, "qty_provided": 1, "price_asked": 200}
+        )
+        
+        # Add sub-item and sub-service to the claim_service
+        ClaimServiceItem.objects.create(
+            claim_service=claim_service,
+            item=sub_item,
+            qty_provided=2,
+            qty_displayed=2,
+            qty_adjusted=2,
+            price_asked=50
+        )
+        ClaimServiceService.objects.create(
+            claim_service=claim_service,
+            service=sub_service,
+            qty_provided=1,
+            qty_displayed=1,
+            qty_adjusted=1,
+            price_asked=200
+        )
+        
+        # Simulate a PASSED status for calculation
+        claim_service.status = ClaimService.STATUS_PASSED
+        claim_service.save()
+        
+        # When: Calculate approved_amount
+        approved = approved_amount(claim)
+        
+        # Then: Verify that the total includes sub-items and sub-services.
+        expected_total = (2 * 50) + (1 * 200)  # 100 + 200 = 300
+        self.assertEqual(approved, expected_total, "The approved amount must include the sub-items and sub-services of the package")
+        
+        # tearDown
+        delete_claim_with_itemsvc_dedrem_and_history(claim)")
         
         # tearDown
         delete_claim_with_itemsvc_dedrem_and_history(claim)
