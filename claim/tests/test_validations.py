@@ -1414,7 +1414,7 @@ class ValidationTest(TestCase):
         # Create a claim with the service package
         claim = create_test_claim({"insuree_id": insuree.id})
         claim_service = create_test_claimservice(
-            claim, custom_props={"service_id": package_service.id, "qty_provided": 1, "price_asked": 0}
+            claim, custom_props={"service_id": package_service.id, "qty_provided": 1, "price_asked": 200}
         )
         
         # Add sub-item and sub-service to the claim_service
@@ -1444,7 +1444,7 @@ class ValidationTest(TestCase):
         
         # Then: Verify that the total includes sub-items and sub-services.
         expected_total = (2 * 50) + (1 * 200)  # 100 + 200 = 300
-        self.assertEqual(approved, expected_total, "Le montant approuvé doit inclure les sous-items et sous-services du package")
+        self.assertEqual(approved, expected_total, "The approved amount must include the sub-items and sub-services of the package")
         
         # tearDown
         delete_claim_with_itemsvc_dedrem_and_history(claim)
