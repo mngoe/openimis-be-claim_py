@@ -201,25 +201,7 @@ class ClaimSubmitService(object):
 
     def hf_scope_check(self, claim_submit: ClaimSubmit):
         self._validate_user_hf(claim_submit.health_facility_code)
-
-    def submit(self, claim_submit):
-        with connection.cursor() as cur:
-            sql = """\
-                DECLARE @ret int;
-                EXEC @ret = [dbo].[uspUpdateClaimFromPhone] @XML = %s;
-                SELECT @ret;
-            """
-
-            cur.execute(sql, (claim_submit.to_xml(),))
-            for i in range(
-                int(ClaimConfig.claim_uspUpdateClaimFromPhone_intermediate_sets)
-            ):
-                cur.nextset()
-            if cur.description is None:  # 0 is considered as 'no result' by pyodbc
-                return
-            res = cur.fetchone()[0]  # FETCH 'SELECT @ret' returned value
-            raise ClaimSubmitError(res)
-
+    
     @register_service_signal("claim.enter_and_submit_claim")
     @transaction.atomic
     def enter_and_submit(

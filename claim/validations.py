@@ -1146,20 +1146,11 @@ def validate_claim(claim, check_max, process_dedrem_opt=True, policies=None, is_
                 if len(policies) == 1:
                     errors += policy_errors
                 policies.remove(plc)
-    if len(errors) > 0 or not policies:
+    else:
         claim.status = Claim.STATUS_REJECTED
         claim.rejection_reason = REJECTION_REASON_NO_COVERAGE
         claim.save()
-        if not policies:
-            errors += [
-                {
-                    "code": REJECTION_REASON_NO_COVERAGE,
-                    "message": _("claim.validation.family.no_policy")
-                    % {"code": claim.code, "insuree": str(claim.insuree)},
-                    "detail": claim.uuid,
-                }
-            ]
-            return errors
+        return errors
     if len(errors) == 0:
         adult = claim.insuree.is_adult(target_date)
 
