@@ -7,7 +7,7 @@ from medical.models import Item, Service
 
 import core
 from core.models import Officer
-from django.db import connection, transaction
+from django.db import transaction
 from gettext import gettext as _
 
 from core.signals import register_service_signal
@@ -201,7 +201,7 @@ class ClaimSubmitService(object):
 
     def hf_scope_check(self, claim_submit: ClaimSubmit):
         self._validate_user_hf(claim_submit.health_facility_code)
-    
+
     @register_service_signal("claim.enter_and_submit_claim")
     @transaction.atomic
     def enter_and_submit(

@@ -12,6 +12,7 @@ from graphene.test import Client
 from graphene import Schema
 
 from claim.models import Claim
+from claim.services import processing_claim
 
 import datetime
 from policy.models import Policy
@@ -398,18 +399,16 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         self.assertEqual(claim.review_status, Claim.REVIEW_DELIVERED)
 
     def test_claim_history_query(self):
-        create_test_claim(custom_props={
-            "code": self.claim.code,
-            "validity_to": "2023-01-01 00:00:00",
-            "insuree_id": self.insuree.id,
-            "status": Claim.STATUS_ENTERED
-        })
-        create_test_claim(custom_props={
-            "code": self.claim.code,
-            "validity_to": "2023-01-02 00:00:00",
-            "insuree_id": self.insuree.id,
-            "status": Claim.STATUS_CHECKED
-        })
+
+        self.claim.status = Claim.STATUS_ENTERED
+        self.claim.save_history()
+        self.claim.save()
+
+        self.claim.status = Claim.STATUS_CHECKED
+        self.claim.save_history()
+        self.claim.save()
+
+        processing_claim(self.claim, self.admin_user, True)
 
         response = self.query(
             '''

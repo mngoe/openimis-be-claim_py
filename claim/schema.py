@@ -274,11 +274,6 @@ class Query(graphene.ObjectType):
     def resolve_claim_history(self, info, **kwargs):
         claim_uuid = kwargs.get('claim_uuid')
 
-        try:
-            target_claim = Claim.objects.get(uuid=claim_uuid)
-        except Claim.DoesNotExist:
-            return Claim.objects.none()
-
         if (
             not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms)
             and settings.ROW_SECURITY
@@ -286,7 +281,7 @@ class Query(graphene.ObjectType):
             raise PermissionDenied(_("unauthorized"))
 
         query = Claim.objects.filter(
-            code=target_claim.code,
+            legacy_id=Subquery(Claim.objects.filter(uuid=claim_uuid).values('id')),
             validity_to__isnull=False
         )
 
