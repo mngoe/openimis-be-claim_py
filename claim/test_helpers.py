@@ -130,7 +130,7 @@ def create_test_claimitem(
             custom_props=custom_props_item,
         )
         add_item_to_hf_pricelist(
-            item.item, hf_id=claim.health_facility.id
+            item.item, hf_id=claim.health_facility
         )
         claim.refresh_from_db()
     return item
@@ -173,7 +173,7 @@ def create_test_claimservice(
             service.service,
             custom_props=custom_props_prod_service,
         )
-        add_service_to_hf_pricelist(service.service, hf_id=claim.health_facility_id)
+        add_service_to_hf_pricelist(service.service, hf_id=claim.health_facility)
         claim.refresh_from_db()
     return service
 

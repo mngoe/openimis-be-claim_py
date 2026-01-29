@@ -112,7 +112,7 @@ class ClaimSubmitServiceTestCase(TestCase):
         )
         add_item_to_hf_pricelist(
             cls.test_claim_item.item,
-            hf_id=cls.test_claim.health_facility_id,
+            hf_id=cls.test_claim.health_facility,
             custom_props={},
         )
         create_test_product_item(product, cls.test_claim_item.item, valid=True)
@@ -129,7 +129,7 @@ class ClaimSubmitServiceTestCase(TestCase):
         )
         add_service_to_hf_pricelist(
             cls.test_claim_service.service,
-            hf_id=cls.test_claim.health_facility_id,
+            hf_id=cls.test_claim.health_facility,
             custom_props={},
         )
         create_test_product_service(product, cls.test_claim_service.service, valid=True)

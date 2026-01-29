@@ -383,7 +383,7 @@ class ValidationTest(TestCase):
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH
         claim1.health_facility.save()
         add_service_to_hf_pricelist(
-            service, claim1.health_facility_id
+            service, claim1.health_facility
         )
         claim1.refresh_from_db()
         create_test_claimservice(
@@ -613,7 +613,7 @@ class ValidationTest(TestCase):
             }
         )
         add_service_to_hf_pricelist(
-            service, claim1.health_facility_id
+            service, claim1.health_facility
         )
         create_test_claimservice(
             claim1, custom_props={"service_id": service.id}
@@ -1278,15 +1278,15 @@ class ValidationTest(TestCase):
 
         claim1 = create_test_claim({"insuree_id": insuree.id})
         add_service_to_hf_pricelist(
-            service, claim1.health_facility_id
+            service, claim1.health_facility
         )
         add_service_to_hf_pricelist(
-            service2, claim1.health_facility_id
+            service2, claim1.health_facility
         )
         add_service_to_hf_pricelist(
-            service3, claim1.health_facility_id
+            service3, claim1.health_facility
         )
-        add_item_to_hf_pricelist(item, claim1.health_facility_id)
+        add_item_to_hf_pricelist(item, claim1.health_facility)
 
         claim1 = create_test_claim({"insuree_id": insuree.id})
         claim1.health_facility.care_type = claim1.health_facility.CARE_TYPE_BOTH

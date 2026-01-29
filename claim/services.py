@@ -644,16 +644,17 @@ def processing_claim(claim, user, is_process=False, validate=True):
             is_process=is_process,
             process_dedrem_opt=True
         )
-        logger.debug(
-            "ProcessClaimsMutation: claim %s validated, nb of errors: %s",
-            claim.uuid,
-            len(errors),
-        )
+
         if len(errors) == 0:
             logger.debug(
-                "ProcessClaimsMutation: claim %s assigned, nb of errors: %s",
+                "ProcessClaimsMutation: claim %s validated without errors",
                 claim.uuid,
-                len(errors),
+            )
+        else:
+            logger.debug(
+                "ProcessClaimsMutation: claim %s not validated, errors: %s",
+                claim.uuid,
+                str(errors)
             )
     if len(errors) > 0:
         # OMT-208 the claim is invalid. If there is a dedrem, we need to clear it (caused by a review)
