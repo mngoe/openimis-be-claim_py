@@ -62,7 +62,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         cls.claim_admin = create_test_claim_admin()
         cls.icd = create_test_diagnosis()
         cls.svc_pl_detail = add_service_to_hf_pricelist(
-            cls.service, hf_id=cls.claim_admin.health_facility
+            cls.service, cls.claim_admin.health_facility
         )
         cls.product_service = create_test_product_service(
             cls.product, cls.service, custom_props={"limit_no_adult": 20})
