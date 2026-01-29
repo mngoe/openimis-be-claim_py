@@ -6,7 +6,7 @@ from core import utils
 from core.datetimes.shared import datetimedelta
 from core.utils import filter_validity
 from django.db import connection
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, F
 from django.db.models.functions import Coalesce
 from django.utils.translation import gettext as _
 from insuree.models import InsureePolicy
@@ -1436,16 +1436,27 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
 
 def approved_amount(claim):
     app_item_value = claim.items \
-        .annotate(value=Coalesce("qty_approved", "qty_provided") * Coalesce("price_approved", "price_asked")) \
+        .annotate(value=Coalesce(F("qty_approved"), F("qty_provided")) * Coalesce(F("price_approved"), F("price_asked"))) \
         .filter(validity_to__isnull=True, status=ClaimItem.STATUS_PASSED) \
-        .aggregate(Sum("value"))
+        .aggregate(Sum("value"))['value__sum'] or 0
+
     app_service_value = claim.services \
-        .annotate(value=Coalesce("qty_approved", "qty_provided") * Coalesce("price_approved", "price_asked")) \
+        .annotate(value=Coalesce(F("qty_approved"), F("qty_provided")) * Coalesce(F("price_approved"), F("price_asked"))) \
         .filter(validity_to__isnull=True, status=ClaimService.STATUS_PASSED) \
-        .aggregate(Sum("value"))
-    return (app_item_value['value__sum'] if app_item_value['value__sum'] else 0) + \
-           (app_service_value['value__sum']
-            if app_service_value['value__sum'] else 0)
+        .aggregate(Sum("value"))['value__sum'] or 0
+
+    app_sub_item_value = ClaimServiceItem.objects \
+        .filter(
+            claim_service__claim=claim,
+            claim_service__validity_to__isnull=True,
+            claim_service__status=ClaimService.STATUS_PASSED,
+        ) \
+        .annotate(value=F("qty_displayed") * F("price_asked")) \
+        .aggregate(Sum("value"))['value__sum'] or 0
+
+    total = app_item_value + app_service_value + app_sub_item_value
+
+    return total
 
 
 Deductible = namedtuple('Deductible', ['amount', 'type', 'prev'])
