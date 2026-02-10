@@ -342,10 +342,12 @@ def update_or_create_claim(data, user):
         data.pop('client_mutation_id')
     if "client_mutation_label" in data:
         data.pop('client_mutation_label')
-    if CoreConfig.is_program_available:
-        if "program" in data:
+    if "program" in data:
+        if CoreConfig.is_program_available:
             data["program"] = program_models.Program.objects.filter(
                 idProgram=data["program"]).first()
+        else:
+            data.pop("program")
     return service_update_or_create_claim(data, user)
 
 

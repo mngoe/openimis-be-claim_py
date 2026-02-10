@@ -17,6 +17,7 @@ from django.apps import apps
 from django.utils import timezone as django_tz
 from program import models as program_models
 from django.db.models import Q
+from core.apps import CoreConfig
 
 core_config = apps.get_app_config('core')
 ClaimAdmin = core_models.ClaimAdmin
@@ -242,14 +243,16 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
             user = user.context.user
         if settings.ROW_SECURITY and user.is_anonymous:
             return queryset.filter(id=-1)
-        programs = []
-        if hasattr(user._u, 'id'):
-            today = datetime.datetime.now()
-            programs = program_models.Program.objects.filter(user__id=user._u.id).filter(
-                validityDateFrom__lte=today).filter(
-                Q(validityDateTo__isnull=True) | Q(validityDateTo__gte=today))
-            if programs:
-                queryset = queryset.filter(program_id__in=programs)
+        if CoreConfig.is_program_available:
+            # Filter claims based on programs
+            programs = []
+            if hasattr(user._u, 'id'):
+                today = datetime.datetime.now()
+                programs = program_models.Program.objects.filter(user__id=user._u.id).filter(
+                    validityDateFrom__lte=today).filter(
+                    Q(validityDateTo__isnull=True) | Q(validityDateTo__gte=today))
+                if programs:
+                    queryset = queryset.filter(program_id__in=programs)
         if settings.ROW_SECURITY:
             # TechnicalUsers don't have health_facility_id attribute
             if hasattr(user._u, 'health_facility_id') and user._u.health_facility_id:
