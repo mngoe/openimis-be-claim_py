@@ -7,6 +7,7 @@ from insuree.schema import InsureeGQLType
 from location.schema import HealthFacilityGQLType
 from medical.schema import DiagnosisGQLType
 from claim_batch.schema import BatchRunGQLType
+from program.schema import ProgramGQLType
 from .apps import ClaimConfig
 from claim.models import (ClaimDedRem, Claim, Feedback, ClaimItem, ClaimService, ClaimAttachment,
                           ClaimAttachmentType, ClaimServiceService, ClaimServiceItem)
@@ -81,7 +82,8 @@ class ClaimGQLType(DjangoObjectType):
             **prefix_filterset("admin__", ClaimAdminGQLType._meta.filter_fields),
             **prefix_filterset("health_facility__", HealthFacilityGQLType._meta.filter_fields),
             **prefix_filterset("insuree__", InsureeGQLType._meta.filter_fields),
-            **prefix_filterset("batch_run__", BatchRunGQLType._meta.filter_fields)
+            **prefix_filterset("batch_run__", BatchRunGQLType._meta.filter_fields),
+            **prefix_filterset("program__", ProgramGQLType._meta.filter_fields)
         }
         connection_class = ExtendedConnection
 
