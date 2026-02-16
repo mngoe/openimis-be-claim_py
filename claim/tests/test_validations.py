@@ -84,7 +84,7 @@ class ValidationTest(TestCase):
 
         # then
         self.assertIsNotNone(category)
-        self.assertEquals(category, "S")
+        self.assertEqual(category, "S")
 
         # tearDown
         service1.delete()
@@ -100,7 +100,7 @@ class ValidationTest(TestCase):
 
         # then
         self.assertIsNotNone(category)
-        self.assertEquals(category, "D")
+        self.assertEqual(category, "D")
 
         # tearDown
         service1.delete()
@@ -122,7 +122,7 @@ class ValidationTest(TestCase):
 
         # then
         self.assertIsNotNone(category)
-        self.assertEquals(category, "S")
+        self.assertEqual(category, "S")
 
         # tearDown
         for service in services:
@@ -143,7 +143,7 @@ class ValidationTest(TestCase):
 
         # then
         self.assertIsNotNone(category)
-        self.assertEquals(category, "S")
+        self.assertEqual(category, "S")
 
         # tearDown
         for service in services:
@@ -162,7 +162,7 @@ class ValidationTest(TestCase):
 
         # then
         self.assertIsNotNone(category)
-        self.assertEquals(category, "V")
+        self.assertEqual(category, "V")
 
     # This test cannot be performed because the database constraints don't allow a null date_from.
     # def test_validate_claim_target_date(self):
@@ -174,8 +174,8 @@ class ValidationTest(TestCase):
     #     errors = validate_claim(claim)
     #
     #     # Then
-    #     self.assertEquals(len(errors), 1, "The claim should fail the target date validation")
-    #     self.assertEquals(errors[0].code, 9, "The claim should fail the target date validation with code 9")
+    #     self.assertEqual(len(errors), 1, "The claim should fail the target date validation")
+    #     self.assertEqual(errors[0].code, 9, "The claim should fail the target date validation with code 9")
     #     self.assertTrue("date" in errors[0].message.lower())
     #
     #     # tearDown
@@ -209,9 +209,7 @@ class ValidationTest(TestCase):
         self.assertGreaterEqual(len(errors), 1, "Should raise at least one error")
         error1 = [e for e in errors if e["code"] == 1]  # all services rejected
         self.assertGreaterEqual(len(error1), 1, "There should be an error code 1")
-        self.assertEquals(
-            item1.rejection_reason, 2, "Database was updated with rejection reason"
-        )
+        self.assertEqual(item1.rejection_reason, 2, "Database was updated with rejection reason")
 
     def test_validate_policy(self):
         # When the insuree family is invalid
@@ -231,13 +229,9 @@ class ValidationTest(TestCase):
         claim.refresh_from_db()
         item1.refresh_from_db()
         self.assertGreaterEqual(len(errors), 1, "Should raise at least one error")
-        error7 = [e for e in errors if e["code"] == 7]
-        self.assertGreaterEqual(
-            len(error7), 1, "There should be 1 error code 7: invalid insuree"
-        )
-        self.assertEquals(
-            item1.rejection_reason, 7, "Database was updated with rejection reason"
-        )
+        error7 = [e for e in errors if e['code'] == 7]
+        self.assertGreaterEqual(len(error7), 1, "There should be 1 error code 7: invalid insuree")
+        self.assertEqual(item1.rejection_reason, 7, "Database was updated with rejection reason")
 
         # tearDown
         service1.delete()
@@ -260,7 +254,7 @@ class ValidationTest(TestCase):
             claim1, custom_props={"service_id": service.id}, product=self.product
         )
         errors = validate_claim(claim1, True)
-        self.assertEquals(len(errors), 0, "The first visit should be accepted")
+        self.assertEqual(len(errors), 0, "The first visit should be accepted")
 
         # a second visit should be denied
         claim2 = create_test_claim({"insuree_id": insuree.id}, product=self.product)
@@ -293,13 +287,9 @@ class ValidationTest(TestCase):
 
         # Then
         claim1.refresh_from_db()
-        self.assertEquals(len(errors), 2)
-        self.assertEquals(
-            errors[0]["code"], 1
-        )  # claimed rejected because all services are rejected
-        self.assertEquals(
-            claim1.services.first().rejection_reason, 4
-        )  # reason is wrong insuree mask
+        self.assertEqual(len(errors), 2)
+        self.assertEqual(errors[0]['code'], 1)  # claimed rejected because all services are rejected
+        self.assertEqual(claim1.services.first().rejection_reason, 4)  # reason is wrong insuree mask
 
     def test_validate_late_policy(self):
         # When the insuree already reaches his limit of visits
@@ -346,7 +336,7 @@ class ValidationTest(TestCase):
         claim_service = ClaimSubmitService(self.user)
         claim, errors = claim_service.submit_claim(claim1, True)
 
-        self.assertEquals(len(errors), 0, "The first visit should be accepted")
+        self.assertEqual(len(errors), 0, "The first visit should be accepted")
 
         # a second visit should be denied
         claim2 = create_test_claim({"insuree_id": insuree.id})
@@ -393,7 +383,7 @@ class ValidationTest(TestCase):
         errors = validate_claim(claim1, True)
         mark_test_claim_as_processed(claim1)
 
-        self.assertEquals(len(errors), 0, "The first visit should be accepted")
+        self.assertEqual(len(errors), 0, "The first visit should be accepted")
 
         # a second visit should be denied
         claim2 = create_test_claim({"insuree_id": insuree.id})
@@ -437,7 +427,7 @@ class ValidationTest(TestCase):
         errors = validate_claim(claim1, True)
         mark_test_claim_as_processed(claim1)
 
-        self.assertEquals(len(errors), 0, "The first visit should be accepted")
+        self.assertEqual(len(errors), 0, "The first visit should be accepted")
 
         # a second delivery should be denied
         claim2 = create_test_claim({"insuree_id": insuree.id}, product=product)
@@ -478,9 +468,7 @@ class ValidationTest(TestCase):
         errors = validate_claim(claim1, True)
         mark_test_claim_as_processed(claim1)
 
-        self.assertEquals(
-            len(errors), 0, "The first hospitalization should be accepted"
-        )
+        self.assertEqual(len(errors), 0, "The first hospitalization should be accepted")
 
         # a second delivery should be denied
         claim2 = create_test_claim({"insuree_id": insuree.id}, product=product)
@@ -517,7 +505,7 @@ class ValidationTest(TestCase):
         errors = validate_claim(claim1, True)
         mark_test_claim_as_processed(claim1)
 
-        self.assertEquals(len(errors), 0, "The first surgery should be accepted")
+        self.assertEqual(len(errors), 0, "The first surgery should be accepted")
 
         # a second delivery should be denied
         claim2 = create_test_claim({"insuree_id": insuree.id}, product=product)
@@ -556,7 +544,7 @@ class ValidationTest(TestCase):
         errors = validate_claim(claim1, True)
         mark_test_claim_as_processed(claim1)
 
-        self.assertEquals(len(errors), 0, "The first visit should be accepted")
+        self.assertEqual(len(errors), 0, "The first visit should be accepted")
 
         # a second delivery should be denied
         claim2 = create_test_claim({"insuree_id": insuree.id})
@@ -995,7 +983,7 @@ class ValidationTest(TestCase):
         # Make sure that the dedrem was generated
         dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
         self.assertIsNotNone(dedrem)
-        self.assertEquals(dedrem.rem_g, 500)  # 100*2 + 100*3 (pricelist origin)
+        self.assertEqual(dedrem.rem_g, 500)  # 100*2 + 100*3 (pricelist origin)
 
         # Review the claim and reject all of it
         # A partial rejection would still trigger the process_dedrem and be fine
@@ -1023,7 +1011,7 @@ class ValidationTest(TestCase):
         # Then dedrem should have been updated
         dedrem = ClaimDedRem.objects.filter(claim=claim1, *ClaimDedRem.filter_validity()).first()
         self.assertIsNotNone(dedrem)
-        self.assertEquals(dedrem.rem_g, 90)  # 37*1 + 53*1
+        self.assertEqual(dedrem.rem_g, 90)  # 37*1 + 53*1
 
     def test_review_reject_delete_dedrem(self):
         """
@@ -1071,7 +1059,7 @@ class ValidationTest(TestCase):
         # Make sure that the dedrem was generated
         dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
         self.assertIsNotNone(dedrem)
-        self.assertEquals(dedrem.rem_g, 500)  # 100*2 + 100*3 (pricelist origin)
+        self.assertEqual(dedrem.rem_g, 500)  # 100*2 + 100*3 (pricelist origin)
 
         # Review the claim and reject all of it
         # A partial rejection would still trigger the process_dedrem and be fine
@@ -1104,14 +1092,12 @@ class ValidationTest(TestCase):
         claim1.refresh_from_db()
         item1.refresh_from_db()
         service1.refresh_from_db()
-        self.assertEquals(claim1.status, Claim.STATUS_REJECTED)
-        self.assertEquals(
-            claim1.rejection_reason, REJECTION_REASON_INVALID_ITEM_OR_SERVICE
-        )
-        self.assertEquals(item1.status, ClaimDetail.STATUS_REJECTED)
-        self.assertEquals(item1.rejection_reason, -1)
-        self.assertEquals(service1.status, ClaimDetail.STATUS_REJECTED)
-        self.assertEquals(service1.rejection_reason, -1)
+        self.assertEqual(claim1.status, Claim.STATUS_REJECTED)
+        self.assertEqual(claim1.rejection_reason, REJECTION_REASON_INVALID_ITEM_OR_SERVICE)
+        self.assertEqual(item1.status, ClaimDetail.STATUS_REJECTED)
+        self.assertEqual(item1.rejection_reason, -1)
+        self.assertEqual(service1.status, ClaimDetail.STATUS_REJECTED)
+        self.assertEqual(service1.rejection_reason, -1)
 
         # Then dedrem should have been deleted
         dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
@@ -1388,7 +1374,7 @@ class ValidationTest(TestCase):
         # Then: Expect success
         claim.refresh_from_db()
         print(f"There is the error: {errors}")
-        self.assertEquals(len(errors), 0)
+        self.assertEqual(len(errors), 0)
 
     def test_validate_claimitem_future_validity(self):
         # Given

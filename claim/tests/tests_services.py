@@ -162,7 +162,7 @@ class ClaimSubmitServiceTestCase(TestCase):
         details = details + "<Total>334</Total>"
         details = details + "</Details>"
         expected = "<Claim>%s<Items>%s</Items></Claim>" % (details, item)
-        self.assertEquals(expected, claim.to_xml())
+        self.assertEqual(expected, claim.to_xml())
 
     def test_minimal_service_claim_submit_xml(self):
         services = [
@@ -191,8 +191,9 @@ class ClaimSubmitServiceTestCase(TestCase):
         details = details + f"<ICDCode>{self.test_icd.code}</ICDCode>"
         details = details + "<Total>334</Total>"
         details = details + "</Details>"
-        expected = "<Claim>%s<Services>%s</Services></Claim>" % (details, service)
-        self.assertEquals(expected, claim.to_xml())
+        expected = "<Claim>%s<Services>%s</Services></Claim>" % (
+            details, service)
+        self.assertEqual(expected, claim.to_xml())
 
     def test_extended_claim_submit_xml(self):
         items = [
@@ -236,7 +237,7 @@ class ClaimSubmitServiceTestCase(TestCase):
         expected = expected + "<Items>%s%s</Items>" % (item_a, item_b)
         expected = expected + "<Services>%s%s</Services>" % (service_a, service_b)
         expected = expected + "</Claim>"
-        self.assertEquals(expected, claim.to_xml())
+        self.assertEqual(expected, claim.to_xml())
 
     @mock.patch("django.db.connections")
     def test_claim_submit_error(self, mock_connections):
@@ -383,16 +384,16 @@ class ClaimSubmitServiceTestCase(TestCase):
         claim_service_item = ClaimServiceItem.objects.filter(item=item.id)
         self.assertTrue(len(claim_service_item) > 0)
         claim_service_item = claim_service_item.first()
-        self.assertEquals(claim_service_item.qty_displayed, 1)
-        self.assertEquals(claim_service_item.qty_provided, 7)
-        self.assertEquals(claim_service_item.price_asked, 11)
+        self.assertEqual(claim_service_item.qty_displayed, 1)
+        self.assertEqual(claim_service_item.qty_provided, 7)
+        self.assertEqual(claim_service_item.price_asked, 11)
 
         claim_service_service = ClaimServiceService.objects.filter(service=service.id)
         self.assertTrue(len(claim_service_service) > 0)
         claim_service_service = claim_service_service.first()
-        self.assertEquals(claim_service_service.qty_displayed, 2)
-        self.assertEquals(claim_service_service.qty_provided, 3)
-        self.assertEquals(claim_service_service.price_asked, 20)
+        self.assertEqual(claim_service_service.qty_displayed, 2)
+        self.assertEqual(claim_service_service.qty_provided, 3)
+        self.assertEqual(claim_service_service.price_asked, 20)
 
         service_items_dict["service_item_set"] = [
             {"qty_asked": 90, "sub_item_code": item.code}
