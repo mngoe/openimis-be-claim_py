@@ -314,7 +314,7 @@ class ValidationTest(TestCase):
         errors = validate_claim(claim1, True)
 
         # Then
-        self.assertEquals(len(errors), 0)
+        self.assertEqual(len(errors), 0)
 
     def test_frequency(self):
         # When the insuree already reaches his limit of visits
