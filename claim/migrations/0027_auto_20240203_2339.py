@@ -6,18 +6,20 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0026_add_sequences'),
+        ("claim", "0026_add_sequences"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='claimattachment',
-            name='general_type',
-            field=models.CharField(choices=[('URL', 'Url'), ('FILE', 'File')], default='FILE', max_length=4),
+            model_name="claimattachment",
+            name="general_type",
+            field=models.CharField(
+                choices=[("URL", "Url"), ("FILE", "File")], default="FILE", max_length=4
+            ),
         ),
         migrations.AddField(
-            model_name='claimattachment',
-            name='module',
+            model_name="claimattachment",
+            name="module",
             field=models.TextField(null=True),
         ),
     ]

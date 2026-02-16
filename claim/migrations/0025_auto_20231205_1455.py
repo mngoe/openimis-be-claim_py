@@ -7,30 +7,38 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0025_mutationlog_json_ext'),
-        ('claim', '0024_add_claim_restore_perms'),
+        ("core", "0025_mutationlog_json_ext"),
+        ("claim", "0024_add_claim_restore_perms"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='feedbackprompt',
-            name='officer_id',
-            field=models.ForeignKey(blank=True, db_column='OfficerID', null=True, on_delete=django.db.models.deletion.DO_NOTHING, to='core.officer'),
+            model_name="feedbackprompt",
+            name="officer_id",
+            field=models.ForeignKey(
+                blank=True,
+                db_column="OfficerID",
+                null=True,
+                on_delete=django.db.models.deletion.DO_NOTHING,
+                to="core.officer",
+            ),
         ),
         migrations.AlterField(
-            model_name='feedbackprompt',
-            name='claim_id',
-            field=models.ForeignKey(blank=True, db_column='ClaimID', null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='+', to='claim.claim'),
+            model_name="feedbackprompt",
+            name="claim_id",
+            field=models.ForeignKey(
+                blank=True,
+                db_column="ClaimID",
+                null=True,
+                on_delete=django.db.models.deletion.DO_NOTHING,
+                related_name="+",
+                to="claim.claim",
+            ),
         ),
         migrations.RenameField(
-            model_name='feedbackprompt',
-            old_name='officer_id',
-            new_name='officer'
+            model_name="feedbackprompt", old_name="officer_id", new_name="officer"
         ),
         migrations.RenameField(
-            model_name='feedbackprompt',
-            old_name='claim_id',
-            new_name='claim'
-        )
-        
+            model_name="feedbackprompt", old_name="claim_id", new_name="claim"
+        ),
     ]

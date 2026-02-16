@@ -7,13 +7,19 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0022_alter_feedbackprompt_phone_number'),
+        ("claim", "0022_alter_feedbackprompt_phone_number"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='claim',
-            name='restore',
-            field=models.ForeignKey(blank=True, db_column='RestoredClaim', null=True, on_delete=django.db.models.deletion.DO_NOTHING, to='claim.claim'),
+            model_name="claim",
+            name="restore",
+            field=models.ForeignKey(
+                blank=True,
+                db_column="RestoredClaim",
+                null=True,
+                on_delete=django.db.models.deletion.DO_NOTHING,
+                to="claim.claim",
+            ),
         ),
     ]

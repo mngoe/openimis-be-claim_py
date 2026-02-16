@@ -1,9 +1,15 @@
-from claim.reports import claim_percentage_referrals, claims_overview, claim_history, \
-    claims_primary_operational_indicators
+from claim.reports import (
+    claim_percentage_referrals,
+    claims_overview,
+    claim_history,
+    claims_primary_operational_indicators,
+)
 from claim.reports.claim_history import claim_history_query
 from claim.reports.claim_percentage_referrals import claim_percentage_referrals_query
 from claim.reports.claims_overview import claims_overview_query
-from claim.reports.claims_primary_operational_indicators import claims_primary_operational_indicators_query
+from claim.reports.claims_primary_operational_indicators import (
+    claims_primary_operational_indicators_query,
+)
 
 report_definitions = [
     {
