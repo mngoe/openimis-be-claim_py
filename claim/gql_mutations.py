@@ -923,7 +923,7 @@ class SaveClaimReviewMutation(OpenIMISMutation):
     def async_mutate(cls, user, **data):
         claim = None
         try:
-            print("data ", data)
+            logger.debug("data %s", data)
             if not user.has_perms(ClaimConfig.gql_mutation_deliver_claim_review_perms):
                 raise PermissionDenied(_("unauthorized"))
             claim = Claim.objects.get(uuid=data['claim_uuid'],
@@ -943,13 +943,14 @@ class SaveClaimReviewMutation(OpenIMISMutation):
             services = data.pop('services') if 'services' in data else []
             #approved = 0
             claimed = 0
+            claim_to_be_updated = False
             claim_service_elements = []
             for service in services:
                 service_id = service.pop('id')
                 service_linked = service.pop('service_item_set', [])
-                logger.debug("service_linked ", service_linked)
+                logger.debug("service_linked %s", service_linked)
                 service_service_set = service.pop('service_service_set', [])
-                logger.debug("service_service_set ", service_service_set)
+                logger.debug("service_service_set %s", service_service_set)
                 claim.services.filter(id=service_id).update(**service)
                 if ClaimConfig.native_code_for_services == False:
                     for claim_service_service in service_service_set:
@@ -959,8 +960,9 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                             service_element = Service.objects.filter(*filter_validity(), code=claim_service_code).first()
                             if service_element:
                                 claim_service_to_update = claim_service.services.filter(service=service_element.id)
-                                logger.debug("claim_service_to_update ", claim_service_to_update)
+                                logger.debug("claim_service_to_update %s", claim_service_to_update)
                                 if claim_service_to_update:
+                                    claim_to_be_updated = True
                                     qty_asked = claim_service_service.pop('qty_asked', 0)
                                     price_asked = claim_service_service.pop('price_asked', 0)
                                     claim_service_service['qty_displayed'] = qty_asked
@@ -975,8 +977,9 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                             item_element = Item.objects.filter(*filter_validity(), code=claim_item_code).first()
                             if item_element:
                                 claim_item_to_update = claim_service.items.filter(item=item_element.id)
-                                logger.debug("claim_item_to_update ", claim_item_to_update)
+                                logger.debug("claim_item_to_update %s", claim_item_to_update)
                                 if claim_item_to_update:
+                                    claim_to_be_updated = True
                                     qty_asked = claim_service_item.pop('qty_asked', 0)
                                     price_asked = claim_service_item.pop('price_asked', 0)
                                     claim_service_item['qty_displayed'] = qty_asked
@@ -986,11 +989,17 @@ class SaveClaimReviewMutation(OpenIMISMutation):
 
                 if service['status'] == ClaimService.STATUS_PASSED:
                     all_rejected = False
+            logger.debug("Final amount claimed %s", claimed)
+            logger.debug("Claim to be updated %s", claim_to_be_updated)
             claim.approved = approved_amount(claim)
             if ClaimConfig.native_code_for_services == False:
-                claim.claimed = claimed
-                for claimservice in claim_service_elements:
-                    setattr(claimservice, 'price_adjusted', claimed)
+                # Do not update claimed as approved is already updated
+                # if claim_to_be_updated:
+                #     claim.claimed = claimed
+                if claim_to_be_updated:
+                    for claimservice in claim_service_elements:
+                        setattr(claimservice, 'price_adjusted', claimed)
+                        claimservice.save()
             claim.audit_user_id_review = user.id_for_audit
             if all_rejected:
                 claim.status = Claim.STATUS_REJECTED
