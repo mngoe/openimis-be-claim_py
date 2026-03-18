@@ -1440,11 +1440,13 @@ def approved_amount(claim):
         .filter(validity_to__isnull=True, status=ClaimItem.STATUS_PASSED) \
         .aggregate(Sum("value"))['value__sum'] or 0
 
+    logger.debug("app_item_value %s", app_item_value)
     app_service_value = claim.services \
         .annotate(value=Coalesce(F("qty_approved"), F("qty_provided")) * Coalesce(F("price_approved"), F("price_asked"))) \
         .filter(validity_to__isnull=True, status=ClaimService.STATUS_PASSED) \
         .aggregate(Sum("value"))['value__sum'] or 0
 
+    logger.debug("app_service_value %s", app_service_value)
     app_sub_item_value = ClaimServiceItem.objects \
         .filter(
             claim_service__claim=claim,
@@ -1454,52 +1456,45 @@ def approved_amount(claim):
         .annotate(value=F("qty_displayed") * F("price_asked")) \
         .aggregate(Sum("value"))['value__sum'] or 0
 
-    app_sub_service_value = ClaimServiceService.objects \
-        .filter(
-            claim_service__claim=claim,
-            claim_service__validity_to__isnull=True,
-            claim_service__status=ClaimService.STATUS_PASSED,
-        ) \
-        .annotate(value=F("qty_displayed") * F("price_asked")) \
-        .aggregate(Sum("value"))['value__sum'] or 0
+    logger.debug("app_sub_item_value %s", app_sub_item_value)
+    total = app_item_value + app_service_value + app_sub_item_value
 
-    total = app_item_value + app_service_value + app_sub_item_value + app_sub_service_value
-
-    plafond_total_f = 0
-    reel_total_f = 0
+    total_amount = 0
     for cs in claim.services.filter(validity_to__isnull=True, status=ClaimService.STATUS_PASSED):
+
+        sub_services_total = ClaimServiceService.objects \
+            .filter(
+                claim_service__claim=claim,
+                claim_service__id=cs.id,
+                claim_service__validity_to__isnull=True,
+                claim_service__status=ClaimService.STATUS_PASSED,
+            ) \
+            .annotate(value=F("qty_displayed") * F("price_asked")) \
+            .aggregate(total=Sum("value"))["total"] or 0
+
+        logger.debug("Total for subservices %s", sub_services_total)
+        sub_items_total = ClaimServiceItem.objects \
+            .filter(
+                claim_service__claim=claim,
+                claim_service__id=cs.id,
+                claim_service__validity_to__isnull=True,
+                claim_service__status=ClaimService.STATUS_PASSED,
+            ) \
+            .annotate(value=F("qty_displayed") * F("price_asked")) \
+            .aggregate(total=Sum("value"))["total"] or 0
+
+        logger.debug("Total for subitems %s", sub_items_total)
+        total_cs = sub_services_total + sub_items_total
+
         if cs.service and cs.service.packagetype == 'F':
-            qty = cs.qty_approved or cs.qty_provided or 1
+            # min(total_cs, cs.service.price) : Si plafonné alors si le montant total
+            # ne doit pas dépasser celui sur le service
+            total_cs = min(total_cs, cs.service.price)
+        total_amount += total_cs
 
-            reel_service = cs.price_asked or 0
-                
-            sub_services_total = ClaimServiceService.objects \
-                .filter(
-                    claim_service__claim=claim,
-                    claim_service__id=cs.id,
-                    claim_service__validity_to__isnull=True,
-                    claim_service__status=ClaimService.STATUS_PASSED,
-                ) \
-                .annotate(value=F("qty_displayed") * F("price_asked")) \
-                .aggregate(total=Sum("value"))["total"] or 0
-
-            sub_items_total = ClaimServiceItem.objects \
-                .filter(
-                    claim_service__claim=claim,
-                    claim_service__id=cs.id,
-                    claim_service__validity_to__isnull=True,
-                    claim_service__status=ClaimService.STATUS_PASSED,
-                ) \
-                .annotate(value=F("qty_displayed") * F("price_asked")) \
-                .aggregate(total=Sum("value"))["total"] or 0
-
-            total_cs = reel_service + sub_services_total + sub_items_total
-
-            reel_total_f += total_cs
-            plafond_total_f += (cs.service.price or 0) * qty
-
-    if reel_total_f > 0:
-        total = total - reel_total_f + min(reel_total_f, plafond_total_f)
+    logger.debug("total amount  %s", total_amount)
+    if total_amount > 0:
+        return total_amount
 
     return total
 
