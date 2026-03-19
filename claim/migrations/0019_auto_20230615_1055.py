@@ -2,26 +2,38 @@
 
 from django.db import migrations, models
 import django.db.models.deletion
-from claim.models import Claim
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('location', '0015_set_managed_to_true'),
-        ('claim', '0018_alter_jsonext_column'),
+        ("location", "0015_set_managed_to_true"),
+        ("claim", "0018_alter_jsonext_column"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='claim',
-            name='refer_from',
-            field=models.ForeignKey(blank=True, db_column='ReferFrom', null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='referFromHF', to='location.healthfacility'),
+            model_name="claim",
+            name="refer_from",
+            field=models.ForeignKey(
+                blank=True,
+                db_column="ReferFrom",
+                null=True,
+                on_delete=django.db.models.deletion.DO_NOTHING,
+                related_name="referFromHF",
+                to="location.healthfacility",
+            ),
         ),
         migrations.AddField(
-            model_name='claim',
-            name='refer_to',
-            field=models.ForeignKey(blank=True, db_column='ReferTo', null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='referToHF', to='location.healthfacility'),
-        )
-        
+            model_name="claim",
+            name="refer_to",
+            field=models.ForeignKey(
+                blank=True,
+                db_column="ReferTo",
+                null=True,
+                on_delete=django.db.models.deletion.DO_NOTHING,
+                related_name="referToHF",
+                to="location.healthfacility",
+            ),
+        ),
     ]

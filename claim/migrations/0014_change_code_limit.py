@@ -6,13 +6,13 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0013_feedbackprompt'),
+        ("claim", "0013_feedbackprompt"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='claimadmin',
-            name='code',
+            model_name="claimadmin",
+            name="code",
             field=models.CharField(max_length=50, blank=True, null=True),
         ),
     ]

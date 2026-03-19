@@ -7,61 +7,78 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0028_claimserviceitem_claimserviceservice'),
+        ("claim", "0028_claimserviceitem_claimserviceservice"),
     ]
 
     operations = [
         migrations.RenameField(
-            model_name='claimserviceitem',
-            old_name='pcpDate',
-            new_name='created_date',
+            model_name="claimserviceitem",
+            old_name="pcpDate",
+            new_name="created_date",
         ),
         migrations.RenameField(
-            model_name='claimserviceitem',
-            old_name='idCsi',
-            new_name='id',
+            model_name="claimserviceitem",
+            old_name="idCsi",
+            new_name="id",
         ),
         migrations.RenameField(
-            model_name='claimserviceservice',
-            old_name='pcpDate',
-            new_name='created_date',
+            model_name="claimserviceservice",
+            old_name="pcpDate",
+            new_name="created_date",
         ),
         migrations.RenameField(
-            model_name='claimserviceservice',
-            old_name='idCss',
-            new_name='id',
-        ),
-        
-        migrations.RenameField(
-            model_name='claimserviceservice',
-            old_name='claimlinkedService',
-            new_name='claim_service',
+            model_name="claimserviceservice",
+            old_name="idCss",
+            new_name="id",
         ),
         migrations.RenameField(
-            model_name='claimserviceitem',
-            old_name='claimlinkedItem',
-            new_name='claim_service',
+            model_name="claimserviceservice",
+            old_name="claimlinkedService",
+            new_name="claim_service",
         ),
-        
-        migrations.AlterField(
-            model_name='claimserviceitem',
-            name='claim_service',
-            field=models.ForeignKey(db_column='ClaimServiceID', on_delete=django.db.models.deletion.DO_NOTHING, related_name='items', to='claim.claimservice'),
+        migrations.RenameField(
+            model_name="claimserviceitem",
+            old_name="claimlinkedItem",
+            new_name="claim_service",
         ),
         migrations.AlterField(
-            model_name='claimserviceservice',
-            name='claim_service',
-            field=models.ForeignKey(db_column='claimServiceID', on_delete=django.db.models.deletion.DO_NOTHING, related_name='services', to='claim.claimservice'),
+            model_name="claimserviceitem",
+            name="claim_service",
+            field=models.ForeignKey(
+                db_column="ClaimServiceID",
+                on_delete=django.db.models.deletion.DO_NOTHING,
+                related_name="items",
+                to="claim.claimservice",
+            ),
         ),
- 
         migrations.AlterField(
-            model_name='claimserviceitem',
-            name='item',
-            field=models.ForeignKey(db_column='ItemID', on_delete=django.db.models.deletion.DO_NOTHING, related_name='service_items', to='medical.item'),
+            model_name="claimserviceservice",
+            name="claim_service",
+            field=models.ForeignKey(
+                db_column="claimServiceID",
+                on_delete=django.db.models.deletion.DO_NOTHING,
+                related_name="services",
+                to="claim.claimservice",
+            ),
         ),
         migrations.AlterField(
-            model_name='claimserviceservice',
-            name='service',
-            field=models.ForeignKey(db_column='ServiceId', on_delete=django.db.models.deletion.DO_NOTHING, related_name='service_services', to='medical.service'),
+            model_name="claimserviceitem",
+            name="item",
+            field=models.ForeignKey(
+                db_column="ItemID",
+                on_delete=django.db.models.deletion.DO_NOTHING,
+                related_name="service_items",
+                to="medical.item",
+            ),
+        ),
+        migrations.AlterField(
+            model_name="claimserviceservice",
+            name="service",
+            field=models.ForeignKey(
+                db_column="ServiceId",
+                on_delete=django.db.models.deletion.DO_NOTHING,
+                related_name="service_services",
+                to="medical.service",
+            ),
         ),
     ]

@@ -6,21 +6,29 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0002_batchrun'),
+        ("claim", "0002_batchrun"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Officer',
+            name="Officer",
             fields=[
-                ('id', models.AutoField(db_column='OfficerID', primary_key=True, serialize=False)),
-                ('code', models.CharField(db_column='Code', max_length=8)),
-                ('last_name', models.CharField(db_column='LastName', max_length=100)),
-                ('other_names', models.CharField(db_column='OtherNames', max_length=100)),
+                (
+                    "id",
+                    models.AutoField(
+                        db_column="OfficerID", primary_key=True, serialize=False
+                    ),
+                ),
+                ("code", models.CharField(db_column="Code", max_length=8)),
+                ("last_name", models.CharField(db_column="LastName", max_length=100)),
+                (
+                    "other_names",
+                    models.CharField(db_column="OtherNames", max_length=100),
+                ),
             ],
             options={
-                'db_table': 'tblOfficer',
-                'managed': False,
+                "db_table": "tblOfficer",
+                "managed": False,
             },
         ),
     ]
