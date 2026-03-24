@@ -1,13 +1,12 @@
 import itertools
 import logging
 from collections import namedtuple
-
 from claim.models import ClaimItem, Claim, ClaimService, ClaimDedRem, ClaimDetail, ClaimServiceService, ClaimServiceItem
 from core import utils
 from core.datetimes.shared import datetimedelta
 from core.utils import filter_validity
 from django.db import connection
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, F
 from django.db.models.functions import Coalesce
 from django.utils.translation import gettext as _
 from insuree.models import InsureePolicy
@@ -40,6 +39,8 @@ REJECTION_REASON_QTY_OVER_LIMIT = 16
 REJECTION_REASON_WAITING_PERIOD_FAIL = 17
 REJECTION_REASON_MAX_ANTENATAL = 19
 REJECTION_REASON_INVALID_CLAIM = 20
+REJECTION_REASON_MANUAL_REJECTION = -2
+
 
 def validate_claim(claim, check_max):
     """
@@ -184,6 +185,7 @@ def validate_claimitem_validity(claim, claimitem):
     # gives no result, so no claimitem is pointing to an old item and the complex query always fetched the last one.
     # Here, claimitem.item.legacy_id is always None
     errors = []
+    target_date = __get_claim_target_date(claim)
     if claimitem.validity_to is None and claimitem.item.validity_to is not None:
         claimitem.rejection_reason = REJECTION_REASON_INVALID_ITEM_OR_SERVICE
         errors += [{'code': REJECTION_REASON_INVALID_ITEM_OR_SERVICE,
@@ -191,12 +193,23 @@ def validate_claimitem_validity(claim, claimitem):
                         'code': claim.code
                     },
                     'detail': claim.uuid}]
+    elif claimitem.item.validity_from and claimitem.item.validity_from > target_date:
+        # Reject the claim item if the associated item has a validity start date that is later than the claim's target date.
+        claimitem.rejection_reason = REJECTION_REASON_TARGET_DATE
+        errors += [{
+            'code': REJECTION_REASON_TARGET_DATE,
+            'message': _("claim.validation.item_future_validity") % {
+                'code': claim.code
+            },
+            'detail': claim.uuid
+        }]
     return errors
 
 
 def validate_claimservice_validity(claim, claimservice):
     # See note in validate_claimitem_validity
     errors = []
+    target_date = __get_claim_target_date(claim)
     if claimservice.validity_to is None and claimservice.service.validity_to is not None:
         claimservice.rejection_reason = REJECTION_REASON_INVALID_ITEM_OR_SERVICE
         errors += [{'code': REJECTION_REASON_INVALID_ITEM_OR_SERVICE,
@@ -204,6 +217,15 @@ def validate_claimservice_validity(claim, claimservice):
                         'code': claim.code
                     },
                     'detail': claim.uuid}]
+    elif claimservice.service.validity_from and claimservice.service.validity_from > target_date:
+        # Reject the claim service if the associated item has a validity start date that is later than the claim's target date.
+        claimservice.rejection_reason = REJECTION_REASON_TARGET_DATE
+        errors += [{
+            'code': REJECTION_REASON_TARGET_DATE,
+            'message': _("claim.validation.service_future_validity") % {
+                'code': claim.code
+            },
+            'detail': claim.uuid}]
     return errors
 
 
@@ -446,6 +468,7 @@ def validate_service_product_family(claimservice, target_date, service, insuree_
 
     return errors
 
+
 def check_service_item_waiting_period(policy_stage, policy_effective_date, insuree_policy_effective_date, service_or_item,
                                  adult, product_service_item, target_date, claim_service_item):
     errors = []
@@ -464,6 +487,7 @@ def check_service_item_waiting_period(policy_stage, policy_effective_date, insur
                         'element': str(service_or_item)},
                     'detail': claim_service_item.claim.uuid}]
     return errors
+
 
 
 def check_service_item_max_provision(adult, product_service_item, service_or_item, insuree_policy_effective_date,
@@ -518,6 +542,7 @@ def _get_total_qty_provided(claim_service_item, service_or_item, insuree_policy_
                     ) \
             .aggregate(total_qty_provided=Sum(Coalesce("qty_approved", "qty_provided"))) \
             .get("total_qty_provided") or 0
+
 
 def check_claim_max_no_category(base_category, product, expiry_date, insuree_id,
                                 insuree_policy_effective_date, claim, claimservice):
@@ -820,7 +845,6 @@ def validate_assign_prod_to_claimitems_and_services(claim):
         errors += validate_assign_prod_elt(
             claim, claimitem, claimitem.item,
             ProductItem.objects.filter(item_id=claimitem.item_id))
-
     for claimservice in claim.services.filter(validity_to__isnull=True) \
             .filter(Q(rejection_reason=0) | Q(rejection_reason__isnull=True)):
         logger.debug("[claim: %s] validating service %s", claim.uuid, claimservice.id)
@@ -830,20 +854,6 @@ def validate_assign_prod_to_claimitems_and_services(claim):
 
     logger.debug("[claim: %s] validate_assign_prod_to_claimitems_and_services nb of errors %s", claim.uuid, len(errors))
     return errors
-
-
-def approved_amount(claim):
-    app_item_value = claim.items \
-        .annotate(value=Coalesce("qty_approved", "qty_provided") * Coalesce("price_approved", "price_asked")) \
-        .filter(validity_to__isnull=True, status=ClaimItem.STATUS_PASSED) \
-        .aggregate(Sum("value"))
-    app_service_value = claim.services \
-        .annotate(value=Coalesce("qty_approved", "qty_provided") * Coalesce("price_approved", "price_asked")) \
-        .filter(validity_to__isnull=True, status=ClaimService.STATUS_PASSED) \
-        .aggregate(Sum("value"))
-    return (app_item_value['value__sum'] if app_item_value['value__sum'] else 0) + \
-           (app_service_value['value__sum']
-            if app_service_value['value__sum'] else 0)
 
 
 def _query_product_item_service_limit(target_date, family_id, elt_qs,
@@ -863,37 +873,29 @@ def _query_product_item_service_limit(target_date, family_id, elt_qs,
         .first()
 
 
-Deductible = namedtuple('Deductible', ['amount', 'type', 'prev'])
-
-
-def _get_dedrem(prefix, dedrem_type, field, product, claim, policy_id):
-    if getattr(product, prefix + "_treatment", None):
-        return Deductible(
-            getattr(product, prefix + "_treatment", None),
-            dedrem_type,
-            0
-        )
-    if getattr(product, prefix + "_insuree", None):
-        prev = ClaimDedRem.objects \
-            .filter(policy_id=policy_id, insuree_id=claim.insuree_id) \
-            .exclude(claim_id=claim.id) \
-            .aggregate(sum=Sum(field))["sum"]
-        return Deductible(
-            getattr(product, prefix + "_insuree", None),
-            dedrem_type,
-            prev if prev else 0
-        )
-    if getattr(product, prefix + "_policy", None):
-        prev = ClaimDedRem.objects \
-            .filter(policy_id=policy_id) \
-            .exclude(claim_id=claim.id) \
-            .aggregate(sum=Sum(field))["sum"]
-        return Deductible(
-            getattr(product, prefix + "_policy", None),
-            dedrem_type,
-            prev if prev else 0
-        )
-    return None
+def find_best_product_etl(product_elt_c, product_elt_f, fixed_limit, claim_price, co_sharing_percent):
+    if product_elt_c and product_elt_f:
+        if fixed_limit == 0 or fixed_limit > claim_price:
+            product_elt = product_elt_f
+            product_elt_c = None
+        else:
+            if 100 - co_sharing_percent > 0:
+                product_amount_own_f = claim_price - fixed_limit
+                product_amount_own_c = (1 - co_sharing_percent / 100) * claim_price
+                if product_amount_own_c > product_amount_own_f:
+                    product_elt = product_elt_f
+                    product_elt_c = None
+                else:
+                    product_elt = product_elt_c
+            else:
+                product_elt = product_elt_c
+    else:
+        if product_elt_c:
+            product_elt = product_elt_c
+        else:
+            product_elt = product_elt_f
+            product_elt_c = None
+    return product_elt
 
 
 # This method is replicating the step 2 of the stored procedure mostly as-is. It will be refactored in several steps.
@@ -1430,3 +1432,101 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
         claim.save()
 
     return []  # process_dedrem will never put the claim in error status (beside technical error and until it changes)
+
+
+def approved_amount(claim):
+    app_item_value = claim.items \
+        .annotate(value=Coalesce(F("qty_approved"), F("qty_provided")) * Coalesce(F("price_approved"), F("price_asked"))) \
+        .filter(validity_to__isnull=True, status=ClaimItem.STATUS_PASSED) \
+        .aggregate(Sum("value"))['value__sum'] or 0
+
+    logger.debug("app_item_value %s", app_item_value)
+    app_service_value = claim.services \
+        .annotate(value=Coalesce(F("qty_approved"), F("qty_provided")) * Coalesce(F("price_approved"), F("price_asked"))) \
+        .filter(validity_to__isnull=True, status=ClaimService.STATUS_PASSED) \
+        .aggregate(Sum("value"))['value__sum'] or 0
+
+    logger.debug("app_service_value %s", app_service_value)
+    app_sub_item_value = ClaimServiceItem.objects \
+        .filter(
+            claim_service__claim=claim,
+            claim_service__validity_to__isnull=True,
+            claim_service__status=ClaimService.STATUS_PASSED,
+        ) \
+        .annotate(value=F("qty_displayed") * F("price_asked")) \
+        .aggregate(Sum("value"))['value__sum'] or 0
+
+    logger.debug("app_sub_item_value %s", app_sub_item_value)
+    total = app_item_value + app_service_value + app_sub_item_value
+
+    total_amount = 0
+    for cs in claim.services.filter(validity_to__isnull=True, status=ClaimService.STATUS_PASSED):
+
+        sub_services_total = ClaimServiceService.objects \
+            .filter(
+                claim_service__claim=claim,
+                claim_service__id=cs.id,
+                claim_service__validity_to__isnull=True,
+                claim_service__status=ClaimService.STATUS_PASSED,
+            ) \
+            .annotate(value=F("qty_displayed") * F("price_asked")) \
+            .aggregate(total=Sum("value"))["total"] or 0
+
+        logger.debug("Total for subservices %s", sub_services_total)
+        sub_items_total = ClaimServiceItem.objects \
+            .filter(
+                claim_service__claim=claim,
+                claim_service__id=cs.id,
+                claim_service__validity_to__isnull=True,
+                claim_service__status=ClaimService.STATUS_PASSED,
+            ) \
+            .annotate(value=F("qty_displayed") * F("price_asked")) \
+            .aggregate(total=Sum("value"))["total"] or 0
+
+        logger.debug("Total for subitems %s", sub_items_total)
+        total_cs = sub_services_total + sub_items_total
+
+        if cs.service and cs.service.packagetype == 'F':
+            # min(total_cs, cs.service.price) : Si plafonné alors si le montant total
+            # ne doit pas dépasser celui sur le service
+            total_cs = min(total_cs, cs.service.price)
+        total_amount += total_cs
+
+    logger.debug("total amount  %s", total_amount)
+    if total_amount > 0:
+        return total_amount
+
+    return total
+
+
+Deductible = namedtuple('Deductible', ['amount', 'type', 'prev'])
+
+
+def _get_dedrem(prefix, dedrem_type, field, product, claim, policy_id):
+    if getattr(product, prefix + "_treatment", None):
+        return Deductible(
+            getattr(product, prefix + "_treatment", None),
+            dedrem_type,
+            0
+        )
+    if getattr(product, prefix + "_insuree", None):
+        prev = ClaimDedRem.objects \
+            .filter(policy_id=policy_id, insuree_id=claim.insuree_id) \
+            .exclude(claim_id=claim.id) \
+            .aggregate(sum=Sum(field))["sum"]
+        return Deductible(
+            getattr(product, prefix + "_insuree", None),
+            dedrem_type,
+            prev if prev else 0
+        )
+    if getattr(product, prefix + "_policy", None):
+        prev = ClaimDedRem.objects \
+            .filter(policy_id=policy_id) \
+            .exclude(claim_id=claim.id) \
+            .aggregate(sum=Sum(field))["sum"]
+        return Deductible(
+            getattr(product, prefix + "_policy", None),
+            dedrem_type,
+            prev if prev else 0
+        )
+    return None

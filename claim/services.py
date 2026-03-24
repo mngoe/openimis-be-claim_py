@@ -20,7 +20,7 @@ from product.models import ProductItemOrService
 
 from claim.utils import process_items_relations, process_services_relations
 from .validations import validate_claim, validate_assign_prod_to_claimitems_and_services, process_dedrem, \
-    approved_amount, get_claim_category
+    approved_amount, get_claim_category, REJECTION_REASON_MANUAL_REJECTION
 from django.db.models import Subquery, F, OuterRef, Sum, FloatField
 from django.db.models.functions import Coalesce
 from django.contrib.auth.models import AnonymousUser
@@ -560,6 +560,36 @@ def submit_claim(claim, user):
     return c_errors
 
 
+def reject_claim(claim, user, explanation=None):
+
+    errors = []
+
+    try:
+        claim.save_history()
+        claim.status = Claim.STATUS_REJECTED
+        claim.explanation = explanation
+        claim.audit_user_id_process = user.id_for_audit
+
+        # Update all items and services to rejected status
+        claim.items.filter(validity_to__isnull=True) \
+                .update(status=ClaimItem.STATUS_REJECTED,
+                        qty_approved=0,
+                        rejection_reason=REJECTION_REASON_MANUAL_REJECTION)
+        claim.services.filter(validity_to__isnull=True) \
+                .update(status=ClaimService.STATUS_REJECTED,
+                        qty_approved=0,
+                        rejection_reason=REJECTION_REASON_MANUAL_REJECTION)
+
+        claim.save()
+    except Exception as exc:
+        errors.append({
+            'message': _("claim.mutation.failed_to_reject_claim") % {'code': claim.code},
+            'detail': str(exc)
+        })
+
+    return errors
+
+
 def set_claim_submitted(claim, errors, user):
     try:
         claim.audit_user_id_submit = user.id_for_audit
@@ -580,7 +610,7 @@ def set_claim_submitted(claim, errors, user):
                 'message': _("claim.mutation.failed_to_change_status_of_claim") % {'code': claim.code},
                 'detail': claim.uuid}]
         }
-        
+
 
 def validate_and_process_dedrem_claim(claim, user, is_process):
     errors = validate_claim(claim, False)
@@ -652,6 +682,9 @@ def set_claims_status(uuids, field, status, audit_data=None, user=None):
                     create_feedback_prompt(claim, user)
                 elif status in [Claim.FEEDBACK_NOT_SELECTED, Claim.FEEDBACK_BYPASSED]:
                     set_feedback_prompt_validity_to_to_current_date(claim.uuid)
+            # Set status to PROCESSED if bypassing review
+            if field == 'review_status' and status == Claim.REVIEW_BYPASSED:
+                claim.status = Claim.STATUS_PROCESSED
             if audit_data:
                 for k, v in audit_data.items():
                     setattr(claim, k, v)
@@ -723,7 +756,7 @@ def set_feedback_prompt_validity_to_to_current_date(claim_uuid):
         return "No such feedback prompt exist."
 
 
-def update_claims_dedrems(uuids, user):
+def update_claims_dedrems(uuids, user, field=None, status=None):
     # We could do it in one query with filter(claim__uuid__in=uuids) but we'd loose the logging
     errors = []
     claims = Claim.objects.filter(uuid__in=uuids)
@@ -732,7 +765,19 @@ def update_claims_dedrems(uuids, user):
         remaining_uuid.remove(claim.uuid.upper())       
         logger.debug(f"delivering review on {claim.uuid}, reprocessing dedrem ({user})")
         errors += validate_and_process_dedrem_claim(claim, user, False)
+        # Set status to PROCESSED if delivered review
+        if field == 'review_status' and status == Claim.REVIEW_DELIVERED:
+            set_claims_status_to_be_processed(claim.uuid)
     if len(remaining_uuid):
         errors.append(_(
             "claim.validation.id_does_not_exist") % {'id': ','.join(remaining_uuid)})
     return errors
+
+
+def set_claims_status_to_be_processed(claim_uuid):
+    try:
+        claim = Claim.objects.get(uuid=claim_uuid)
+        claim.status = Claim.STATUS_PROCESSED
+        claim.save()
+    except ObjectDoesNotExist:
+        return "No such claim exist."

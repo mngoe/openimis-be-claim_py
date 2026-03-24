@@ -1,20 +1,18 @@
-import base64
 import json
 from dataclasses import dataclass
 from core.models import User
 from core.models.openimis_graphql_test_case import openIMISGraphQLTestCase
 
-from core.utils import filter_validity
 from core.test_helpers import create_test_interactive_user
-from django.conf import settings
-from graphene_django.utils.testing import GraphQLTestCase
 from graphql_jwt.shortcuts import get_token
 #credits https://docs.graphene-python.org/projects/django/en/latest/testing/
 from claim import schema as claim_schema
 from graphene.test import Client
 from graphene import Schema
 
-from claim.models import Claim, ClaimAdmin
+from claim.models import Claim, ClaimItem, ClaimService
+from claim.test_helpers import create_test_claim_admin, create_test_claim
+from claim.services import REJECTION_REASON_MANUAL_REJECTION
 
 
 from policy.models import Policy
@@ -24,7 +22,11 @@ from core.test_helpers import create_test_officer
 from insuree.test_helpers import create_test_insuree
 from location.models import Location
 from medical.test_helpers import create_test_service
-from medical_pricelist.test_helpers import add_service_to_hf_pricelist
+from medical_pricelist.test_helpers import add_service_to_hf_pricelist, \
+    create_test_service_pricelist, create_test_item_pricelist
+from program.test_helpers import create_test_program
+from location.test_helpers import create_test_health_facility, create_test_village
+from claim.test_helpers import create_test_claimitem, create_test_claimservice
 
 @dataclass
 class DummyContext:
@@ -45,6 +47,9 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
     service= None
     product_service= None
     claim_admin = None
+    location= None
+    program= None
+    hf= None
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -62,9 +67,17 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         (policy, insuree_policy) = create_test_policy2(cls.product, cls.insuree, custom_props={
             "value": 1000, "status": Policy.STATUS_ACTIVE})
         cls.service = create_test_service("A")
-        cls.claim_admin = ClaimAdmin.objects.filter(*filter_validity()).first()
-        cls.svc_pl_detail = add_service_to_hf_pricelist(cls.service, hf_id = cls.claim_admin.health_facility.id )
+        cls.claim_admin = create_test_claim_admin()
+        cls.location = create_test_village()
+        cls.hf_spl = create_test_service_pricelist(cls.location.id)
+        cls.hf_ipl = create_test_item_pricelist(cls.location.id)
+        cls.hf = create_test_health_facility("TEST_HF2", location_id=cls.location.id, custom_props={'services_pricelist': cls.hf_spl, 'items_pricelist': cls.hf_ipl}, valid=True)
+        cls.svc_pl_detail = add_service_to_hf_pricelist(cls.service, hf_id = cls.hf.id )
         cls.product_service = create_test_product_service(cls.product, cls.service, custom_props={"limit_no_adult": 20})
+        cls.program = create_test_program(code="CCS", name="Chêque Santé")
+        cls.claim = create_test_claim(custom_props={"insuree_id": cls.insuree.id})
+        cls.claim_item = create_test_claimitem(cls.claim)
+        cls.claim_service= create_test_claimservice(cls.claim)
         
     def test_claims_query(self):
         
@@ -148,8 +161,9 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
                 feedbackStatus: 1
                 reviewStatus: 1
                 dateClaimed: "2023-12-06"
-                healthFacilityId: {self.claim_admin.health_facility.id}
+                healthFacilityId: {self.hf.id}
                 visitType: "O"
+                program: {self.program.idProgram}
                 services: [
                 {{
                 
@@ -193,8 +207,9 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
                 feedbackStatus: 1
                 reviewStatus: 1
                 dateClaimed: "2023-12-06"
-                healthFacilityId: {self.claim_admin.health_facility.id}
+                healthFacilityId: {self.hf.id}
                 visitType: "O"
+                program: {self.program.idProgram}
                 services: [
                 {{
                 
@@ -263,3 +278,92 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         ## check the mutation answer
         claim = Claim.objects.filter(code = 'm-c-claim').first()
         self.assertEqual(claim.feedback_status, Claim.FEEDBACK_SELECTED)
+        
+
+    def test_reject_claims_mutation(self):
+        mutation = f"""
+            mutation {{
+                rejectClaims(
+                    input: {{
+                        clientMutationId: "test-reject"
+                        uuids: ["{self.claim.uuid}"]
+                        explanation: "Manually rejected from test"
+                    }}
+                ) {{
+                    clientMutationId
+                    internalId
+                }}
+            }}
+        """
+
+        response = self.query(mutation, headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
+        self.assertResponseNoErrors(response)
+
+        # Check the claim status
+        self.claim.refresh_from_db()
+        self.assertEqual(self.claim.status, Claim.STATUS_REJECTED)
+        self.assertEqual(self.claim.explanation, "Manually rejected from test")
+        claim_item = self.claim.items.first()
+        self.assertIsNotNone(claim_item)
+        self.assertEqual(claim_item.status, ClaimItem.STATUS_REJECTED)
+        self.assertEqual(claim_item.rejection_reason, REJECTION_REASON_MANUAL_REJECTION)
+        claim_service = self.claim.services.first()
+        self.assertIsNotNone(claim_service)
+        self.assertEqual(claim_service.status, ClaimService.STATUS_REJECTED)
+        self.assertEqual(claim_service.rejection_reason, REJECTION_REASON_MANUAL_REJECTION)
+        
+        
+    def test_bypass_claims_review_mutation_mixed_uuids(self):
+        """
+        Test bypassing review with UUIDs.
+        """
+        mutation = f"""
+            mutation {{
+                bypassClaimsReview(
+                    input: {{
+                        clientMutationId: "test-bypass-review"
+                        clientMutationLabel: "Bypass review with UUIDs"
+                        uuids: ["{self.claim.uuid}"]
+                    }}
+                ) {{
+                    clientMutationId
+                    internalId
+                }}
+            }}
+        """
+
+        response = self.query(mutation, headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
+        self.assertResponseNoErrors(response)
+        
+        # Verify valid claim was processed
+        self.claim.refresh_from_db()
+        self.assertEqual(self.claim.review_status, Claim.REVIEW_BYPASSED)
+        self.assertEqual(self.claim.status, Claim.STATUS_PROCESSED)
+        
+        
+    def test_deliver_claims_review_mutation(self):
+        """
+        Test deliver review with UUIDs.
+        """
+        mutation = f"""
+            mutation {{
+                deliverClaimsReview(
+                    input: {{
+                        clientMutationId: "test-deliver-review"
+                        clientMutationLabel: "Deliver review with UUIDs"
+                        uuids: ["{self.claim.uuid}"]
+                    }}
+                ) {{
+                    clientMutationId
+                    internalId
+                }}
+            }}
+        """
+
+        response = self.query(mutation, headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
+        self.assertResponseNoErrors(response)
+        
+        # Verify valid claim was processed
+        self.claim.refresh_from_db()
+        self.assertEqual(self.claim.review_status, Claim.REVIEW_DELIVERED)
+        self.assertEqual(self.claim.status, Claim.STATUS_PROCESSED)
