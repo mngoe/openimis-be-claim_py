@@ -99,6 +99,8 @@ class ClaimGQLType(DjangoObjectType):
             "approved": ["exact", "lt", "lte", "gt", "gte"],
             "visit_type": ["exact"],
             "attachments_count__value": ["exact", "lt", "lte", "gt", "gte"],
+            "pregnancy_age": ["exact", "lt", "lte", "gt", "gte"],
+            "source": ["exact"],
             **prefix_filterset("icd__", DiagnosisGQLType._meta.filter_fields),
             **prefix_filterset("admin__", ClaimAdminGQLType._meta.filter_fields),
             **prefix_filterset("health_facility__", HealthFacilityGQLType._meta.filter_fields),
@@ -208,3 +210,13 @@ class ClaimServiceItemGQLType(DjangoObjectType):
 
     class Meta:
         model = ClaimServiceItem
+
+
+class PregnancyAgeGQLType(graphene.ObjectType):
+    """
+    Information on the calculated pregnancy age for the defined date.
+    """
+    pregnancy_age = graphene.Int()
+    claim_date_to = graphene.DateTime()
+    family_id = graphene.Int()
+    product = graphene.Int()
