@@ -448,11 +448,13 @@ def claim_create(data, user, autogenerate_code = False, program=None):
     data['audit_user_id'] = user.id_for_audit
     insuree_id = data.get("insuree_id", None)
     date_to = data.get("date_to", None)
+    pregnancy_age = data.get("pregnancy_age", None)
     logger.info("current insuree id %s", insuree_id)
     logger.info("program of the claim to create %s", program)
     logger.info("date_to of the claim to create %s", date_to)
-    #if we are claiming a cheque sante program, we set the preganancy age field
-    if program and program.code == "CCS":
+    #if we are claiming a cheque sante program via mobile, we set the preganancy age field
+    # if it does not exist
+    if program and program.code == "CCS" and not pregnancy_age:
         if insuree_id and date_to:
             family = Insuree.objects.get(id=insuree_id).family
             logger.info("Claimm for family %s ", family)
