@@ -1044,11 +1044,23 @@ class ProcessClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
                 .prefetch_related(Prefetch('items', queryset=ClaimItem.objects.filter(*filter_validity())))\
                 .prefetch_related(Prefetch('services', queryset=ClaimService.objects.filter(*filter_validity())))
         remaining_uuid = list(map(str.upper,uuids))
+        claim_without_correct_status = []
         for claim in claims:
             remaining_uuid.remove(claim.uuid.upper())
             
 
             logger.debug("ProcessClaimsMutation: processing %s", claim.uuid)
+            if claim.review_status not in [Claim.REVIEW_DELIVERED, Claim.REVIEW_BYPASSED]:
+                claim_without_correct_status.append(claim.code)
+                errors.append({
+                    'title': claim.code,
+                    'list': [
+                        {
+                            'message': _("claim.review.notin.done.nor.bypassed.status")
+                        }
+                    ]
+                })
+                continue
             c_errors = []
      
             claim.save_history()
@@ -1062,7 +1074,11 @@ class ProcessClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
                     'title': claim.code,
                     'list': c_errors
                 })
-                
+
+        logger.debug(
+            "ProcessClaimsMutation: claim_ ithout correct_status %s",
+            claim_without_correct_status
+        )
         if len(remaining_uuid):
                 errors += {
                     'title': _('error'),
