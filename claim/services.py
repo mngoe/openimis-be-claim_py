@@ -644,6 +644,8 @@ def set_claim_processed_or_valuated(claim, errors, user):
             claim.status = Claim.STATUS_REJECTED
         else:
             claim.status = Claim.STATUS_PROCESSED if with_relative_prices(claim) else Claim.STATUS_VALUATED
+            if not with_relative_prices(claim):
+                claim.user_valuated_ip_address = claim.user_processed_ip_address
             claim.audit_user_id_process = user.id_for_audit
             from core.utils import TimeUtils
             claim.process_stamp = TimeUtils.now()
