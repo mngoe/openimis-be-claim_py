@@ -248,12 +248,14 @@ class ClaimSubmitService(object):
             )
 
     def __submit_to_rejected(self, claim: Claim):
+        claim.audit_user_id_submit = self.user.id_for_audit
         claim.status = Claim.STATUS_REJECTED
         claim.save()
         return claim
 
     def __submit_to_checked(self, claim: Claim):
         claim.approved = approved_amount(claim)
+        claim.audit_user_id_submit = self.user.id_for_audit
         claim.status = Claim.STATUS_CHECKED
         from core.utils import TimeUtils
 
