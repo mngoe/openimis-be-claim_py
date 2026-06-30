@@ -4,6 +4,7 @@ from medical.models import Item, Service
 from django.utils.translation import gettext as _
 from .apps import ClaimConfig
 
+
 def process_child_relation(user, data_children, claim_id, children, create_hook):
     claimed = 0
     from core.utils import TimeUtils
