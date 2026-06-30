@@ -12,7 +12,7 @@ from .apps import ClaimConfig
 from claim.validations import approved_amount, REJECTION_REASON_INVALID_CLAIM, REJECTION_REASON_MANUAL_REJECTION
 from core import filter_validity, assert_string_length
 from core.schema import TinyInt, SmallInt, OpenIMISMutation
-from core.gql.gql_mutations import mutation_on_uuids_from_filter
+from core.gql.gql_mutations import mutation_on_uuids_from_filter, mutation_on_queryset_from_filter
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import ValidationError, PermissionDenied
@@ -552,8 +552,11 @@ class DeleteAttachmentMutation(OpenIMISMutation):
 
 class ClaimSubmissionStatsMixin:
     @classmethod
-    def _generate_claim_submission_stats(cls, uuids):
-        claims_query = Claim.objects.filter(uuid__in=list(uuids))
+    def _generate_claim_submission_stats(cls, uuids=None, claims_queryset=None):
+        if claims_queryset is not None:
+            claims_query = claims_queryset
+        else:
+            claims_query = Claim.objects.filter(uuid__in=list(uuids or []))
         claim_item_query = ClaimItem.objects.filter(claim__in=claims_query)
         claim_service_query = ClaimService.objects.filter(claim__in=claims_query)
         claim_stats = claims_query.aggregate(
@@ -579,9 +582,12 @@ class ClaimSubmissionStatsMixin:
         return claim_submission_stats
 
     @classmethod
-    def add_submission_stats_to_mutation_log(cls, client_mutation_id, uuids):
+    def add_submission_stats_to_mutation_log(cls, client_mutation_id, uuids=None, claims_queryset=None):
         mutation_log = MutationLog.objects.filter(client_mutation_id=client_mutation_id).first()
-        claim_submission_stats = cls._generate_claim_submission_stats(uuids)
+        if claims_queryset is not None:
+            claim_submission_stats = cls._generate_claim_submission_stats(claims_queryset=claims_queryset)
+        else:
+            claim_submission_stats = cls._generate_claim_submission_stats(uuids=uuids)
         parsed_stats = cls._parse_submission_stats(claim_submission_stats)
         if isinstance(mutation_log.json_ext, dict):
             mutation_log.json_ext["claim_stats"] = parsed_stats
@@ -620,27 +626,74 @@ class SubmitClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
         }
 
     @classmethod
-    @mutation_on_uuids_from_filter(Claim, ClaimGQLType, 'additional_filters', __filter_handlers)
+    @mutation_on_queryset_from_filter(Claim, ClaimGQLType, 'additional_filters', __filter_handlers)
     def async_mutate(cls, user, **data):
         if not user.has_perms(ClaimConfig.gql_mutation_submit_claims_perms):
             raise PermissionDenied(_("unauthorized"))
-        logger.debug("SubmitClaimsMutation: Asyn Mutate Start %s", "")
+        logger.warning("SubmitClaimsMutation: Asyn Mutate Start %s", data)
         errors = []
-        uuids = data.get("uuids", [])
+        uuids = data.get("uuids")
         client_mutation_id = data.get("client_mutation_id", None)
         c_errors = []
-        claims = Claim.objects \
-                .filter(uuid__in=uuids,
-                        validity_to__isnull=True) \
-            .prefetch_related(Prefetch('items', queryset=ClaimItem.objects.filter(
-                *filter_validity(), 
-                Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True))))) \
-            .prefetch_related(Prefetch('services', queryset=ClaimService.objects.filter(
-                *filter_validity(),
-                Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True))))) 
-        remaining_uuid = list(map(str.upper,uuids))
+
+        target_queryset = data.get("queryset")
+        if target_queryset is not None:
+            # DB-efficient path: decorator provided a (lazy) queryset already
+            # incorporating row security (via Model.get_queryset) + additional_filters.
+            # Work directly with it; do not materialize uuid list upfront.
+            claims = (
+                target_queryset.filter(validity_to__isnull=True)
+                .prefetch_related(
+                    Prefetch(
+                        "items",
+                        queryset=ClaimItem.objects.filter(
+                            *ClaimItem.filter_validity(),
+                            Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True)),
+                        ),
+                    )
+                )
+                .prefetch_related(
+                    Prefetch(
+                        "services",
+                        queryset=ClaimService.objects.filter(
+                            *ClaimService.filter_validity(),
+                            Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True)),
+                        ),
+                    )
+                )
+            )
+            logger.warning("Total claims using target_queryset %s ", claims.count())
+            remaining_uuid = []
+        else:
+            # Direct uuids path (backward compat): caller supplied explicit uuids.
+            uuids = uuids or []
+            claims = (
+                Claim.objects.filter(uuid__in=uuids, validity_to__isnull=True)
+                .prefetch_related(
+                    Prefetch(
+                        "items",
+                        queryset=ClaimItem.objects.filter(
+                            *ClaimItem.filter_validity(),
+                            Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True)),
+                        ),
+                    )
+                )
+                .prefetch_related(
+                    Prefetch(
+                        "services",
+                        queryset=ClaimService.objects.filter(
+                            *ClaimService.filter_validity(),
+                            Q(Q(rejection_reason=0) | Q(rejection_reason__isnull=True)),
+                        ),
+                    )
+                )
+            )
+            remaining_uuid = list(map(str.upper, uuids))
+            logger.warning("Total claims using uuids %s ", claims.count())
+
         for claim in claims:
-            remaining_uuid.remove(claim.uuid.upper())
+            if remaining_uuid:
+                remaining_uuid.remove(claim.uuid.upper())
             c_errors += submit_claim(claim, user)
             if c_errors:
                 errors.append({
@@ -648,11 +701,19 @@ class SubmitClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
                     'list': c_errors
                 })
         if len(remaining_uuid):
-            c_errors.append( {'code': REJECTION_REASON_INVALID_CLAIM,
-                            'message': _("claim.validation.claim_uuid_not_found") + ','.join(remaining_uuid) })
+            c_errors.append(
+                {
+                    "code": REJECTION_REASON_INVALID_CLAIM,
+                    "message": _("claim.validation.claim_uuid_not_found")
+                    + ",".join(remaining_uuid),
+                }
+            )
         if len(errors) == 1:
-            errors = errors[0]['list']
-        cls.add_submission_stats_to_mutation_log(client_mutation_id, uuids)
+            errors = errors[0]["list"]
+        # Pass whichever source we have; stats mixin supports both for efficiency.
+        cls.add_submission_stats_to_mutation_log(
+            client_mutation_id, uuids=uuids, claims_queryset=target_queryset
+        )
         logger.debug("SubmitClaimsMutation: claim done, errors: %s", len(errors))
         return errors
 

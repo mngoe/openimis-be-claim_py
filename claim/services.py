@@ -587,6 +587,13 @@ def validate_number_of_additional_diagnoses(incoming_data):
 
 def submit_claim(claim, user):
     c_errors = []
+    from location.models import LocationManager, HealthFacility
+    logger.warning("User %s", user._u)
+    hf = LocationManager().build_user_location_filter_query(
+        user._u, queryset = HealthFacility.filter_queryset().filter(code=claim.health_facility.code)
+        )
+    if not hf and settings.ROW_SECURITY:
+        raise ClaimSubmitError("Invalid health facility code or health facility not allowed for user")
     claim.save_history()
     logger.debug("SubmitClaimsMutation: validating claim %s", claim.uuid)
     c_errors += validate_claim(claim, True)
