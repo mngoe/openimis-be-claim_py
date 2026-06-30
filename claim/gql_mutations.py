@@ -691,7 +691,6 @@ class SubmitClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
             logger.warning("Total claims using uuids %s ", claims.count())
 
         for claim in claims:
-            logger.warning("claim %s ", claim)
             if remaining_uuid:
                 remaining_uuid.remove(claim.uuid.upper())
             c_errors += submit_claim(claim, user)
