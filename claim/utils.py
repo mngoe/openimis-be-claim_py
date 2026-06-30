@@ -3,11 +3,6 @@ from claim.models import Claim, ClaimItem, ClaimService, ClaimDetail, ClaimServi
 from medical.models import Item, Service
 from django.utils.translation import gettext as _
 from .apps import ClaimConfig
-import threading
-
-_request_local = threading.local()
-def get_current_user():
-    return getattr(_request_local, "user", None)
 
 def process_child_relation(user, data_children, claim_id, children, create_hook):
     claimed = 0
