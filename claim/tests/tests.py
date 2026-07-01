@@ -638,6 +638,10 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         handlers = getattr(
             SubmitClaimsMutation, "_SubmitClaimsMutation__filter_handlers", {}
         )
+        base_qs = Claim.objects.filter(validity_to__isnull=True)
+        sec_qs = Claim.get_queryset(base_qs, limited_user)
+        print("Base claims count:", base_qs.count())
+        print("After row security count:", sec_qs.count())
         decorated = mutation_on_queryset_from_filter(
             Claim,
             ClaimGQLType,
