@@ -545,6 +545,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             roles=[med_officer_role.id],
             # custom_props={"is_superuser": False},
         )
+        print("distrivts ", [district_allowed.code])
         assign_user_districts(limited_user, [district_allowed.code])
 
         # Create claims matching the filter (CHECKED) in both locations
@@ -593,6 +594,9 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         handlers = getattr(
             SubmitClaimsMutation, "_SubmitClaimsMutation__filter_handlers", {}
         )
+        from location.models import UserDistrict
+        distrcits = UserDistrict.objects.filter(user=limited_user.i_user)
+        print("distrcits ", distrcits)
         base_qs = Claim.objects.filter(validity_to__isnull=True)
         sec_qs = Claim.get_queryset(base_qs, limited_user)
         print("Base claims count:", base_qs.count())
