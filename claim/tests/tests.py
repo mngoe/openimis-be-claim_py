@@ -842,7 +842,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # Patch processing_claim so an authorized claim can successfully
         # reach CHECKED status. The location authorization check still runs.
         # Also neutralize stats logging (no real MutationLog in this test).
-        with mock.patch("claim.services.validate_and_process_dedrem_claim", return_value=[]), \
+        with mock.patch("claim.services.submit_claim", return_value=[]), \
              mock.patch.object(SubmitClaimsMutation, "add_submission_stats_to_mutation_log"):
             try:
                 SubmitClaimsMutation.async_mutate(
@@ -860,7 +860,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # first in the queryset iteration), submit it on its own so we can
         # assert that submit works for claims the user *is* allowed to touch.
         if claim_allowed.status == Claim.STATUS_ENTERED:
-            with mock.patch("claim.services.validate_and_process_dedrem_claim", return_value=[]), \
+            with mock.patch("claim.services.submit_claim", return_value=[]), \
                  mock.patch.object(SubmitClaimsMutation, "add_submission_stats_to_mutation_log"):
                 SubmitClaimsMutation.async_mutate(
                     limited_user, uuids=[str(claim_allowed.uuid)]
@@ -941,7 +941,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             service = ClaimSubmitService(user)
 
             # Real location enforcement must still happen per claim
-            with mock.patch("claim.services.validate_and_process_dedrem_claim", return_value=[]):
+            with mock.patch("claim.services.submit_claim", return_value=[]):
                 for claim in target_qs.filter(validity_to__isnull=True):
                     try:
                         service.submit_claim(claim, user)
