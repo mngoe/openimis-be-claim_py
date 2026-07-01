@@ -528,7 +528,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         village_allowed = create_test_location("V", custom_props={"code": "VA1", "name": "Allowed village", "parent": ward_allowed})
 
         # HF rattachée au village, pas directement au district
-        hf_allowed = create_test_health_facility(code="HA1", location_id=village_allowed.id)
+        hf_allowed = create_test_health_facility(code="HA1", location_id=district_allowed.id)
         region_forbidden = create_test_location(
             "R", custom_props={"code": "RF2", "name": "Forbidden Region"}
         )
