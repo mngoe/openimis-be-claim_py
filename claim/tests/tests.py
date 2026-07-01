@@ -588,7 +588,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         limited_user = create_test_interactive_user(
             username="submitter_district_only",
             roles=[med_officer_role.id],
-            custom_props={"is_superuser": False},
+            # custom_props={"is_superuser": False},
         )
         assign_user_districts(limited_user, [district_allowed.code])
 
@@ -694,7 +694,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         limited_user = create_test_interactive_user(
             username="submitter_hf_only",
             roles=[med_officer_role.id],
-            custom_props={"is_superuser": False},
+            # custom_props={"is_superuser": False},
         )
         # Simulate claim admin style restriction
         limited_user.i_user.health_facility_id = hf_allowed.id
@@ -787,7 +787,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         limited_user = create_test_interactive_user(
             username="submit_auth_limited",
             roles=[med_officer_role.id],
-            custom_props={"is_superuser": False},
+            # custom_props={"is_superuser": False},
         )
         assign_user_districts(limited_user, [district_allowed.code])
 
@@ -856,7 +856,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         limited_user = create_test_interactive_user(
             username="submit_mixed_uuids_user",
             roles=[med_officer_role.id],
-            custom_props={"is_superuser": False},
+            # custom_props={"is_superuser": False},
         )
         assign_user_districts(limited_user, [district_allowed.code])
 
@@ -951,7 +951,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         limited_user = create_test_interactive_user(
             username="filterrow_limited",
             roles=[med_officer_role.id],
-            custom_props={"is_superuser": False},
+            # custom_props={"is_superuser": False},
         )
         assign_user_districts(limited_user, [district_allowed.code])
 
