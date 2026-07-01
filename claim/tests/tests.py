@@ -524,6 +524,11 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         district_allowed = create_test_location(
             "D", custom_props={"code": "DA1", "name": "Allowed District for submit filter", "parent": region_allowed}
         )
+        ward_allowed = create_test_location("W", custom_props={"code": "WA1", "name": "Allowed ward", "parent": district_allowed})
+        village_allowed = create_test_location("V", custom_props={"code": "VA1", "name": "Allowed village", "parent": ward_allowed})
+
+        # HF rattachée au village, pas directement au district
+        hf_allowed = create_test_health_facility(code="HA1", location_id=village_allowed.id)
         region_forbidden = create_test_location(
             "R", custom_props={"code": "RF2", "name": "Forbidden Region"}
         )
@@ -531,9 +536,9 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             "D", custom_props={"code": "DF2", "name": "Forbidden District for submit filter", "parent": region_forbidden}
         )
 
-        hf_allowed = create_test_health_facility(
-            code="HA1", location_id=district_allowed.id
-        )
+        # hf_allowed = create_test_health_facility(
+        #     code="HA1", location_id=district_allowed.id
+        # )
         hf_forbidden = create_test_health_facility(
             code="HF2", location_id=district_forbidden.id
         )
@@ -547,6 +552,11 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         )
         print("distrivts ", [district_allowed.code])
         assign_user_districts(limited_user, [district_allowed.code])
+        incoming_qs = Claim.get_queryset(Claim.objects, limited_user)
+        print("get_queryset count:", incoming_qs.count())
+        print("SQL:", str(incoming_qs.query))
+        print(hf_allowed.location.type)         # doit être 'D', mais est-ce bien traversé ?
+        print(hf_allowed.location.parent)       # doit remonter à la région
 
         # Create claims matching the filter (CHECKED) in both locations
         claim_allowed1 = create_test_claim(
