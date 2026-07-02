@@ -595,7 +595,18 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             roles=[med_officer_role.id],
             # custom_props={"is_superuser": False},
         )
-        # print("distrivts ", [district_allowed.code])
+        from location.models import HealthFacility
+        from claim.models import Claim
+
+        hf_from_db = HealthFacility.objects.get(id=hf_allowed.id)
+        print("HF location:", hf_from_db.location)
+        print("HF location_id:", hf_from_db.location_id)
+
+        # Test de traversée Django pas à pas
+        print("Via health_facility=:", Claim.objects.filter(health_facility=hf_allowed).count())
+        print("Via health_facility__location=:", Claim.objects.filter(health_facility__location=district_allowed).count())
+        print("Via health_facility__location_id=:", Claim.objects.filter(health_facility__location_id=232).count())
+        print("Via health_facility__location__in=:", Claim.objects.filter(health_facility__location__in=[district_allowed]).count())
         assign_user_districts(limited_user, [district_allowed.code])
         # incoming_qs = Claim.get_queryset(Claim.objects, limited_user)
         incoming_qs = Claim.objects.filter(validity_to__isnull=True)
