@@ -969,7 +969,6 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         dmer_role_perms = [
             "gql_query_families_perms",
             "gql_query_insurees_perms",
-            "gql_query_insuree_inquire_perms",
             "gql_query_policies_perms",
             "gql_query_premiums_perms",
             "gql_mutation_submit_claims_perms"
