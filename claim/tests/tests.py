@@ -391,6 +391,51 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         self.assertEqual(self.claim.review_status, Claim.REVIEW_DELIVERED)
         self.assertEqual(self.claim.status, Claim.STATUS_PROCESSED)
 
+    def test_claim_history_query(self):
+        historical_claim1 = create_test_claim(custom_props={
+            "code": self.claim.code,
+            "validity_to": "2023-01-01 00:00:00",
+            "insuree_id": self.insuree.id,
+            "health_facility_id": self.hf.id,
+            "status": Claim.STATUS_ENTERED
+        })
+        historical_claim2 = create_test_claim(custom_props={
+            "code": self.claim.code,
+            "validity_to": "2023-01-02 00:00:00",
+            "insuree_id": self.insuree.id,
+            "health_facility_id": self.hf.id,
+            "status": Claim.STATUS_CHECKED
+        })
+
+        response = self.query(
+            '''
+            query {
+                claimHistory(claimUuid: "%s") {
+                    totalCount
+                    edges {
+                        node {
+                            uuid
+                            code
+                            validityTo
+                            status
+                        }
+                    }
+                }
+            }
+            ''' % str(self.claim.uuid),
+            headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"}
+        )
+        content = json.loads(response.content)
+        self.assertResponseNoErrors(response)
+        self.assertEqual(content['data']['claimHistory']['totalCount'], 2)
+        edges = content['data']['claimHistory']['edges']
+        self.assertEqual(edges[0]['node']['code'], self.claim.code)
+        self.assertIsNotNone(edges[0]['node']['validityTo'])
+        self.assertEqual(edges[0]['node']['status'], Claim.STATUS_ENTERED)
+        self.assertEqual(edges[1]['node']['code'], self.claim.code)
+        self.assertIsNotNone(edges[1]['node']['validityTo'])
+        self.assertEqual(edges[1]['node']['status'], Claim.STATUS_CHECKED)
+
     def test_pregnancy_age_ok(self):
         # Configure policy
         policy = Policy.objects.filter(family=self.insuree.family, product=self.product).first()
@@ -611,18 +656,17 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         print("HF location_id:", hf_from_db.location_id)
 
         # Test de traversée Django pas à pas
-        # print("Via health_facility=:", Claim.objects.filter(health_facility=hf_allowed).count())
-        # print("Via health_facility__location=: ", Claim.objects.filter(health_facility__location=district_allowed).count())
-        # print("Via health_facility__location_id=:", Claim.objects.filter(health_facility__location_id=232).count())
-        # print("Via health_facility__location__in=:", Claim.objects.filter(health_facility__location__in=[district_allowed]).count())
-        # from location.models import UserDistrict
-        # distrcits = UserDistrict.objects.filter(user=limited_user.i_user)
-        # print("distrcits ", distrcits)
-        # base_qs = Claim.objects.filter(validity_to__isnull=True)
-        # sec_qs = Claim.get_queryset(base_qs, limited_user)
-        # print("Base claims count:", base_qs.count())
-        # print("After row security count:", sec_qs.count())
-
+        print("Via health_facility=:", Claim.objects.filter(health_facility=hf_allowed).count())
+        print("Via health_facility__location=: ", Claim.objects.filter(health_facility__location=district_allowed).count())
+        print("Via health_facility__location_id=:", Claim.objects.filter(health_facility__location_id=232).count())
+        print("Via health_facility__location__in=:", Claim.objects.filter(health_facility__location__in=[district_allowed]).count())
+        from location.models import UserDistrict
+        distrcits = UserDistrict.objects.filter(user=limited_user.i_user)
+        print("distrcits ", distrcits)
+        base_qs = Claim.objects.filter(validity_to__isnull=True)
+        sec_qs = Claim.get_queryset(base_qs, limited_user)
+        print("Base claims count:", base_qs.count())
+        print("After row security count:", sec_qs.count())
         # from location.models import UserDistrict, LocationManager
 
         # # 1. Vérifier les UserDistrict créés

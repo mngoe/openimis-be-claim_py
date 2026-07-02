@@ -358,8 +358,9 @@ def update_or_create_claim(data, user):
         data.pop('client_mutation_id')
     if "client_mutation_label" in data:
         data.pop('client_mutation_label')
-    data["program"] = program_models.Program.objects.filter(idProgram=data["program"]).first()
-    return service_update_or_create_claim(data, user)
+    program = program_models.Program.objects.filter(idProgram=data["program"]).first()
+    data["program"] = program
+    return service_update_or_create_claim(data, user, program)
 
 
 class CreateClaimMutation(OpenIMISMutation):
