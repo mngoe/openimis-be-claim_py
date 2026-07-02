@@ -344,8 +344,8 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
             programs = program_models.Program.objects.filter(user__id=user._u.id).filter(
                 validityDateFrom__lte=today).filter(
                 Q(validityDateTo__isnull=True) | Q(validityDateTo__gte=today))
-            if programs:
-                queryset = queryset.filter(program_id__in=programs)
+            # if programs:
+            #     queryset = queryset.filter(program_id__in=programs)
         else:
             print("Id non existing")
         if settings.ROW_SECURITY:
