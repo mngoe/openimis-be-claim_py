@@ -358,6 +358,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
             else:
                 print("pas de filtrage user ", user._u, "par hf", queryset, " super user :", user._u.is_superuser)
                 if not isinstance(user._u, core_models.TechnicalUser):
+                    print("Query Avant ", queryset)
                     queryset = LocationManager().build_user_location_filter_query(
                         user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
         print("Query final ", queryset)
