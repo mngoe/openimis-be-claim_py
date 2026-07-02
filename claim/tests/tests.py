@@ -703,11 +703,11 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         final_uuids = set(final_qs.values_list("uuid", flat=True))
 
         # Only claims from the allowed location + matching filter should be present
-        self.assertIn(claim_allowed1.uuid, final_uuids)
-        self.assertIn(claim_allowed2.uuid, final_uuids)
-        self.assertNotIn(claim_allowed_entered.uuid, final_uuids)  # filtered out by status
-        self.assertNotIn(claim_forbidden1.uuid, final_uuids)
-        self.assertNotIn(claim_forbidden2.uuid, final_uuids)
+        self.assertIn(str(claim_allowed1.uuid).upper(), final_uuids)
+        self.assertIn(str(claim_allowed2.uuid).upper(), final_uuids)
+        self.assertNotIn(str(claim_allowed_entered.uuid).upper(), final_uuids)  # filtered out by status
+        self.assertNotIn(str(claim_forbidden1.uuid).upper(), final_uuids)
+        self.assertNotIn(str(claim_forbidden2.uuid).upper(), final_uuids)
 
         # All returned must be CHECKED (the filter) and from allowed hf
         for c in final_qs:
@@ -773,8 +773,8 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         final_qs = calls[0]["data"]["queryset"]
         final_uuids = set(final_qs.values_list("uuid", flat=True))
 
-        self.assertIn(claim_ok.uuid, final_uuids)
-        self.assertNotIn(claim_bad.uuid, final_uuids)
+        self.assertIn(str(claim_ok.uuid).upper(), final_uuids)
+        self.assertNotIn(str(claim_bad.uuid).upper(), final_uuids)
 
         for c in final_qs:
             self.assertEqual(c.health_facility_id, hf_allowed.id)
