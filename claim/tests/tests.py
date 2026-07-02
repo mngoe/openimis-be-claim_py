@@ -952,6 +952,8 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
 
         # The authorized claim must have had submit applied (status changed).
         # The unauthorized claim must not have been submitted.
+        claim = Claim.objects.filter(id=claim_allowed.id)
+        print("rejection reason: ", claim.rejection_reason)
         self.assertEqual(claim_allowed.status, Claim.STATUS_CHECKED)
         self.assertEqual(claim_forbidden.status, Claim.STATUS_ENTERED)
 
@@ -1076,5 +1078,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
 
         # Only the claim belonging to an allowed location for the user
         # should have been submitted.
+        claim = Claim.objects.filter(id=claim_allowed.id)
+        print("rejection reason 2: ", claim.rejection_reason)
         self.assertEqual(claim_allowed.status, Claim.STATUS_CHECKED)
         self.assertEqual(claim_forbidden.status, Claim.STATUS_ENTERED)
