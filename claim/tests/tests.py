@@ -18,7 +18,7 @@ from unittest import mock
 from django.core.cache import caches
 from django.test import TestCase
 from core.utils import clear_current_user
-from core.test_helpers import create_medical_officer_role
+from core.test_helpers import create_medical_officer_role, create_test_role
 from location.test_helpers import (
     create_test_location,
     assign_user_districts,
@@ -966,6 +966,16 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         hf_forbidden = create_test_health_facility(code="HFR2", location_id=district_forbidden.id)
 
         med_officer_role = create_medical_officer_role()
+        dmer_role_perms = [
+            "gql_query_families_perms",
+            "gql_query_insurees_perms",
+            "gql_query_insuree_inquire_perms",
+            "gql_query_policies_perms",
+            "gql_query_premiums_perms",
+            "gql_mutation_submit_claims_perms"
+        ]
+        med_officer_role = create_test_role(
+            perm_names=dmer_role_perms, name="Distrcit Manager", is_system=128)
         limited_user = create_test_interactive_user(
             username="filterrow_limited",
             roles=[med_officer_role.id],
