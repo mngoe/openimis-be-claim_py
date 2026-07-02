@@ -656,6 +656,19 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         sec_qs = Claim.get_queryset(base_qs, limited_user)
         print("Base claims count:", base_qs.count())
         print("After row security count:", sec_qs.count())
+        from location.models import UserDistrict, LocationManager
+
+        # 1. Vérifier les UserDistrict créés
+        uds = UserDistrict.objects.filter(user=limited_user.i_user, validity_to__isnull=True)
+        print("UserDistricts:", list(uds.values("location__id", "location__code", "location__type")))
+
+        # 2. Vérifier ce que allowed() retourne pour ce user
+        lm = LocationManager()
+        allowed_locs = lm.allowed(limited_user.i_user.id)
+        print("Allowed locations:", list(allowed_locs.values("id", "code", "type")))
+
+        # 3. Vérifier le LocationId de la HF
+        print("HF location_id:", hf_allowed.location_id, "district_id:", district_allowed.id)
         decorated = mutation_on_queryset_from_filter(
             Claim,
             ClaimGQLType,
