@@ -657,7 +657,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
 
         # Test de traversée Django pas à pas
         print("Via health_facility=:", Claim.objects.filter(health_facility=hf_allowed).count())
-        print("Via health_facility__location=:", Claim.objects.filter(health_facility__location=district_allowed).count())
+        print("Via health_facility__location=: ", Claim.objects.filter(health_facility__location=district_allowed).count())
         print("Via health_facility__location_id=:", Claim.objects.filter(health_facility__location_id=232).count())
         print("Via health_facility__location__in=:", Claim.objects.filter(health_facility__location__in=[district_allowed]).count())
         from location.models import UserDistrict
