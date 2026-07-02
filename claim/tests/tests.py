@@ -605,14 +605,14 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # Create claims matching the filter (CHECKED) in both locations
         claim_allowed1 = create_test_claim(
             custom_props={
-                "health_facility": hf_allowed,
+                "health_facility_id": hf_allowed.id,
                 "status": Claim.STATUS_CHECKED,
                 "code": "SUBMIT-ALLOW-1",
             }
         )
         claim_allowed2 = create_test_claim(
             custom_props={
-                "health_facility": hf_allowed,
+                "health_facility_id": hf_allowed.id,
                 "status": Claim.STATUS_CHECKED,
                 "code": "SUBMIT-ALLOW-2",
             }
@@ -620,7 +620,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # A non-matching status in allowed location (should be excluded by the status filter too)
         claim_allowed_entered = create_test_claim(
             custom_props={
-                "health_facility": hf_allowed,
+                "health_facility_id": hf_allowed.id,
                 "status": Claim.STATUS_ENTERED,
                 "code": "SUBMIT-ALLOW-ENTERED",
             }
@@ -628,14 +628,14 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
 
         claim_forbidden1 = create_test_claim(
             custom_props={
-                "health_facility": hf_forbidden,
+                "health_facility_id": hf_forbidden.id,
                 "status": Claim.STATUS_CHECKED,
                 "code": "SUBMIT-FORBID-1",
             }
         )
         claim_forbidden2 = create_test_claim(
             custom_props={
-                "health_facility": hf_forbidden,
+                "health_facility_id": hf_forbidden.id,
                 "status": Claim.STATUS_CHECKED,
                 "code": "SUBMIT-FORBID-2",
             }
@@ -744,14 +744,14 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
 
         claim_ok = create_test_claim(
             custom_props={
-                "health_facility": hf_allowed,
+                "health_facility_id": hf_allowed.id,
                 "status": Claim.STATUS_CHECKED,
                 "code": "HFONLY-OK",
             }
         )
         claim_bad = create_test_claim(
             custom_props={
-                "health_facility": hf_forbidden,
+                "health_facility_id": hf_forbidden.id,
                 "status": Claim.STATUS_CHECKED,
                 "code": "HFONLY-BAD",
             }
@@ -836,7 +836,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # Create a claim in the *forbidden* location, in a submittable state
         forbidden_claim = create_test_claim(
             custom_props={
-                "health_facility": hf_forbidden,
+                "health_facility_id": hf_forbidden.id,
                 "status": Claim.STATUS_ENTERED,
                 "code": "NOAUTH-SUBMIT-UUID",
             }
@@ -905,14 +905,14 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # Two claims ready to be submitted
         claim_allowed = create_test_claim(
             custom_props={
-                "health_facility": hf_allowed,
+                "health_facility_id": hf_allowed.id,
                 "status": Claim.STATUS_ENTERED,
                 "code": "MIXED-UUID-OK",
             }
         )
         claim_forbidden = create_test_claim(
             custom_props={
-                "health_facility": hf_forbidden,
+                "health_facility_id": hf_forbidden.id,
                 "status": Claim.STATUS_ENTERED,
                 "code": "MIXED-UUID-BAD",
             }
@@ -1009,14 +1009,14 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # Claims in ENTERED so they are candidates for submit, and the filter can select them
         claim_allowed = create_test_claim(
             custom_props={
-                "health_facility": hf_allowed,
+                "health_facility_id": hf_allowed.id,
                 "status": Claim.STATUS_ENTERED,
                 "code": "FILT-ALLOW-SUB",
             }
         )
         claim_forbidden = create_test_claim(
             custom_props={
-                "health_facility": hf_forbidden,
+                "health_facility_id": hf_forbidden.id,
                 "status": Claim.STATUS_ENTERED,
                 "code": "FILT-FORBID-SUB",
             }
