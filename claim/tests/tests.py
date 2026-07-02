@@ -595,13 +595,12 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             roles=[med_officer_role.id],
             # custom_props={"is_superuser": False},
         )
-        print("distrivts ", [district_allowed.code])
+        # print("distrivts ", [district_allowed.code])
         assign_user_districts(limited_user, [district_allowed.code])
         incoming_qs = Claim.get_queryset(Claim.objects, limited_user)
-        print("get_queryset count:", incoming_qs.count())
-        print("SQL:", str(incoming_qs.query))
-        print(hf_allowed.location.type)         # doit être 'D', mais est-ce bien traversé ?
-        print(hf_allowed.location.parent)       # doit remonter à la région
+        print("limited user: ", limited_user.i_user, "get_queryset count:", incoming_qs.count(), "Test manuel status=4:", incoming_qs.filter(status=Claim.STATUS_CHECKED).count(), "Test manuel status='4':", incoming_qs.filter(status="4").count())
+        # Test direct sans passer par q_filter
+        # print("q_filter children:", q_filter.children)
 
         # Create claims matching the filter (CHECKED) in both locations
         claim_allowed1 = create_test_claim(
@@ -656,19 +655,19 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         sec_qs = Claim.get_queryset(base_qs, limited_user)
         print("Base claims count:", base_qs.count())
         print("After row security count:", sec_qs.count())
-        from location.models import UserDistrict, LocationManager
+        # from location.models import UserDistrict, LocationManager
 
-        # 1. Vérifier les UserDistrict créés
-        uds = UserDistrict.objects.filter(user=limited_user.i_user, validity_to__isnull=True)
-        print("UserDistricts:", list(uds.values("location__id", "location__code", "location__type")))
+        # # 1. Vérifier les UserDistrict créés
+        # uds = UserDistrict.objects.filter(user=limited_user.i_user, validity_to__isnull=True)
+        # print("UserDistricts:", list(uds.values("location__id", "location__code", "location__type")))
 
-        # 2. Vérifier ce que allowed() retourne pour ce user
-        lm = LocationManager()
-        allowed_locs = lm.allowed(limited_user.i_user.id)
-        print("Allowed locations:", list(allowed_locs.values("id", "code", "type")))
+        # # 2. Vérifier ce que allowed() retourne pour ce user
+        # lm = LocationManager()
+        # allowed_locs = lm.allowed(limited_user.i_user.id)
+        # print("Allowed locations:", list(allowed_locs.values("id", "code", "type")))
 
-        # 3. Vérifier le LocationId de la HF
-        print("HF location_id:", hf_allowed.location_id, "district_id:", district_allowed.id)
+        # # 3. Vérifier le LocationId de la HF
+        # print("HF location_id:", hf_allowed.location_id, "district_id:", district_allowed.id)
         decorated = mutation_on_queryset_from_filter(
             Claim,
             ClaimGQLType,
