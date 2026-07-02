@@ -18,7 +18,7 @@ from unittest import mock
 from django.core.cache import caches
 from django.test import TestCase
 from core.utils import clear_current_user
-from core.test_helpers import create_medical_officer_role
+from core.test_helpers import create_medical_officer_role, create_test_role
 from location.test_helpers import (
     create_test_location,
     assign_user_districts,
@@ -550,13 +550,12 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             roles=[med_officer_role.id],
             # custom_props={"is_superuser": False},
         )
-        print("distrivts ", [district_allowed.code])
         assign_user_districts(limited_user, [district_allowed.code])
-        incoming_qs = Claim.get_queryset(Claim.objects, limited_user)
-        print("get_queryset count:", incoming_qs.count())
-        print("SQL:", str(incoming_qs.query))
-        print(hf_allowed.location.type)         # doit être 'D', mais est-ce bien traversé ?
-        print(hf_allowed.location.parent)       # doit remonter à la région
+        # incoming_qs = Claim.get_queryset(Claim.objects, limited_user)
+        incoming_qs = Claim.objects.filter(validity_to__isnull=True)
+        print("limited user: ", limited_user.i_user, "get_queryset count:", incoming_qs.count(), "Test manuel status=4:", incoming_qs.filter(status=Claim.STATUS_CHECKED).count(), "Test manuel status='4':", incoming_qs.filter(status="4").count())
+        # Test direct sans passer par q_filter
+        # print("q_filter children:", q_filter.children)
 
         # Create claims matching the filter (CHECKED) in both locations
         claim_allowed1 = create_test_claim(
@@ -604,6 +603,18 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         handlers = getattr(
             SubmitClaimsMutation, "_SubmitClaimsMutation__filter_handlers", {}
         )
+        from location.models import HealthFacility
+        from claim.models import Claim
+
+        hf_from_db = HealthFacility.objects.get(id=hf_allowed.id)
+        print("HF location:", hf_from_db.location)
+        print("HF location_id:", hf_from_db.location_id)
+
+        # Test de traversée Django pas à pas
+        print("Via health_facility=:", Claim.objects.filter(health_facility=hf_allowed).count())
+        print("Via health_facility__location=: ", Claim.objects.filter(health_facility__location=district_allowed).count())
+        print("Via health_facility__location_id=:", Claim.objects.filter(health_facility__location_id=232).count())
+        print("Via health_facility__location__in=:", Claim.objects.filter(health_facility__location__in=[district_allowed]).count())
         from location.models import UserDistrict
         distrcits = UserDistrict.objects.filter(user=limited_user.i_user)
         print("distrcits ", distrcits)
@@ -611,6 +622,19 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         sec_qs = Claim.get_queryset(base_qs, limited_user)
         print("Base claims count:", base_qs.count())
         print("After row security count:", sec_qs.count())
+        # from location.models import UserDistrict, LocationManager
+
+        # # 1. Vérifier les UserDistrict créés
+        # uds = UserDistrict.objects.filter(user=limited_user.i_user, validity_to__isnull=True)
+        # print("UserDistricts:", list(uds.values("location__id", "location__code", "location__type")))
+
+        # # 2. Vérifier ce que allowed() retourne pour ce user
+        # lm = LocationManager()
+        # allowed_locs = lm.allowed(limited_user.i_user.id)
+        # print("Allowed locations:", list(allowed_locs.values("id", "code", "type")))
+
+        # # 3. Vérifier le LocationId de la HF
+        # print("HF location_id:", hf_allowed.location_id, "district_id:", district_allowed.id)
         decorated = mutation_on_queryset_from_filter(
             Claim,
             ClaimGQLType,
@@ -921,6 +945,15 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         hf_forbidden = create_test_health_facility(code="HFR2", location_id=district_forbidden.id)
 
         med_officer_role = create_medical_officer_role()
+        dmer_role_perms = [
+            "gql_query_families_perms",
+            "gql_query_insurees_perms",
+            "gql_query_policies_perms",
+            "gql_query_premiums_perms",
+            "gql_mutation_submit_claims_perms"
+        ]
+        med_officer_role = create_test_role(
+            perm_names=dmer_role_perms, name="Distrcit Manager", is_system=128)
         limited_user = create_test_interactive_user(
             username="filterrow_limited",
             roles=[med_officer_role.id],
