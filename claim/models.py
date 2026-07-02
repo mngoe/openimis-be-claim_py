@@ -348,14 +348,15 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
             #     queryset = queryset.filter(program_id__in=programs)
         else:
             print("Id non existing")
-        print("totot")
-        if not settings.ROW_SECURITY:
+        if settings.ROW_SECURITY:
             # TechnicalUsers don't have health_facility_id attribute
             if hasattr(user._u, 'health_facility_id') and user._u.health_facility_id:
+                print("ffiltrage user ", user._u, "par hf")
                 queryset = queryset.filter(
                     health_facility_id=user._u.health_facility_id
                 )
             else:
+                print("pas de filtrage user ", user._u, "par hf")
                 if not isinstance(user._u, core_models.TechnicalUser):
                     queryset = LocationManager().build_user_location_filter_query(
                         user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
