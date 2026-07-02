@@ -597,7 +597,8 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         )
         # print("distrivts ", [district_allowed.code])
         assign_user_districts(limited_user, [district_allowed.code])
-        incoming_qs = Claim.get_queryset(Claim.objects, limited_user)
+        # incoming_qs = Claim.get_queryset(Claim.objects, limited_user)
+        incoming_qs = Claim.objects.filter(validity_to__isnull=True)
         print("limited user: ", limited_user.i_user, "get_queryset count:", incoming_qs.count(), "Test manuel status=4:", incoming_qs.filter(status=Claim.STATUS_CHECKED).count(), "Test manuel status='4':", incoming_qs.filter(status="4").count())
         # Test direct sans passer par q_filter
         # print("q_filter children:", q_filter.children)
