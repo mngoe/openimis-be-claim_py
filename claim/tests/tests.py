@@ -649,7 +649,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             SubmitClaimsMutation, "_SubmitClaimsMutation__filter_handlers", {}
         )
         from location.models import HealthFacility
-        from claim.models import Claim
+        # from claim.models import Claim
 
         hf_from_db = HealthFacility.objects.get(id=hf_allowed.id)
         print("HF location:", hf_from_db.location)
