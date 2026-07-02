@@ -348,7 +348,8 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
             #     queryset = queryset.filter(program_id__in=programs)
         else:
             print("Id non existing")
-        if settings.ROW_SECURITY:
+        print("totot")
+        if not settings.ROW_SECURITY:
             # TechnicalUsers don't have health_facility_id attribute
             if hasattr(user._u, 'health_facility_id') and user._u.health_facility_id:
                 queryset = queryset.filter(
