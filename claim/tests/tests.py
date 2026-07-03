@@ -917,7 +917,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
                 "code": "MIXED-UUID-BAD",
             }
         )
-        claim_item = create_test_claimitem(claim_allowed)
+        claim_item = create_test_claimitem(claim_allowed, valid=True)
 
         # Send an explicit list of uuids (as SubmitClaimsMutation receives)
         # containing both an authorized claim and one the user must not submit.
