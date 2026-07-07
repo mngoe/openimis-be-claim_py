@@ -351,13 +351,17 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         if settings.ROW_SECURITY:
             # TechnicalUsers don't have health_facility_id attribute
             if hasattr(user._u, 'health_facility_id') and user._u.health_facility_id:
+                print("ffiltrage user ", user._u, "par hf")
                 queryset = queryset.filter(
                     health_facility_id=user._u.health_facility_id
                 )
             else:
+                print("pas de filtrage user ", user._u, "par hf", queryset, " super user :", user._u.is_superuser)
                 if not isinstance(user._u, core_models.TechnicalUser):
+                    print("Query Avant ", queryset)
                     queryset = LocationManager().build_user_location_filter_query(
                         user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
+        print("Query final ", queryset)
         return queryset
 
 
