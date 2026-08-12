@@ -278,6 +278,42 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         null=True,
         default=None,
     )
+    user_entered_ip_address = models.CharField(
+        db_column='UserEnteredIpAddress',
+        max_length=50,
+        blank=True,
+        null=True
+    )
+    last_updater_ip_address = models.CharField(
+        db_column='LastUpdaterIpAddress',
+        max_length=50,
+        blank=True,
+        null=True
+    )
+    user_reviewed_ip_address = models.CharField(
+        db_column='UserReviewedIpAddress',
+        max_length=50,
+        blank=True,
+        null=True
+    )
+    user_submit_ip_address = models.CharField(
+        db_column='UserSubmitIpAddress',
+        max_length=50,
+        blank=True,
+        null=True
+    )
+    user_processed_ip_address = models.CharField(
+        db_column='UserProcessedIpAddress',
+        max_length=50,
+        blank=True,
+        null=True
+    )
+    user_valuated_ip_address = models.CharField(
+        db_column='UserValuatedIpAddress',
+        max_length=50,
+        blank=True,
+        null=True
+    )
 
     # row_id = models.BinaryField(db_column='RowID', blank=True, null=True)
 
