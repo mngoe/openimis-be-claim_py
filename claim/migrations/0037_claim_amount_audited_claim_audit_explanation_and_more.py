@@ -43,5 +43,20 @@ class Migration(migrations.Migration):
             model_name='claimserviceservice',
             name='qty_audited',
             field=models.DecimalField(blank=True, db_column='qtyAudided', decimal_places=2, max_digits=18, null=True),
+        ),
+        migrations.AddField(
+            model_name='claim',
+            name='audit_status',
+            field=models.CharField(blank=True, db_column='auditStatus', max_length=10, null=True),
+        ),
+        migrations.AddField(
+            model_name='claim',
+            name='rejection_motive',
+            field=models.CharField(blank=True, db_column='rejectionMotive', max_length=500, null=True),
+        ),
+        migrations.AddField(
+            model_name='claim',
+            name='rejection_reason_after_audit',
+            field=models.CharField(blank=True, db_column='rejectionReasonAfterAudit', max_length=500, null=True),
         )
     ]
