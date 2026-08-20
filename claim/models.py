@@ -286,6 +286,24 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         blank=True,
         null=True
     )
+    rejection_motive = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        db_column='rejectionMotive'
+    )
+    rejection_reason_after_audit = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        db_column='rejectionReasonAfterAudit'
+    )
+    audit_status = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True,
+        db_column='auditStatus'
+    )
     care_type = models.CharField(db_column='CareType', max_length=4, blank=True, null=True)
     pregnancy_age = models.PositiveSmallIntegerField(db_column='PregnancyAge', blank=True, null=True)
     SOURCE_WEB = "WEB"
