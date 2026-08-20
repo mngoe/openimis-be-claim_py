@@ -261,6 +261,31 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     test_number = models.CharField(
         db_column='TestNumber', max_length=255, blank=True, null=True)
     tdr = models.BooleanField(db_column='TDRResult', blank=True, null=True)
+    audited = models.BooleanField(db_column='Audited', blank=True, null=True)
+    audit_explanation = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        db_column='AuditExplanation'
+    )
+    from_rejected_to_valuated = models.BooleanField(
+        db_column='RejectedToValuated',
+        blank=True,
+        null=True
+    )
+    claim_category = models.CharField(
+        max_length=1,
+        blank=True,
+        null=True,
+        db_column='ClaimCategoryAudit'
+    )
+    amount_audited = models.DecimalField(
+        db_column='amountAudited',
+        max_digits=18,
+        decimal_places=2,
+        blank=True,
+        null=True
+    )
     care_type = models.CharField(db_column='CareType', max_length=4, blank=True, null=True)
     pregnancy_age = models.PositiveSmallIntegerField(db_column='PregnancyAge', blank=True, null=True)
     SOURCE_WEB = "WEB"
@@ -621,6 +646,8 @@ class ClaimServiceItem(models.Model):
                                    blank=True, null=True)
     price_asked = models.DecimalField(db_column="price",
                                    max_digits=18, decimal_places=2, blank=True, null=True)
+    qty_audited = models.DecimalField(db_column="qtyAudided",
+                                        max_digits=18, decimal_places=2, blank=True, null=True)
                                    
     class Meta:
         managed = True
@@ -642,6 +669,8 @@ class ClaimServiceService(models.Model):
                                    blank=True, null=True)
     price_asked = models.DecimalField(db_column="price",
                                    max_digits=18, decimal_places=2, blank=True, null=True)
+    qty_audited = models.DecimalField(db_column="qtyAudided",
+                                       max_digits=18, decimal_places=2, blank=True, null=True)
     
     class Meta:
         managed = True
