@@ -286,8 +286,8 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         blank=True,
         null=True
     )
-    rejection_motive = models.CharField(
-        max_length=500,
+    rejection_motive = models.SmallIntegerField(
+        max_length=2,
         blank=True,
         null=True,
         db_column='rejectionMotive'

@@ -52,7 +52,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='claim',
             name='rejection_motive',
-            field=models.CharField(blank=True, db_column='rejectionMotive', max_length=500, null=True),
+            field=models.SmallIntegerField(blank=True, db_column='rejectionMotive', max_length=2, null=True),
         ),
         migrations.AddField(
             model_name='claim',
