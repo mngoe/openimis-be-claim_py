@@ -16,7 +16,7 @@ from .apps import ClaimConfig
 from medical_controller.apps import MedicalControllerConfig
 from django.conf import settings
 
-from claim.models import Claim, ClaimItem, ClaimService, ClaimDetail, ClaimDedRem, FeedbackPrompt
+from claim.models import Claim, ClaimItem, ClaimService, ClaimDetail, ClaimDedRem, FeedbackPrompt, ClaimServiceService, ClaimServiceItem
 from product.models import ProductItemOrService
 
 from claim.utils import process_items_relations, process_services_relations
@@ -461,6 +461,45 @@ def claim_update(claim, data, user):
     # (each update is 'complete', necessary to be able to set 'null')
     reset_claim_before_update(claim)
     set_reduced_attr(claim, data, ['items', 'services'])
+    services = data.get("services", {})
+    print("services ", services)
+    for claim_service_service in services:
+        service_service_set = claim_service_service.get('service_service_set', [])
+        for service_service in service_service_set:
+            qty_audited = service_service.get("qty_audited", None)
+            if qty_audited:
+                service = Service.objects.filter(code=service_service["sub_service_code"]).first()
+                print("qty_audited ", qty_audited)
+                claimservices = ClaimService.objects.filter(claim_id=claim.id)
+                print("related claimservice ", claimservices)
+                for claimservice in claimservices:
+                    css = ClaimServiceService.objects.filter(
+                        claim_service=claimservice,
+                        service=service
+                    )
+                    print("css ", css)
+                    css.update(
+                        qty_audited=qty_audited
+                    )
+
+            service_item_set = claim_service_service.get('service_item_set', [])
+            for service_item in service_item_set:
+                qty_audited = service_item.get("qty_audited", None)
+                if qty_audited:
+                    item = Item.objects.filter(code=service_item["sub_item_code"]).first()
+                    if qty_audited:
+                        print("qty_audited item", qty_audited)
+                        claimservices = ClaimService.objects.filter(claim_id=claim.id)
+                        print("related claimservice ", claimservices)
+                        for claimservice in claimservices:
+                            csi = ClaimServiceItem.objects.filter(
+                                claim_service=claimservice,
+                                item=item
+                            )
+                            print("csi : ", csi)
+                            csi.update(
+                                qty_audited=qty_audited
+                            )
     from core.utils import TimeUtils
     claim.items.update(validity_to=TimeUtils.now())
     claim.services.update(validity_to=TimeUtils.now())
