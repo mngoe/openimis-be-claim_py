@@ -266,6 +266,13 @@ class ClaimInputType(OpenIMISMutation.Input):
     tdr = graphene.Boolean(required=False)
     pregnancy_age = graphene.Int(required=False)
     source = graphene.String(required=False)
+    audit_status = graphene.String(required=False)
+    rejection_reason_after_audit = graphene.String(required=False)
+    rejection_motive = graphene.Int(required=False)
+    amount_audited = graphene.Decimal(required=False)
+    claim_category = graphene.String(required=False)
+    from_rejected_to_valuated = graphene.Boolean(required=False)
+    audit_explanation = graphene.String(required=False)
 
 
 class CreateClaimInputType(ClaimInputType):
