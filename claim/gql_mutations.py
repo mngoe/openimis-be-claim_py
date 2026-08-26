@@ -81,6 +81,8 @@ class ClaimSubServiceInputType(InputObjectType):
         max_digits=18, decimal_places=2, required=False)
     price_asked = graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
+    qty_audited = graphene.Decimal(
+            max_digits=18, decimal_places=2, required=False)
 
 
 class ClaimSubItemInputType(InputObjectType):
@@ -94,6 +96,8 @@ class ClaimSubItemInputType(InputObjectType):
         max_digits=18, decimal_places=2, required=False)
     qty_adjusted= graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
+    qty_audited = graphene.Decimal(
+                max_digits=18, decimal_places=2, required=False)
 
 class ClaimServiceInputType(InputObjectType):
     id = graphene.Int(required=False)
