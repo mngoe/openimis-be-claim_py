@@ -278,6 +278,8 @@ class ClaimInputType(OpenIMISMutation.Input):
     claim_category = graphene.String(required=False)
     from_rejected_to_valuated = graphene.Boolean(required=False)
     audit_explanation = graphene.String(required=False)
+    status = graphene.Int(required=False)
+    audited = graphene.Boolean(required=False)
 
 
 class CreateClaimInputType(ClaimInputType):
