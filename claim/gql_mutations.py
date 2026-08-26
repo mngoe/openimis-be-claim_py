@@ -9,6 +9,7 @@ from django.db.models import Count, Case, When, IntegerField, Q, Prefetch
 
 from core.models import MutationLog
 from .apps import ClaimConfig
+from medical_controller.apps import MedicalControllerConfig
 from claim.validations import approved_amount, REJECTION_REASON_INVALID_CLAIM, REJECTION_REASON_MANUAL_REJECTION
 from core import filter_validity, assert_string_length
 from core.schema import TinyInt, SmallInt, OpenIMISMutation
@@ -355,7 +356,8 @@ def validate_claim_data(data, user):
                 "max_restore": ClaimConfig.claim_max_restore
             })
     elif current_claim is not None and current_claim.status not in (Claim.STATUS_CHECKED, Claim.STATUS_ENTERED):
-        raise ValidationError(_("mutation.claim_not_editable")) 
+        if not user.has_perms(MedicalControllerConfig.gql_mutation_medical_controller_perms):
+            raise ValidationError(_("mutation.claim_not_editable"))
 
     if not validate_number_of_additional_diagnoses(data):
         raise ValidationError(_("mutation.claim_too_many_additional_diagnoses"))

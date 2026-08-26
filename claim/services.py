@@ -13,6 +13,7 @@ from gettext import gettext as _
 
 from core.signals import register_service_signal
 from .apps import ClaimConfig
+from medical_controller.apps import MedicalControllerConfig
 from django.conf import settings
 
 from claim.models import Claim, ClaimItem, ClaimService, ClaimDetail, ClaimDedRem, FeedbackPrompt
@@ -559,7 +560,8 @@ def validate_claim_data(data, user):
             })
            
     elif current_claim is not None and current_claim.status not in (Claim.STATUS_CHECKED, Claim.STATUS_ENTERED):
-        raise ValidationError(_("mutation.claim_not_editable")) 
+        if not user.has_perms(MedicalControllerConfig.gql_mutation_medical_controller_perms):
+            raise ValidationError(_("mutation.claim_not_editable"))
 
     if not validate_number_of_additional_diagnoses(data):
         raise ValidationError(_("mutation.claim_too_many_additional_diagnoses"))
