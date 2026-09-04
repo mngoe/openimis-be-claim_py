@@ -366,7 +366,7 @@ def validate_item_product_family(claimitem, target_date, item, insuree_id, adult
                             ) \
                     .aggregate(Sum("qty_provided"))
                 qty = total_qty_provided["qty_provided__sum"] or 0
-                qty += claimitem.qty_provided if claimitem.qty_approved is None else claimitem.qty_approved
+                qty += claimitem.qty_provided if claimitem.qty_approved is None else claimitem.qty_approved or 0
                 if qty > limit_no:
                     claimitem.rejection_reason = REJECTION_REASON_QTY_OVER_LIMIT
                     errors += [{'code': REJECTION_REASON_QTY_OVER_LIMIT,
@@ -437,7 +437,7 @@ def validate_service_product_family(claimservice, target_date, service, insuree_
                     .aggregate(Sum("qty_provided"))
                 qty = total_qty_provided["qty_provided__sum"] or 0
                 qty += claimservice.qty_provided if claimservice.qty_approved is None else claimservice.qty_approved
-                if qty > limit_no:
+                if qty > (limit_no or 0):
                     claimservice.rejection_reason = REJECTION_REASON_QTY_OVER_LIMIT
                     errors += [{'code': REJECTION_REASON_QTY_OVER_LIMIT,
                                 'message': _("claim.validation.product_family.max_nb_allowed") % {
@@ -696,7 +696,7 @@ def validate_assign_prod_elt(claim, elt, elt_ref, elt_qs):
     (limitation_type_field, limit_adult, limit_child) = visit_type_field[visit_type]
     if elt.price_asked \
             and elt.price_approved \
-            and elt.price_asked > elt.price_approved:
+            and (elt.price_asked or 0) > (elt.price_approved or 0):
         claim_price = elt.price_asked
     else:
         claim_price = elt.price_approved
@@ -740,14 +740,13 @@ def validate_assign_prod_elt(claim, elt, elt_ref, elt_qs):
 
     # if both products exist, find the best one to use
     if product_elt_c and product_elt_f:
-        if fixed_limit == 0 or fixed_limit > claim_price:
+        if fixed_limit == 0 or fixed_limit is None or fixed_limit > (claim_price or 0):
             product_elt = product_elt_f
             product_elt_c = None  # used in condition below
         else:
-            if 100 - co_sharing_percent > 0:
+            if co_sharing_percent is not None and 100 - co_sharing_percent > 0:
                 product_amount_own_f = claim_price - fixed_limit
-                product_amount_own_c = (
-                                               1 - co_sharing_percent / 100) * claim_price
+                product_amount_own_c = (1 - co_sharing_percent / 100) * claim_price
                 if product_amount_own_c > product_amount_own_f:
                     product_elt = product_elt_f
                     product_elt_c = None  # used in condition below
@@ -977,13 +976,13 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
             ceiling = rem_g
             prev_remunerated = rem_g.prev
         if product.max_policy:
-            if policy_members > product.threshold:  # Threshold is NOT NULL
+            if product.threshold and policy_members > product.threshold:  # Threshold is NOT NULL
                 if product.max_policy_extra_member:
                     ceiling = Deductible(
                         product.max_policy + (policy_members - product.threshold) * product.max_policy_extra_member,
                         ceiling.type,
                         ceiling.prev)
-                if product.max_ceiling_policy and ceiling.amount > product.max_ceiling_policy:
+                if product.max_ceiling_policy and (ceiling.amount or 0) > (product.max_ceiling_policy or 0):
                     ceiling = Deductible(
                         product.max_ceiling_policy,
                         ceiling.type,
@@ -1002,13 +1001,13 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                 ded_ip = _get_dedrem("ded_ip", "I", "ded_ip", product, claim, policy_product["policy_id"])
                 if ded_ip:
                     deductible = ded_ip
-                    prev_deductible = ded_ip.prev
+                    prev_deductible = ded_ip.prev or 0
             else:
                 # Hospital OP
                 ded_op = _get_dedrem("ded_op", "O", "ded_op", product, claim, policy_product["policy_id"])
                 if ded_op:
                     deductible = ded_op
-                    prev_deductible = ded_op.prev
+                    prev_deductible = ded_op.prev or 0
 
         if not ceiling:
             if (product.ceiling_interpretation == 'I' and hospitalization) or \
@@ -1018,7 +1017,7 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                     ceiling = max_ip
                     prev_remunerated = max_ip.prev
                 if product.max_ip_policy:
-                    if policy_members > product.threshold:  # Threshold is NOT NULL
+                    if product.threshold and policy_members > product.threshold:  # Threshold is NOT NULL
                         if product.max_policy_extra_member_ip:
                             ceiling = Deductible(
                                 product.max_ip_policy + (
@@ -1026,7 +1025,7 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                                 ceiling.type,
                                 ceiling.prev
                             )
-                        if product.max_ceiling_policy_ip and ceiling.amount > product.max_ceiling_policy_ip:
+                        if product.max_ceiling_policy_ip and (ceiling.amount or 0) > (product.max_ceiling_policy_ip or 0):
                             ceiling = Deductible(
                                 product.max_ceiling_policy_ip,
                                 ceiling.type,
@@ -1052,7 +1051,7 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                                 ceiling.type,
                                 ceiling.prev
                             )
-                        if product.max_ceiling_policy_op and ceiling.amount > product.max_ceiling_policy_op:
+                        if product.max_ceiling_policy_op and (ceiling.amount or 0) > (product.max_ceiling_policy_op or 0):
                             ceiling = Deductible(
                                 product.max_ceiling_policy_op,
                                 ceiling.type,
@@ -1118,14 +1117,14 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                 if ClaimConfig.native_code_for_services == False:
                     try:
                         if claim_detail.service.packagetype == 'F':
-                            service_price = claim_detail.service.price
+                            service_price = claim_detail.service.price or 0
                             if claim_detail.price_adjusted is not None:
                                 logger.debug(f"compare {claim_detail.price_adjusted} and {service_price}")
                                 if claim_detail.price_adjusted > service_price:
                                     set_price_adjusted = service_price
                             else:
                                 logger.debug(f"compare {claim_detail.price_asked} and {service_price}")
-                                if claim_detail.price_asked > service_price:
+                                if (claim_detail.price_asked or 0) > service_price:
                                     set_price_adjusted = service_price
                     except:
                         logger.debug("This it an item element")
@@ -1322,7 +1321,7 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
                 set_price_valuated = work_value
                 set_price_remunerated = work_value
             else:
-                if ceiling and ceiling.amount > 0:
+                if ceiling and ceiling.amount:
                     if ceiling.amount - prev_remunerated - remunerated > 0:
                         if ceiling.amount - prev_remunerated - remunerated >= work_value:
                             exceed_ceiling_amount = 0
