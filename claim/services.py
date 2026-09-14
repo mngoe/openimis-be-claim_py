@@ -10,7 +10,6 @@ from core.models import Officer
 from core.utils import filter_validity
 from django.db import connection, transaction
 from gettext import gettext as _
-
 from core.signals import register_service_signal
 from .apps import ClaimConfig
 from django.conf import settings
