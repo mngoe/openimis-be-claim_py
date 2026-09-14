@@ -1053,7 +1053,10 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                     all_rejected = False
             logger.debug("Final amount claimed %s", claimed)
             logger.debug("Claim to be updated %s", claim_to_be_updated)
-            claim.approved = approved_amount(claim)
+            approved = approved_amount(claim)
+            if int(approved) < 0 or int(claimed) == 0:
+                raise ValidationError(_("mutation.negative_amount_not_allowed"))
+            claim.approved = approved
             if ClaimConfig.native_code_for_services == False:
                 # Do not update claimed as approved is already updated
                 # if claim_to_be_updated:
