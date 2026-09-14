@@ -557,7 +557,7 @@ def claim_create_items_and_services(claim, data, user):
     if claimed < 0:
         raise ValidationError(_("mutation.negative_amount_not_allowed"))
     if claimed == 0:
-        claimed = 0.0
+        claimed = 0.00
     claim.claimed = claimed
     claim.save()
 
