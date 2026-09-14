@@ -386,7 +386,9 @@ class CreateClaimMutation(OpenIMISMutation):
             data['status'] = Claim.STATUS_ENTERED
             from core.utils import TimeUtils
             data['validity_from'] = TimeUtils.now()
-            data.pop("amount_audited", None)
+            amount_audited = data.pop("amount_audited", None)
+            logger.info("amount_audited %s", amount_audited)
+            logger.info(math.isnan(amount_audited))
             attachments = data.pop('attachments') if 'attachments' in data else None
             claim = update_or_create_claim(data, user)
             if attachments:
@@ -421,6 +423,8 @@ class UpdateClaimMutation(OpenIMISMutation):
                 raise PermissionDenied(_("unauthorized"))
             data['audit_user_id'] = user.id_for_audit
             amount_audited = data.get("amount_audited", None)
+            logger.info("amount audited %s", amount_audited)
+            logger.info(math.isnan(amount_audited))
             if math.isnan(amount_audited):
                 data.pop("amount_audited", None)
             update_or_create_claim(data, user)
