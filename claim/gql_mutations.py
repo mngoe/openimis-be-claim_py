@@ -7,6 +7,7 @@ import graphene
 import graphene_django_optimizer
 from django.db.models import Count, Case, When, IntegerField, Q, Prefetch
 import math
+
 from core.models import MutationLog
 from .apps import ClaimConfig
 from claim.validations import approved_amount, REJECTION_REASON_INVALID_CLAIM, REJECTION_REASON_MANUAL_REJECTION
