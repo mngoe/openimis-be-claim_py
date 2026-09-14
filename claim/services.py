@@ -536,9 +536,9 @@ def claim_update(claim, data, user):
                                 qty_audited=qty_audited
                             )
     from core.utils import TimeUtils
+    claim_create_items_and_services(claim, data, user)
     claim.items.update(validity_to=TimeUtils.now())
     claim.services.update(validity_to=TimeUtils.now())
-    claim_create_items_and_services(claim, data, user)
     return claim
 
 
@@ -555,7 +555,7 @@ def claim_create_items_and_services(claim, data, user):
     claimed += process_items_relations(user, claim, items)
     claimed += process_services_relations(user, claim, services)
     if claimed == 0:
-        claimed = 0.00
+        raise ValidationError(_("mutation.negative_amount_not_allowed"))
     claim.claimed = claimed
     claim.save()
 
