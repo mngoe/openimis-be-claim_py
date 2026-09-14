@@ -554,8 +554,10 @@ def claim_create_items_and_services(claim, data, user):
     claimed = 0
     claimed += process_items_relations(user, claim, items)
     claimed += process_services_relations(user, claim, services)
-    if claimed == 0:
+    if claimed < 0:
         raise ValidationError(_("mutation.negative_amount_not_allowed"))
+    if claimed == 0:
+        claimed = 0.0
     claim.claimed = claimed
     claim.save()
 

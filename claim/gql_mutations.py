@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 import graphene
 import graphene_django_optimizer
 from django.db.models import Count, Case, When, IntegerField, Q, Prefetch
-
+import math
 from core.models import MutationLog
 from .apps import ClaimConfig
 from medical_controller.apps import MedicalControllerConfig
@@ -401,6 +401,9 @@ class CreateClaimMutation(OpenIMISMutation):
             data['status'] = Claim.STATUS_ENTERED
             from core.utils import TimeUtils
             data['validity_from'] = TimeUtils.now()
+            amount_audited = data.pop("amount_audited", None)
+            print("amount_audited ", amount_audited)
+            print(math.isnan(amount_audited))
             attachments = data.pop('attachments') if 'attachments' in data else None
             claim = update_or_create_claim(data, user)
             if attachments:
@@ -434,6 +437,11 @@ class UpdateClaimMutation(OpenIMISMutation):
             if not user.has_perms(ClaimConfig.gql_mutation_update_claims_perms):
                 raise PermissionDenied(_("unauthorized"))
             data['audit_user_id'] = user.id_for_audit
+            amount_audited = data.get("amount_audited", None)
+            print("amount audited: ", amount_audited)
+            print(math.isnan(amount_audited))
+            if math.isnan(amount_audited):
+                data.pop("amount_audited", None)
             update_or_create_claim(data, user)
             return None
         except Exception as exc:
