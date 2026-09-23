@@ -403,7 +403,6 @@ class CreateClaimMutation(OpenIMISMutation):
             data['validity_from'] = TimeUtils.now()
             amount_audited = data.pop("amount_audited", None)
             logger.info("amount_audited %s", amount_audited)
-            logger.info(math.isnan(amount_audited))
             attachments = data.pop('attachments') if 'attachments' in data else None
             claim = update_or_create_claim(data, user)
             if attachments:
@@ -439,9 +438,12 @@ class UpdateClaimMutation(OpenIMISMutation):
             data['audit_user_id'] = user.id_for_audit
             amount_audited = data.get("amount_audited", None)
             logger.info("amount audited %s", amount_audited)
-            logger.info(math.isnan(amount_audited))
-            if math.isnan(amount_audited):
-                data.pop("amount_audited", None)
+            try:
+                logger.info(math.isnan(amount_audited))
+                if math.isnan(amount_audited):
+                    data.pop("amount_audited", None)
+            except:
+                pass
             update_or_create_claim(data, user)
             return None
         except Exception as exc:
@@ -1077,7 +1079,7 @@ class SaveClaimReviewMutation(OpenIMISMutation):
             logger.debug("Final amount claimed %s", claimed)
             logger.debug("Claim to be updated %s", claim_to_be_updated)
             approved = approved_amount(claim)
-            if int(approved) < 0 or int(claimed) < 0:
+            if (approved and approved < 0) or (claimed and claimed < 0):
                 raise ValidationError(_("mutation.negative_amount_not_allowed"))
             claim.approved = approved
             if ClaimConfig.native_code_for_services == False:
