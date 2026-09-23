@@ -1175,11 +1175,13 @@ class ClaimCreateItemsAndServicesTest(TestCase):
         mock_approved_amount,
     ):
         mock_approved_amount.return_value = -1
+        claim = create_test_claim()
 
         with self.assertRaises(ValidationError):
-            SaveClaimReviewMutation.async_mutate(
+            result = SaveClaimReviewMutation.async_mutate(
                 self.admin_user,
-                claim_uuid=str(self.claim.uuid),
+                claim_uuid=str(claim.uuid),
                 items=[],
                 services=[],
             )
+            print("result ", result)
