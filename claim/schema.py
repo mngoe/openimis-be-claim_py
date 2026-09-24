@@ -142,11 +142,18 @@ class Query(graphene.ObjectType):
         if id is not None:
             return Claim.objects.get(id=id)
         if uuid is not None:
-            print("Start.....")
+            print("Start.....", uuid)
             claim = Claim.objects.get(uuid=uuid)
             print("date_from ", claim.date_from)
             print("UUID ", claim.uuid)
             print("ID ", claim.id)
+
+            print("PK", claim.pk)
+            print(claim.__dict__)
+            print("legacy_id", getattr(claim, "legacy_id", None))
+            print("validity_to", getattr(claim, "validity_to", None))
+            print("version", getattr(claim, "version", None))
+            print("claim ", claim)
             return Claim.objects.get(uuid=uuid)
 
     def resolve_claims(self, info, **kwargs):
