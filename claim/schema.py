@@ -137,6 +137,7 @@ class Query(graphene.ObjectType):
             and settings.ROW_SECURITY
         ):
             raise PermissionDenied(_("unauthorized"))
+        print("*****")
 
         if id is not None:
             return Claim.objects.get(id=id)
