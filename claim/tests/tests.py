@@ -278,10 +278,11 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
             headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
         self.assertResponseNoErrors(response)
         claim.refresh_from_db()
-        print("Services:", claim.services.count())
+        print("Services::", claim.services.count())
 
         for s in claim.services.all():
             print(
+                "checks:",
                 s.id,
                 s.status,
                 s.rejection_reason,
