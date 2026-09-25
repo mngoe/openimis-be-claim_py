@@ -97,6 +97,7 @@ def validate_claim(claim, check_max):
         .update(status=ClaimService.STATUS_PASSED)
 
     if rtn_items_passed + rtn_services_passed == 0:
+        print("Rejet ici...")
         errors += [{'code': REJECTION_REASON_INVALID_ITEM_OR_SERVICE,
                     'message': _("claim.validation.all_items_and_services_rejected") % {
                         'code': claim.code},

@@ -25,6 +25,9 @@ from django.db.models import Subquery, F, OuterRef, Sum, FloatField
 from django.db.models.functions import Coalesce
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import PermissionDenied, ValidationError, ObjectDoesNotExist
+from datetime import timedelta
+from insuree.models import Insuree
+from policy.models import Policy
 logger = logging.getLogger(__name__)
 
 
@@ -431,7 +434,7 @@ def _get_autogenerating_func() -> Callable[[Dict], Callable]:
     return getattr(module, function_name)
 
 
-def claim_create(data, user, autogenerate_code = False):
+def claim_create(data, user, autogenerate_code = False, program=None):
     restore = data.pop('restore', None)
     autogenerate_code = data.pop('autogenerate', None)
     restored_claim = None
@@ -439,10 +442,42 @@ def claim_create(data, user, autogenerate_code = False):
         restored_claim = Claim.objects.filter(uuid=restore).first()
         if restored_claim:
             data["restore"] = restored_claim
-    
+
     if autogenerate_code:
         data['code'] = __autogenerate_claim_code()
     data['audit_user_id'] = user.id_for_audit
+    insuree_id = data.get("insuree_id", None)
+    date_to = data.get("date_to", None)
+    pregnancy_age = data.get("pregnancy_age", None)
+    logger.info("current insuree id %s", insuree_id)
+    logger.info("program of the claim to create %s", program)
+    logger.info("date_to of the claim to create %s", date_to)
+    #if we are claiming a cheque sante program via mobile, we set the preganancy age field
+    # if it does not exist
+    if program and program.code == "CCS" and not pregnancy_age:
+        if insuree_id and date_to:
+            family = Insuree.objects.get(id=insuree_id).family
+            logger.info("Claimm for family %s ", family)
+            if family:
+                chequesante_policy = Policy.objects.filter(
+                    validity_to__isnull=True,
+                    family_id=family.id,
+                    product__program__code="CCS"
+                ).first()
+                logger.info("checquesante policy found %s", chequesante_policy)
+                pregnancy_age = chequesante_policy.pregnancy_age
+                logger.info("pregnancy age found on the policy %s", pregnancy_age)
+                logger.info("start date of the policy %s", chequesante_policy.start_date)
+                if pregnancy_age:
+                    start = chequesante_policy.start_date
+                    end = date_to
+                    monday_start = start - timedelta(days=start.weekday())
+                    monday_end = end - timedelta(days=end.weekday())
+                    weeks_passed = (monday_end - monday_start).days // 7
+                    pregnancy_age = pregnancy_age + weeks_passed
+                    logger.info("calculated pregnancy age is %s", pregnancy_age)
+                    data["pregnancy_age"] = pregnancy_age
+
     claim = Claim()
     set_reduced_attr(claim, data, ['items', 'services'])
     claim.save()
@@ -485,7 +520,7 @@ def claim_create_items_and_services(claim, data, user):
     claim.save()
 
 
-def update_or_create_claim(data, user):
+def update_or_create_claim(data, user, program):
          
     validate_claim_data(data, user)
     claim_uuid = data.pop("uuid", None)
@@ -496,7 +531,7 @@ def update_or_create_claim(data, user):
         claim = Claim.objects.get(uuid=claim_uuid)
         claim = claim_update(claim, data, user)
     else:
-        claim = claim_create(data, user)
+        claim = claim_create(data=data, user=user, program=program)
     return claim
 
 
@@ -552,6 +587,13 @@ def validate_number_of_additional_diagnoses(incoming_data):
 
 def submit_claim(claim, user):
     c_errors = []
+    from location.models import LocationManager, HealthFacility
+    logger.warning("User %s", user._u)
+    hf = LocationManager().build_user_location_filter_query(
+        user._u, queryset = HealthFacility.filter_queryset().filter(code=claim.health_facility.code)
+        )
+    if not hf and settings.ROW_SECURITY:
+        raise ClaimSubmitError("Invalid health facility code or health facility not allowed for user")
     claim.save_history()
     logger.debug("SubmitClaimsMutation: validating claim %s", claim.uuid)
     c_errors += validate_claim(claim, True)
