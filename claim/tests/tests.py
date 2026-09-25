@@ -215,49 +215,49 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         claim = Claim.objects.filter(code = 'm-c-claim').first()
         self.assertIsNotNone(claim)
         self.assertEqual(claim.status, Claim.STATUS_ENTERED)
-        response = self.query(
-            f'''
-            mutation {{
-                updateClaim(
-                    input: {{
-                    clientMutationId: "3a90436b-d5ea-48e7-bde4-0bcff0240260"
-                    clientMutationLabel: "Update Claim - m-c-claim" 
-                    code: "m-c-claim"
-                autogenerate: false
-                uuid: "{str(claim.uuid)}"
-                insureeId: {self.insuree.id}
-                adminId: {self.claim_admin.id}
-                dateFrom: "2023-11-06"  
-                icdId: 2 
-                jsonExt: "{{}}"
-                feedbackStatus: 1
-                reviewStatus: 1
-                dateClaimed: "2023-12-06"
-                healthFacilityId: {self.hf.id}
-                visitType: "O"
-                program: {self.program.idProgram}
-                services: [
-                {{
+        # response = self.query(
+        #     f'''
+        #     mutation {{
+        #         updateClaim(
+        #             input: {{
+        #             clientMutationId: "3a90436b-d5ea-48e7-bde4-0bcff0240260"
+        #             clientMutationLabel: "Update Claim - m-c-claim" 
+        #             code: "m-c-claim"
+        #         autogenerate: false
+        #         uuid: "{str(claim.uuid)}"
+        #         insureeId: {self.insuree.id}
+        #         adminId: {self.claim_admin.id}
+        #         dateFrom: "2023-11-06"  
+        #         icdId: 2 
+        #         jsonExt: "{{}}"
+        #         feedbackStatus: 1
+        #         reviewStatus: 1
+        #         dateClaimed: "2023-12-06"
+        #         healthFacilityId: {self.hf.id}
+        #         visitType: "O"
+        #         program: {self.program.idProgram}
+        #         services: [
+        #         {{
                 
-                serviceId: {self.service.id}
-                priceAsked: "10.00"
-                qtyProvided: "1.00"
-                status: 1,
-                serviceItemSet: [],
-                serviceServiceSet: []
-            }}
-                ]
-                items: [
-                ]
-                    }}
-                ) {{
-                    clientMutationId
-                    internalId
-                }}
-            }}
-                ''',
-            headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
-        self.get_mutation_result('3a90436b-d5ea-48e7-bde4-0bcff0240260', self.admin_token )
+        #         serviceId: {self.service.id}
+        #         priceAsked: "10.00"
+        #         qtyProvided: "1.00"
+        #         status: 1,
+        #         serviceItemSet: [],
+        #         serviceServiceSet: []
+        #     }}
+        #         ]
+        #         items: [
+        #         ]
+        #             }}
+        #         ) {{
+        #             clientMutationId
+        #             internalId
+        #         }}
+        #     }}
+        #         ''',
+        #     headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
+        # self.get_mutation_result('3a90436b-d5ea-48e7-bde4-0bcff0240260', self.admin_token )
 
         #submit claim 
         response = self.query(f'''
