@@ -11,6 +11,7 @@ from graphene.test import Client
 from graphene import Schema
 
 from claim.models import Claim, ClaimItem, ClaimService
+from medical_pricelist.models import ItemsPricelistDetail, ItemsPricelist
 from claim.test_helpers import create_test_claim_admin, create_test_claim
 from claim.services import REJECTION_REASON_MANUAL_REJECTION, ClaimSubmitService, ClaimSubmitError
 import datetime
@@ -922,6 +923,23 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             }
         )
         claim_item = create_test_claimitem(claim_allowed, valid=True)
+        pricelist = ItemsPricelist.objects.create(
+            code="PL1",
+            name="Test Price List",
+            audit_user_id=limited_user.i_user.id,
+            pricelist_date=claim_allowed.date_from,
+            location=claim_allowed.health_facility
+        )
+
+        claim_allowed.health_facility.items_pricelist = pricelist
+        claim_allowed.health_facility.save()
+
+        ItemsPricelistDetail.objects.create(
+            items_pricelist=pricelist,
+            item=claim_item,
+            price_overule=100,
+            audit_user_id=limited_user.i_user.id,
+        )
 
         # Send an explicit list of uuids (as SubmitClaimsMutation receives)
         # containing both an authorized claim and one the user must not submit.
