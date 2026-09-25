@@ -8,6 +8,8 @@ from .apps import ClaimConfig
 def process_child_relation(user, data_children, claim_id, children, create_hook):
     claimed = 0
     from core.utils import TimeUtils
+    print("data_children ", data_children)
+    print("Config ", ClaimConfig.native_code_for_services)
     for data_elt in data_children:
         if ClaimConfig.native_code_for_services == False:
             if create_hook == service_create_hook:

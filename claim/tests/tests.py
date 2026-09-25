@@ -277,6 +277,16 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
             ''',
             headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
         self.assertResponseNoErrors(response)
+        claim.refresh_from_db()
+        print("Services:", claim.services.count())
+
+        for s in claim.services.all():
+            print(
+                s.id,
+                s.status,
+                s.rejection_reason,
+                s.validity_to
+            )
 
         self.get_mutation_result('d02fff0a-dd95-4413-a2f4-4cf2189dc0d6', self.admin_token )
         # select for feeback
@@ -1177,11 +1187,10 @@ class ClaimCreateItemsAndServicesTest(TestCase):
         mock_approved_amount.return_value = -1
         claim = create_test_claim()
 
-        with self.assertRaises(ValidationError):
-            result = SaveClaimReviewMutation.async_mutate(
-                self.admin_user,
-                claim_uuid=str(claim.uuid),
-                items=[],
-                services=[],
-            )
-            print("result ", result)
+        result = SaveClaimReviewMutation.async_mutate(
+            self.admin_user,
+            claim_uuid=str(claim.uuid),
+            items=[],
+            services=[],
+        )
+        self.assertEqual(result[0]["detail"], "['mutation.negative_amount_not_allowed']")
