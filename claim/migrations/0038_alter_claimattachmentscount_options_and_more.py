@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='claim',
             name='rejection_motive',
-            field=models.SmallIntegerField(blank=True, db_column='rejectionMotive', max_length=2, null=True),
+            field=models.SmallIntegerField(blank=True, db_column='rejectionMotive', null=True),
         )
     ]

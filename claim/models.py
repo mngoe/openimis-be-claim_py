@@ -287,7 +287,6 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         null=True
     )
     rejection_motive = models.SmallIntegerField(
-        max_length=2,
         blank=True,
         null=True,
         db_column='rejectionMotive'
@@ -337,7 +336,6 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     STATUS_PROCESSED = 8
     STATUS_VALUATED = 16
     STATUS_REINITIALIZED = 32
-    STATUS_AUDITED = 64
 
     FEEDBACK_IDLE = 1
     FEEDBACK_NOT_SELECTED = 2
