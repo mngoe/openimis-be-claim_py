@@ -15,6 +15,7 @@ from claim.test_helpers import create_test_claim_admin, create_test_claim
 from claim.services import REJECTION_REASON_MANUAL_REJECTION, ClaimSubmitService, ClaimSubmitError
 import datetime
 from unittest import mock
+from unittest.mock import MagicMock, patch
 from django.core.cache import caches
 from django.test import TestCase
 from core.utils import clear_current_user
@@ -25,7 +26,7 @@ from location.test_helpers import (
     create_test_health_facility,
 )
 from claim.gql_queries import ClaimGQLType
-from claim.gql_mutations import SubmitClaimsMutation
+from claim.gql_mutations import SubmitClaimsMutation, SaveClaimReviewMutation
 from core.gql.gql_mutations.mutation_by_filter import mutation_on_queryset_from_filter
 from policy.models import Policy
 from policy.test_helpers import create_test_policy2
@@ -39,6 +40,8 @@ from medical_pricelist.test_helpers import add_service_to_hf_pricelist, \
 from program.test_helpers import create_test_program
 from location.test_helpers import create_test_health_facility, create_test_village
 from claim.test_helpers import create_test_claimitem, create_test_claimservice
+from django.core.exceptions import ValidationError
+from claim.services import claim_create_items_and_services
 
 
 def _make_async_mutate_spy():
@@ -274,6 +277,16 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
             ''',
             headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
         self.assertResponseNoErrors(response)
+        claim.refresh_from_db()
+        print("Services:", claim.services.count())
+
+        for s in claim.services.all():
+            print(
+                s.id,
+                s.status,
+                s.rejection_reason,
+                s.validity_to
+            )
 
         self.get_mutation_result('d02fff0a-dd95-4413-a2f4-4cf2189dc0d6', self.admin_token )
         # select for feeback
@@ -1083,3 +1096,101 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         print("rejection reason 2: ", claim.rejection_reason)
         self.assertEqual(claim_allowed.status, Claim.STATUS_CHECKED)
         self.assertEqual(claim_forbidden.status, Claim.STATUS_ENTERED)
+
+
+class ClaimCreateItemsAndServicesTest(TestCase):
+    def setUp(self):
+        # super().setUpClass()
+        self.admin_user = create_test_interactive_user(username="testLocationAdmin")
+        # self.program = create_test_program(code="CCS", name="Chêque Santé")
+        self.claim = create_test_claim()
+        self.claim_item = create_test_claimitem(self.claim)
+        self.claim_service= create_test_claimservice(self.claim)
+
+    @patch("claim.services.process_services_relations")
+    @patch("claim.services.process_items_relations")
+    def test_should_raise_validation_error_when_claimed_amount_is_negative_from_items(
+        self,
+        mock_process_items,
+        mock_process_services,
+    ):
+        mock_process_items.return_value = -100
+        mock_process_services.return_value = 0
+
+        data = {
+            "items": [],
+            "services": [],
+        }
+
+        with self.assertRaises(ValidationError) as context:
+            claim_create_items_and_services(
+                self.claim,
+                data,
+                self.admin_user,
+            )
+
+        self.assertEqual(
+            str(context.exception),
+            "['mutation.negative_amount_not_allowed']"
+        )
+
+    @patch("claim.services.process_services_relations")
+    @patch("claim.services.process_items_relations")
+    def test_should_raise_validation_error_when_claimed_amount_is_negative_from_services(
+        self,
+        mock_process_items,
+        mock_process_services,
+    ):
+        mock_process_items.return_value = 0
+        mock_process_services.return_value = -200
+
+
+        data = {
+            "items": [],
+            "services": [],
+        }
+
+        with self.assertRaises(ValidationError):
+            claim_create_items_and_services(
+                self.claim,
+                data,
+                self.admin_user,
+            )
+
+    @patch("claim.services.process_services_relations")
+    @patch("claim.services.process_items_relations")
+    def test_should_raise_validation_error_when_total_claimed_amount_is_negative(
+        self,
+        mock_process_items,
+        mock_process_services,
+    ):
+        mock_process_items.return_value = -100
+        mock_process_services.return_value = 50
+
+        data = {
+            "items": [],
+            "services": [],
+        }
+
+        with self.assertRaises(ValidationError):
+            claim_create_items_and_services(
+                self.claim,
+                data,
+                self.admin_user,
+            )
+
+    @patch("claim.gql_mutations.approved_amount")
+    def test_should_raise_validation_error_when_approved_amount_is_negative(
+        self,
+        mock_approved_amount,
+    ):
+        mock_approved_amount.return_value = -1
+        claim = create_test_claim()
+
+        result = SaveClaimReviewMutation.async_mutate(
+            self.admin_user,
+            claim_uuid=str(claim.uuid),
+            items=[],
+            services=[],
+        )
+        self.assertEqual(result[0]["detail"], "['mutation.negative_amount_not_allowed']")

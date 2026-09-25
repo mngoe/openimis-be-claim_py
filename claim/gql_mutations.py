@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 import graphene
 import graphene_django_optimizer
 from django.db.models import Count, Case, When, IntegerField, Q, Prefetch
-
+import math
 from core.models import MutationLog
 from .apps import ClaimConfig
 from claim.validations import approved_amount, REJECTION_REASON_INVALID_CLAIM, REJECTION_REASON_MANUAL_REJECTION
@@ -386,6 +386,8 @@ class CreateClaimMutation(OpenIMISMutation):
             data['status'] = Claim.STATUS_ENTERED
             from core.utils import TimeUtils
             data['validity_from'] = TimeUtils.now()
+            amount_audited = data.pop("amount_audited", None)
+            logger.info("amount_audited %s", amount_audited)
             attachments = data.pop('attachments') if 'attachments' in data else None
             claim = update_or_create_claim(data, user)
             if attachments:
@@ -419,6 +421,14 @@ class UpdateClaimMutation(OpenIMISMutation):
             if not user.has_perms(ClaimConfig.gql_mutation_update_claims_perms):
                 raise PermissionDenied(_("unauthorized"))
             data['audit_user_id'] = user.id_for_audit
+            amount_audited = data.get("amount_audited", None)
+            logger.info("amount audited %s", amount_audited)
+            try:
+                logger.info(math.isnan(amount_audited))
+                if math.isnan(amount_audited):
+                    data.pop("amount_audited", None)
+            except:
+                pass
             update_or_create_claim(data, user)
             return None
         except Exception as exc:
@@ -1053,7 +1063,10 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                     all_rejected = False
             logger.debug("Final amount claimed %s", claimed)
             logger.debug("Claim to be updated %s", claim_to_be_updated)
-            claim.approved = approved_amount(claim)
+            approved = approved_amount(claim)
+            if (approved and approved < 0) or (claimed and claimed < 0):
+                raise ValidationError(_("mutation.negative_amount_not_allowed"))
+            claim.approved = approved
             if ClaimConfig.native_code_for_services == False:
                 # Do not update claimed as approved is already updated
                 # if claim_to_be_updated:
