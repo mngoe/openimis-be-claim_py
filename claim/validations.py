@@ -952,6 +952,12 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
     for policy_product in items_query.union(services_query, all=True):
         product = Product.objects.filter(*filter_validity(validity=target_date),
             Q(Q(id=policy_product["product_id"])|Q(legacy_id=policy_product["product_id"]))).order_by('-date_from').first()
+        if not product:
+            raise ValueError(
+                _(
+                    "Product with id %s not in target date %s"
+                ) % (policy_product["product_id"], target_date)
+            )
         policy_members = InsureePolicy.objects.filter(
             policy_id=policy_product["policy_id"],
             effective_date__isnull=False,

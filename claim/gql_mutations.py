@@ -9,6 +9,7 @@ from django.db.models import Count, Case, When, IntegerField, Q, Prefetch
 
 from core.models import MutationLog
 from .apps import ClaimConfig
+from medical_controller.apps import MedicalControllerConfig
 from claim.validations import approved_amount, REJECTION_REASON_INVALID_CLAIM, REJECTION_REASON_MANUAL_REJECTION
 from core import filter_validity, assert_string_length
 from core.schema import TinyInt, SmallInt, OpenIMISMutation
@@ -81,6 +82,8 @@ class ClaimSubServiceInputType(InputObjectType):
         max_digits=18, decimal_places=2, required=False)
     price_asked = graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
+    qty_audited = graphene.Decimal(
+            max_digits=18, decimal_places=2, required=False)
 
 
 class ClaimSubItemInputType(InputObjectType):
@@ -94,6 +97,8 @@ class ClaimSubItemInputType(InputObjectType):
         max_digits=18, decimal_places=2, required=False)
     qty_adjusted= graphene.Decimal(
         max_digits=18, decimal_places=2, required=False)
+    qty_audited = graphene.Decimal(
+                max_digits=18, decimal_places=2, required=False)
 
 class ClaimServiceInputType(InputObjectType):
     id = graphene.Int(required=False)
@@ -266,6 +271,15 @@ class ClaimInputType(OpenIMISMutation.Input):
     tdr = graphene.Boolean(required=False)
     pregnancy_age = graphene.Int(required=False)
     source = graphene.String(required=False)
+    audit_status = graphene.String(required=False)
+    rejection_reason_after_audit = graphene.String(required=False)
+    rejection_motive = graphene.Int(required=False)
+    amount_audited = graphene.Decimal(required=False)
+    claim_category = graphene.String(required=False)
+    from_rejected_to_valuated = graphene.Boolean(required=False)
+    audit_explanation = graphene.String(required=False)
+    status = graphene.Int(required=False)
+    audited = graphene.Boolean(required=False)
 
 
 class CreateClaimInputType(ClaimInputType):
@@ -344,7 +358,8 @@ def validate_claim_data(data, user):
                 "max_restore": ClaimConfig.claim_max_restore
             })
     elif current_claim is not None and current_claim.status not in (Claim.STATUS_CHECKED, Claim.STATUS_ENTERED):
-        raise ValidationError(_("mutation.claim_not_editable")) 
+        if not user.has_perms(MedicalControllerConfig.gql_mutation_medical_controller_perms):
+            raise ValidationError(_("mutation.claim_not_editable"))
 
     if not validate_number_of_additional_diagnoses(data):
         raise ValidationError(_("mutation.claim_too_many_additional_diagnoses"))
