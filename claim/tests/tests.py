@@ -278,16 +278,6 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
             headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
         self.assertResponseNoErrors(response)
         claim.refresh_from_db()
-        print("Services::", claim.services.count())
-
-        for s in claim.services.all():
-            print(
-                "checks:",
-                s.id,
-                s.status,
-                s.rejection_reason,
-                s.validity_to
-            )
 
         self.get_mutation_result('d02fff0a-dd95-4413-a2f4-4cf2189dc0d6', self.admin_token )
         # select for feeback
@@ -969,6 +959,15 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # The unauthorized claim must not have been submitted.
         claim = Claim.objects.filter(id=claim_allowed.id).first()
         print("rejection reason: ", claim.rejection_reason)
+        print("Services count: ", claim.items.count())
+        for s in claim.items.all():
+            print(
+                "checks::",
+                s.id,
+                s.status,
+                s.rejection_reason,
+                s.validity_to
+            )
         self.assertEqual(claim_allowed.status, Claim.STATUS_CHECKED)
         self.assertEqual(claim_forbidden.status, Claim.STATUS_ENTERED)
 
