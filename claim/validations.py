@@ -169,11 +169,13 @@ def validate_claimservices(claim):
                     claim=claim,
                 )
             if claimservice.rejection_reason:
+                print("Fail...", claimservice.rejection_reason)
                 claimservice.status = ClaimService.STATUS_REJECTED
             else:
                 claimservice.rejection_reason = 0
                 claimservice.status = ClaimService.STATUS_PASSED
             claimservice.save()
+    print("errors found ", errors)
     return errors
 
 
