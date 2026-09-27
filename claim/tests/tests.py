@@ -907,6 +907,11 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         )
         assign_user_districts(limited_user, [district_allowed.code])
 
+        insuree = create_test_insuree(
+            with_family=True,
+            is_head=True 
+        )
+
         # Two claims ready to be submitted
         claim_allowed = create_test_claim(
             custom_props={
@@ -914,6 +919,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
                 "status": Claim.STATUS_ENTERED,
                 "code": "MIXED-UUID-OK",
                 "date_to": "2026-01-01 00:00:00",
+                "insuree": insuree
             }
         )
         claim_forbidden = create_test_claim(
@@ -947,11 +953,6 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             validity_from="2025-01-02 10:10:00"
         )
         print("claim_allowed ", claim_allowed.uuid)
-
-        insuree = create_test_insuree(
-            with_family=True,
-            is_head=True 
-        )
 
         product = create_test_product("TProd1", valid=True)
         create_test_product_item(product, item)
