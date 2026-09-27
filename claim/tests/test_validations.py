@@ -897,17 +897,17 @@ class ValidationTest(TestCase):
         It should not be processed (which was ok) but the dedrem should be deleted.
         """
         # Given
-        insuree = create_test_insuree()
+        insuree = create_test_insuree(with_family=True, is_head=True)
         self.assertIsNotNone(insuree)
         service = create_test_service("A", custom_props={"name": "test_review_reject_delete_dedrem"})
-        item = create_test_item("A", custom_props={"name": "test_review_reject_delete_dedrem"})
+        item = create_test_item("A", valid=True, custom_props={"name": "test_review_reject_delete_dedrem", "care_type": "B"})
 
         product = create_test_product("BCUL0001", custom_props={
             "name": "Basic Cover Ultha deldedrem",
             "lump_sum": 10_000,
         })
         product_service = create_test_product_service(product, service)
-        product_item = create_test_product_item(product, item)
+        product_item = create_test_product_item(product=product, item=item, valid=True)
         policy = create_test_policy(product, insuree, link=True)
         pricelist_detail1 = add_service_to_hf_pricelist(service, hf_id=self.test_hf.id)
         pricelist_detail2 = add_item_to_hf_pricelist(item, hf_id=self.test_hf.id)
