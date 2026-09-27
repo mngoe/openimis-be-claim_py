@@ -936,7 +936,6 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         ItemsPricelistDetail.objects.create(
             items_pricelist=pricelist,
             item=claim_item.item,
-            price_overule=100,
             audit_user_id=limited_user.i_user.id,
         )
 
