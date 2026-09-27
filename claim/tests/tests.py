@@ -31,7 +31,7 @@ from claim.gql_mutations import SubmitClaimsMutation, SaveClaimReviewMutation
 from core.gql.gql_mutations.mutation_by_filter import mutation_on_queryset_from_filter
 from policy.models import Policy
 from policy.test_helpers import create_test_policy2
-from product.test_helpers import create_test_product, create_test_product_service
+from product.test_helpers import create_test_product, create_test_product_service, create_test_product_item
 from core.test_helpers import create_test_officer
 from insuree.test_helpers import create_test_insuree
 from location.models import Location
@@ -947,6 +947,26 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             validity_from="2025-01-02 10:10:00"
         )
         print("claim_allowed ", claim_allowed.uuid)
+
+        insuree = create_test_insuree(
+            with_family=True,
+            is_head=True 
+        )
+
+        product = create_test_product("TestProduct", valid=True)
+        create_test_product_item(product, item)
+
+        target_date = claim_allowed.date_from
+
+        (policy, insuree_policy) = create_test_policy2(
+            product,
+            insuree,
+            custom_props={
+                "value": 1000,
+                "status": Policy.STATUS_ACTIVE,
+                "effective_date": target_date.replace(day=1)
+            }
+        )
 
         # Send an explicit list of uuids (as SubmitClaimsMutation receives)
         # containing both an authorized claim and one the user must not submit.
