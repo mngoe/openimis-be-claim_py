@@ -913,6 +913,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
                 "health_facility_id": hf_allowed.id,
                 "status": Claim.STATUS_ENTERED,
                 "code": "MIXED-UUID-OK",
+                "date_to": "2026-01-01 00:00:00",
             }
         )
         claim_forbidden = create_test_claim(
@@ -937,7 +938,9 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             items_pricelist=pricelist,
             item=claim_item.item,
             audit_user_id=limited_user.i_user.id,
+            validity_from="2025-01-02 10:10:00"
         )
+        print("claim_allowed ", claim_allowed.uuid)
 
         # Send an explicit list of uuids (as SubmitClaimsMutation receives)
         # containing both an authorized claim and one the user must not submit.

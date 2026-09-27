@@ -246,6 +246,7 @@ def validate_claimitem_in_price_list(claim, claimitem):
                 items_pricelist__validity_to__isnull=True
                 )
     pricelist_detail = get_queryset_valid_at_date(pricelist_detail_qs, target_date).first()
+    print("found ", pricelist_detail, " for ", claim.uuid)
     if not pricelist_detail:
         claimitem.rejection_reason = REJECTION_REASON_NOT_IN_PRICE_LIST
         errors += [{'code': REJECTION_REASON_NOT_IN_PRICE_LIST,
