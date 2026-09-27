@@ -12,7 +12,7 @@ from graphene import Schema
 
 from claim.models import Claim, ClaimItem, ClaimService
 from medical_pricelist.models import ItemsPricelistDetail, ItemsPricelist
-from claim.test_helpers import create_test_claim_admin, create_test_claim
+from claim.test_helpers import create_test_claim_admin, create_test_claim, create_test_item
 from claim.services import REJECTION_REASON_MANUAL_REJECTION, ClaimSubmitService, ClaimSubmitError
 import datetime
 from unittest import mock
@@ -923,7 +923,12 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
                 "code": "MIXED-UUID-BAD",
             }
         )
-        claim_item = create_test_claimitem(claim_allowed, valid=True)
+        item = create_test_item(valid=True, custom_props={"care_type": "B"})
+        claim_item = create_test_claimitem(
+            claim_allowed,
+            valid=True,
+            custom_props={"item": item}
+        )
         print("Claim care type ", claim_item.item.care_type)
         pricelist = ItemsPricelist.objects.create(
             name="Test Price List",
