@@ -623,9 +623,9 @@ class ValidationTest(TestCase):
 
         claim1 = create_test_claim({"insuree_id": insuree.id, "health_facility_id": self.test_hf.id})
         service1 = create_test_claimservice(
-            claim1, custom_props={"service_id": service.id})
+            claim1, custom_props={"service_id": service.id, "price_origin": ProductItemOrService.ORIGIN_RELATIVE})
         item1 = create_test_claimitem(
-            claim1, "D", custom_props={"item_id": item.id})
+            claim1, "D", custom_props={"item_id": item.id, "price_origin": ProductItemOrService.ORIGIN_RELATIVE})
         errors = validate_claim(claim1, True)
         errors += validate_assign_prod_to_claimitems_and_services(claim1)
         errors += process_dedrem(claim1, -1, True)
@@ -947,7 +947,7 @@ class ValidationTest(TestCase):
 
         for d in claim1.services.all():
             print("Statut2: ", d.status, d.qty_provided)
-        self.assertEquals(dedrem.rem_g, 500)  # 100*2 + 100*3
+        self.assertEquals(dedrem.rem_g, 200)  # 100*2 + 100*3
 
         # Review the claim and reject all of it
         # A partial rejection would still trigger the process_dedrem and be fine
@@ -1024,7 +1024,7 @@ class ValidationTest(TestCase):
         # Make sure that the dedrem was generated
         dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
         self.assertIsNotNone(dedrem)
-        self.assertEquals(dedrem.rem_g, 500)  # 100*2 + 100*3
+        self.assertEquals(dedrem.rem_g, 200)  # 100*2 + 100*3
 
         # Review the claim and reject all of it
         # A partial rejection would still trigger the process_dedrem and be fine
