@@ -928,7 +928,7 @@ class ValidationTest(TestCase):
         print("Count claim1 items ", claim1.items.count())
         print("Count claim1 services ", claim1.services.count())
         for d in claim1.items.all():
-            print("Statu1: ", d.status, d.qty_provided)
+            print("Statu1: ", d.rejection_reason, d.qty_provided)
 
         for d in claim1.services.all():
             print("Statut2: ", d.status, d.qty_provided)
