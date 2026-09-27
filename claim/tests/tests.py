@@ -924,7 +924,6 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         )
         claim_item = create_test_claimitem(claim_allowed, valid=True)
         pricelist = ItemsPricelist.objects.create(
-            code="PL1",
             name="Test Price List",
             audit_user_id=limited_user.i_user.id,
             pricelist_date=claim_allowed.date_from,
