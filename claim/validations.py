@@ -403,6 +403,7 @@ def validate_item_product_family(claimitem, target_date, item, insuree_id, adult
     errors = []
     found = False
     with get_products(target_date, item.id, insuree_id, adult, 'Item') as cursor:
+        print("all found: ", cursor.fetchall(), " for ", claimitem)
         for (product_id, product_item_id, insuree_policy_effective_date, policy_effective_date, expiry_date,
              policy_stage) in cursor.fetchall():
             found = True
@@ -760,6 +761,7 @@ def validate_assign_prod_elt(claim, elt, elt_ref, elt_qs):
         limit_adult if adult else limit_child
     )
     logger.debug("[claim: %s] F found: %s", claim.uuid, product_elt_f is not None)
+    print("product_elt_c ", product_elt_c, " and ", product_elt_f, " for ", claim.uuid)
     if not product_elt_c and not product_elt_f:
         elt.rejection_reason = REJECTION_REASON_NO_PRODUCT_FOUND
         elt.save()

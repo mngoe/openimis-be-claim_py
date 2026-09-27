@@ -929,7 +929,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             valid=True,
             custom_props={"item": item}
         )
-        print("Claim care type ", claim_item.item.care_type)
+        print("claim_item is ", claim_item)
         pricelist = ItemsPricelist.objects.create(
             name="Test Price List",
             audit_user_id=limited_user.i_user.id,
