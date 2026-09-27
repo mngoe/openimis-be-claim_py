@@ -953,7 +953,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             is_head=True 
         )
 
-        product = create_test_product("TestProduct", valid=True)
+        product = create_test_product("TProd1", valid=True)
         create_test_product_item(product, item)
 
         target_date = claim_allowed.date_from
