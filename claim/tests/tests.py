@@ -924,9 +924,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             }
         )
         claim_item = create_test_claimitem(claim_allowed, valid=True)
-        claim_item.item.care_type = "B"
-        claim_item.item.validity_from = "2019-06-01"
-        claim_item.item.save()
+        print("Claim care type ", claim_item.item.care_type)
         pricelist = ItemsPricelist.objects.create(
             name="Test Price List",
             audit_user_id=limited_user.i_user.id,
