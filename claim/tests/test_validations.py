@@ -948,6 +948,7 @@ class ValidationTest(TestCase):
         errors = validate_claim(claim1, True)
         errors += validate_assign_prod_to_claimitems_and_services(claim1)
         errors += process_dedrem(claim1, -1, False)
+        print("tot errors ", errors)
 
         self.assertEqual(len(errors), 0)
         # Make sure that the dedrem was generated
