@@ -15,6 +15,7 @@ from insuree.models import Family, Insuree
 from insuree.test_helpers import create_test_insuree
 from location.models import HealthFacility
 from medical_pricelist.test_helpers import add_service_to_hf_pricelist, add_item_to_hf_pricelist
+from medical_pricelist.models import ItemsPricelistDetail, ItemsPricelist
 from medical.models import ServiceItem, ServiceService
 from product.models import ProductItemOrService
 
@@ -912,11 +913,38 @@ class ValidationTest(TestCase):
         pricelist_detail1 = add_service_to_hf_pricelist(service, hf_id=self.test_hf.id)
         pricelist_detail2 = add_item_to_hf_pricelist(item, hf_id=self.test_hf.id)
 
-        claim1 = create_test_claim({"insuree_id": insuree.id, "health_facility_id": self.test_hf.id})
+        claim1 = create_test_claim({"insuree_id": insuree.id, "health_facility_id": self.test_hf.id, "date_to": "2026-01-01 00:00:00"})
+        target_date = claim1.date_from
+        
+        (policy, insuree_policy) = create_test_policy2(
+            product,
+            insuree,
+            custom_props={
+                "value": 1000,
+                "status": 2,
+                "effective_date": target_date.replace(day=1)
+            }
+        )
+        pricelist = ItemsPricelist.objects.create(
+            name="Test Price List",
+            audit_user_id=-1,
+            pricelist_date=claim1.date_from,
+            location=claim1.health_facility.location
+        )
+
+        claim1.health_facility.items_pricelist = pricelist
+        claim1.health_facility.save()
+
+        ItemsPricelistDetail.objects.create(
+            items_pricelist=pricelist,
+            item=claim1.item,
+            audit_user_id=-1,
+            validity_from="2025-01-02 10:10:00"
+        )
         service1 = create_test_claimservice(
             claim1, custom_props={"service_id": service.id, "qty_provided": 2, "product": product, "policy": policy})
         item1 = create_test_claimitem(
-            claim1, "A", custom_props={"item_id": item.id, "qty_provided": 3, "product": product, "policy": policy})
+            claim1, "A", custom_props={"item_id": item.id, "qty_provided": 3, "product": product, "policy": policy}, valid=True)
         errors = validate_claim(claim1, True)
         errors += validate_assign_prod_to_claimitems_and_services(claim1)
         errors += process_dedrem(claim1, -1, False)
