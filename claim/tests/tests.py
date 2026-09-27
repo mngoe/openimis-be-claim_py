@@ -928,7 +928,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             name="Test Price List",
             audit_user_id=limited_user.i_user.id,
             pricelist_date=claim_allowed.date_from,
-            location=claim_allowed.health_facility
+            location=claim_allowed.health_facility.location
         )
 
         claim_allowed.health_facility.items_pricelist = pricelist
