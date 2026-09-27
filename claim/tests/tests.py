@@ -923,7 +923,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
                 "code": "MIXED-UUID-BAD",
             }
         )
-        item = create_test_item(valid=True, custom_props={"care_type": "B"})
+        item = create_test_item(valid=True, item_type="D", custom_props={"care_type": "B"})
         claim_item = create_test_claimitem(
             claim_allowed,
             valid=True,
