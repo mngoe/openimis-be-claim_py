@@ -925,26 +925,12 @@ class ValidationTest(TestCase):
                 "effective_date": target_date.replace(day=1)
             }
         )
-        pricelist = ItemsPricelist.objects.create(
-            name="Test Price List",
-            audit_user_id=-1,
-            pricelist_date=claim1.date_from,
-            location=claim1.health_facility.location
-        )
-
-        claim1.health_facility.items_pricelist = pricelist
-        claim1.health_facility.save()
 
         service1 = create_test_claimservice(
             claim1, custom_props={"service_id": service.id, "qty_provided": 2, "product": product, "policy": policy})
         item1 = create_test_claimitem(
             claim1, "A", custom_props={"item_id": item.id, "qty_provided": 3, "product": product, "policy": policy}, valid=True)
-        ItemsPricelistDetail.objects.create(
-            items_pricelist=pricelist,
-            item=item1.item,
-            audit_user_id=-1,
-            validity_from="2025-01-02 10:10:00"
-        )
+
         errors = validate_claim(claim1, True)
         errors += validate_assign_prod_to_claimitems_and_services(claim1)
         errors += process_dedrem(claim1, -1, False)
