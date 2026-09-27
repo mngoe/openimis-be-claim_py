@@ -941,7 +941,7 @@ class ValidationTest(TestCase):
             claim1, "A", custom_props={"item_id": item.id, "qty_provided": 3, "product": product, "policy": policy}, valid=True)
         ItemsPricelistDetail.objects.create(
             items_pricelist=pricelist,
-            item=item1,
+            item=item1.item,
             audit_user_id=-1,
             validity_from="2025-01-02 10:10:00"
         )
