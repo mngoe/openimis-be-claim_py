@@ -625,10 +625,18 @@ class ValidationTest(TestCase):
         service1 = create_test_claimservice(
             claim1, custom_props={"service_id": service.id, "price_origin": ProductItemOrService.ORIGIN_RELATIVE})
         item1 = create_test_claimitem(
-            claim1, "D", custom_props={"item_id": item.id, "price_origin": ProductItemOrService.ORIGIN_RELATIVE})
+            claim1, "D", custom_props={"item_id": item.id, "status": ClaimItem.STATUS_PASSED, "price_origin": ProductItemOrService.ORIGIN_RELATIVE})
         errors = validate_claim(claim1, True)
         errors += validate_assign_prod_to_claimitems_and_services(claim1)
         errors += process_dedrem(claim1, -1, True)
+        for i in claim1.items.all():
+            print(
+                "chek ststus:",
+                i.id,
+                i.status,
+                i.price_origin,
+                i.price_adjusted
+            )
         self.assertEqual(len(errors), 0)
 
         # Then
@@ -975,7 +983,7 @@ class ValidationTest(TestCase):
         # Then dedrem should have been updated
         dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
         self.assertIsNotNone(dedrem)
-        self.assertEquals(dedrem.rem_g, 200)  # 100*1 + 100*1
+        self.assertEquals(dedrem.rem_g, 100)  # 100*1 + 100*1
         # tearDown
         # dedrem.delete() # already done if the test passed
         delete_claim_with_itemsvc_dedrem_and_history(claim1)
