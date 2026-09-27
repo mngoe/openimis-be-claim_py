@@ -913,7 +913,7 @@ class ValidationTest(TestCase):
         pricelist_detail1 = add_service_to_hf_pricelist(service, hf_id=self.test_hf.id)
         pricelist_detail2 = add_item_to_hf_pricelist(item, hf_id=self.test_hf.id)
 
-        claim1 = create_test_claim({"insuree_id": insuree.id, "health_facility_id": self.test_hf.id, "date_to": "2026-01-01 00:00:00"})
+        claim1 = create_test_claim({"insuree_id": insuree.id, "health_facility_id": self.test_hf.id})
         target_date = claim1.date_from
         
         (policy, insuree_policy) = create_test_policy2(
