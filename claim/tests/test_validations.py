@@ -925,6 +925,13 @@ class ValidationTest(TestCase):
         # Make sure that the dedrem was generated
         dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
         self.assertIsNotNone(dedrem)
+        print("Count claim1 items ", claim1.items.count())
+        print("Count claim1 services ", claim1.services.count())
+        for d in claim1.items.all():
+            print("Statu1: ", d.status, d.qty_provided)
+
+        for d in claim1.services.all():
+            print("Statut2: ", d.status, d.qty_provided)
         self.assertEquals(dedrem.rem_g, 500)  # 100*2 + 100*3
 
         # Review the claim and reject all of it
