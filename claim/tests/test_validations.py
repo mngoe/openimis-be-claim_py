@@ -615,7 +615,7 @@ class ValidationTest(TestCase):
         product = create_test_product("VISIT", custom_props={})
         policy = create_test_policy(product, insuree, link=True)
         service = create_test_service("V", custom_props={})
-        item = create_test_item("D", custom_props={})
+        item = create_test_item("D", custom_props={}, valid=True)
         product_service = create_test_product_service(product, service)
         product_item = create_test_product_item(product, item)
         pricelist_detail1 = add_service_to_hf_pricelist(service, hf_id=self.test_hf.id)
@@ -626,9 +626,19 @@ class ValidationTest(TestCase):
             claim1, custom_props={"service_id": service.id, "price_origin": ProductItemOrService.ORIGIN_RELATIVE})
         item1 = create_test_claimitem(
             claim1, "D", custom_props={"item_id": item.id, "status": ClaimItem.STATUS_PASSED, "price_origin": ProductItemOrService.ORIGIN_RELATIVE})
-        # errors = validate_claim(claim1, True)
-        # errors += validate_assign_prod_to_claimitems_and_services(claim1)
-        errors = process_dedrem(claim1, -1, True)
+        errors = validate_claim(claim1, True)
+        errors += validate_assign_prod_to_claimitems_and_services(claim1)
+        errors += process_dedrem(claim1, -1, True)
+        print(
+            "verif:",
+            claim1.items.filter(validity_to__isnull=True)
+            .values(
+                "id",
+                "status",
+                "price_origin",
+                "price_adjusted"
+            )
+        )
         for i in claim1.items.all():
             print(
                 "chek ststus:",
