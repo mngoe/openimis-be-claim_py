@@ -636,17 +636,29 @@ class ValidationTest(TestCase):
                 "id",
                 "status",
                 "price_origin",
-                "price_adjusted"
+                "price_adjusted",
+                "price_valuated",
+                "deductable_amount",
+                "exceed_ceiling_amount",
+                "exceed_ceiling_amount_category",
+                "remunerated_amount"
             )
         )
         for i in claim1.items.all():
             print(
                 "chek ststus:",
-                i.id,
-                i.status,
-                i.price_origin,
-                i.price_adjusted,
-                i.rejection_reason
+                claim1.items.filter(validity_to__isnull=True)
+                .values(
+                    "id",
+                    "status",
+                    "price_origin",
+                    "price_adjusted",
+                    "price_valuated",
+                    "deductable_amount",
+                    "exceed_ceiling_amount",
+                    "exceed_ceiling_amount_category",
+                    "remunerated_amount"
+                )
             )
         self.assertEqual(len(errors), 0)
 
@@ -655,7 +667,7 @@ class ValidationTest(TestCase):
         item1.refresh_from_db()
         service1.refresh_from_db()
         self.assertEqual(len(errors), 0)
-        self.assertEqual(item1.price_adjusted, 100)
+        self.assertEqual(service1.price_adjusted, 100)
         self.assertEqual(item1.price_valuated, 700)
         self.assertEqual(item1.deductable_amount, 0)
         self.assertEqual(item1.exceed_ceiling_amount, 0)
