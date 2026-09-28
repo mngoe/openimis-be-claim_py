@@ -403,7 +403,6 @@ def validate_item_product_family(claimitem, target_date, item, insuree_id, adult
     errors = []
     found = False
     with get_products(target_date, item.id, insuree_id, adult, 'Item') as cursor:
-        print("all found: ", cursor.fetchall(), " for ", claimitem)
         for (product_id, product_item_id, insuree_policy_effective_date, policy_effective_date, expiry_date,
              policy_stage) in cursor.fetchall():
             found = True
@@ -421,7 +420,7 @@ def validate_item_product_family(claimitem, target_date, item, insuree_id, adult
             errors += check_service_item_max_provision(adult, product_item, item, insuree_policy_effective_date,
                                                        expiry_date, insuree_id, claimitem)
         if not found:
-            claimitem.rejection_reason = 45
+            claimitem.rejection_reason = 66
             errors += [{'code': REJECTION_REASON_NO_PRODUCT_FOUND,
                         'message': _("claim.validation.product_family.no_product_found") % {
                             'code': claimitem.claim.code,
@@ -763,7 +762,7 @@ def validate_assign_prod_elt(claim, elt, elt_ref, elt_qs):
     logger.debug("[claim: %s] F found: %s", claim.uuid, product_elt_f is not None)
     print("product_elt_c ", product_elt_c, " and ", product_elt_f, " for ", claim.uuid)
     if not product_elt_c and not product_elt_f:
-        elt.rejection_reason = 67
+        elt.rejection_reason = REJECTION_REASON_NO_PRODUCT_FOUND
         elt.save()
         return [{'code': REJECTION_REASON_NO_PRODUCT_FOUND,
                  'message': _("claim.validation.assign_prod.elt.no_product_code") % {
