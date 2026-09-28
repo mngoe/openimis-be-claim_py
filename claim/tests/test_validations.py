@@ -15,7 +15,6 @@ from insuree.models import Family, Insuree
 from insuree.test_helpers import create_test_insuree
 from location.models import HealthFacility
 from medical_pricelist.test_helpers import add_service_to_hf_pricelist, add_item_to_hf_pricelist
-from medical_pricelist.models import ItemsPricelistDetail, ItemsPricelist
 from medical.models import ServiceItem, ServiceService
 from product.models import ProductItemOrService
 
@@ -24,7 +23,7 @@ from medical_pricelist.test_helpers import add_service_to_hf_pricelist, add_item
     update_pricelist_service_detail_in_hf_pricelist, update_pricelist_item_detail_in_hf_pricelist, \
     create_test_service_pricelist, create_test_item_pricelist
 from policy.test_helpers import create_test_policy, create_test_policy2
-from claim.apps import ClaimConfig
+
 
 # default arguments should not pass a list or a dict because they're mutable but we don't risk mutating them here:
 # noinspection PyDefaultArgument,DuplicatedCode
@@ -615,7 +614,7 @@ class ValidationTest(TestCase):
         product = create_test_product("VISIT", custom_props={})
         policy = create_test_policy(product, insuree, link=True)
         service = create_test_service("V", custom_props={})
-        item = create_test_item("D", custom_props={}, valid=True)
+        item = create_test_item("D", custom_props={})
         product_service = create_test_product_service(product, service)
         product_item = create_test_product_item(product, item)
         pricelist_detail1 = add_service_to_hf_pricelist(service, hf_id=self.test_hf.id)
@@ -623,43 +622,12 @@ class ValidationTest(TestCase):
 
         claim1 = create_test_claim({"insuree_id": insuree.id, "health_facility_id": self.test_hf.id})
         service1 = create_test_claimservice(
-            claim1, custom_props={"service_id": service.id, "price_origin": ProductItemOrService.ORIGIN_RELATIVE})
+            claim1, custom_props={"service_id": service.id})
         item1 = create_test_claimitem(
-            claim1, "D", custom_props={"item_id": item.id, "status": ClaimItem.STATUS_PASSED, "price_origin": ProductItemOrService.ORIGIN_RELATIVE})
+            claim1, "D", custom_props={"item_id": item.id})
         errors = validate_claim(claim1, True)
         errors += validate_assign_prod_to_claimitems_and_services(claim1)
         errors += process_dedrem(claim1, -1, True)
-        print(
-            "verif:",
-            claim1.services.filter(validity_to__isnull=True)
-            .values(
-                "id",
-                "status",
-                "price_origin",
-                "price_adjusted",
-                "price_valuated",
-                "deductable_amount",
-                "exceed_ceiling_amount",
-                "exceed_ceiling_amount_category",
-                "remunerated_amount"
-            )
-        )
-        for i in claim1.items.all():
-            print(
-                "chek ststus:",
-                claim1.items.filter(validity_to__isnull=True)
-                .values(
-                    "id",
-                    "status",
-                    "price_origin",
-                    "price_adjusted",
-                    "price_valuated",
-                    "deductable_amount",
-                    "exceed_ceiling_amount",
-                    "exceed_ceiling_amount_category",
-                    "remunerated_amount"
-                )
-            )
         self.assertEqual(len(errors), 0)
 
         # Then
@@ -667,12 +635,12 @@ class ValidationTest(TestCase):
         item1.refresh_from_db()
         service1.refresh_from_db()
         self.assertEqual(len(errors), 0)
-        self.assertEqual(service1.price_adjusted, 100)
-        self.assertEqual(service1.price_valuated, 700)
-        self.assertEqual(service1.deductable_amount, 0)
-        self.assertEqual(service1.exceed_ceiling_amount, 0)
+        self.assertEqual(item1.price_adjusted, 100)
+        self.assertEqual(item1.price_valuated, 700)
+        self.assertEqual(item1.deductable_amount, 0)
+        self.assertEqual(item1.exceed_ceiling_amount, 0)
         self.assertIsNone(item1.exceed_ceiling_amount_category)
-        self.assertEqual(service1.remunerated_amount, 700)
+        self.assertEqual(item1.remunerated_amount, 700)
         self.assertEqual(claim1.status, Claim.STATUS_VALUATED)
         self.assertEqual(claim1.audit_user_id_process, -1)
         self.assertIsNotNone(claim1.process_stamp)
@@ -681,12 +649,12 @@ class ValidationTest(TestCase):
         dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
-        self.assertEqual(dedrem1.policy_id, service1.policy_id)
+        self.assertEqual(dedrem1.policy_id, item1.policy_id)
         self.assertEqual(dedrem1.insuree_id, claim1.insuree_id)
         self.assertEqual(dedrem1.audit_user_id, -1)
         self.assertEqual(dedrem1.ded_g, 0)
-        self.assertEqual(dedrem1.rem_g, 700)
-        self.assertEqual(dedrem1.rem_op, 700)
+        self.assertEqual(dedrem1.rem_g, 1400)
+        self.assertEqual(dedrem1.rem_op, 1400)
         self.assertIsNone(dedrem1.rem_ip)
         self.assertEqual(dedrem1.rem_surgery, 0)
         self.assertEqual(dedrem1.rem_consult, 0)
@@ -742,28 +710,13 @@ class ValidationTest(TestCase):
         claim1.refresh_from_db()
         item1.refresh_from_db()
         service1.refresh_from_db()
-        print(
-            "verif2:",
-            claim1.services.filter(validity_to__isnull=True)
-            .values(
-                "id",
-                "status",
-                "price_origin",
-                "price_adjusted",
-                "price_valuated",
-                "deductable_amount",
-                "exceed_ceiling_amount",
-                "exceed_ceiling_amount_category",
-                "remunerated_amount"
-            )
-        )
         self.assertEqual(len(errors), 0)
-        self.assertEqual(service1.price_adjusted, 100)
-        self.assertEqual(service1.price_valuated, 55)
-        self.assertEqual(service1.deductable_amount, 0)
-        self.assertEqual(service1.exceed_ceiling_amount, 0)
-        self.assertIsNone(service1.exceed_ceiling_amount_category)
-        self.assertEqual(service1.remunerated_amount, 55)
+        self.assertEqual(item1.price_adjusted, 100)
+        self.assertEqual(item1.price_valuated, 55)
+        self.assertEqual(item1.deductable_amount, 0)
+        self.assertEqual(item1.exceed_ceiling_amount, 0)
+        self.assertIsNone(item1.exceed_ceiling_amount_category)
+        self.assertEqual(item1.remunerated_amount, 55)
         self.assertEqual(claim1.status, Claim.STATUS_VALUATED)
         self.assertEqual(claim1.audit_user_id_process, -1)
         self.assertIsNotNone(claim1.process_stamp)
@@ -772,7 +725,7 @@ class ValidationTest(TestCase):
         dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
-        self.assertEqual(dedrem1.policy_id, service1.policy_id)
+        self.assertEqual(dedrem1.policy_id, item1.policy_id)
         self.assertEqual(dedrem1.insuree_id, claim1.insuree_id)
         self.assertEqual(dedrem1.audit_user_id, -1)
         self.assertEqual(dedrem1.ded_g, 0)
@@ -829,12 +782,12 @@ class ValidationTest(TestCase):
         item1.refresh_from_db()
         service1.refresh_from_db()
         self.assertEqual(len(errors), 0)
-        self.assertEqual(service1.price_adjusted, 100)
-        self.assertEqual(service1.price_valuated, 55)
-        self.assertEqual(service1.deductable_amount, 0)
-        self.assertEqual(service1.exceed_ceiling_amount, 0)
-        self.assertIsNone(service1.exceed_ceiling_amount_category)
-        self.assertEqual(service1.remunerated_amount, 55)
+        self.assertEqual(item1.price_adjusted, 100)
+        self.assertEqual(item1.price_valuated, 55)
+        self.assertEqual(item1.deductable_amount, 0)
+        self.assertEqual(item1.exceed_ceiling_amount, 0)
+        self.assertIsNone(item1.exceed_ceiling_amount_category)
+        self.assertEqual(item1.remunerated_amount, 55)
         self.assertEqual(claim1.status, Claim.STATUS_VALUATED)
         self.assertEqual(claim1.audit_user_id_process, -1)
         self.assertIsNotNone(claim1.process_stamp)
@@ -843,7 +796,7 @@ class ValidationTest(TestCase):
         dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
-        self.assertEqual(dedrem1.policy_id, service1.policy_id)
+        self.assertEqual(dedrem1.policy_id, item1.policy_id)
         self.assertEqual(dedrem1.insuree_id, claim1.insuree_id)
         self.assertEqual(dedrem1.audit_user_id, -1)
         self.assertEqual(dedrem1.ded_g, 0)
@@ -900,12 +853,12 @@ class ValidationTest(TestCase):
         item1.refresh_from_db()
         service1.refresh_from_db()
         self.assertEqual(len(errors), 0)
-        self.assertEqual(service1.price_adjusted, 100)
-        self.assertEqual(service1.price_valuated, 55)
-        self.assertEqual(service1.deductable_amount, 0)
-        self.assertEqual(service1.exceed_ceiling_amount, 0)
-        self.assertIsNone(service1.exceed_ceiling_amount_category)
-        self.assertEqual(service1.remunerated_amount, 55)
+        self.assertEqual(item1.price_adjusted, 100)
+        self.assertEqual(item1.price_valuated, 55)
+        self.assertEqual(item1.deductable_amount, 0)
+        self.assertEqual(item1.exceed_ceiling_amount, 0)
+        self.assertIsNone(item1.exceed_ceiling_amount_category)
+        self.assertEqual(item1.remunerated_amount, 55)
         self.assertEqual(claim1.status, Claim.STATUS_VALUATED)
         self.assertEqual(claim1.audit_user_id_process, -1)
         self.assertIsNotNone(claim1.process_stamp)
@@ -914,7 +867,7 @@ class ValidationTest(TestCase):
         dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
-        self.assertEqual(dedrem1.policy_id, service1.policy_id)
+        self.assertEqual(dedrem1.policy_id, item1.policy_id)
         self.assertEqual(dedrem1.insuree_id, claim1.insuree_id)
         self.assertEqual(dedrem1.audit_user_id, -1)
         self.assertEqual(dedrem1.ded_g, 0)
@@ -944,56 +897,35 @@ class ValidationTest(TestCase):
         It should not be processed (which was ok) but the dedrem should be deleted.
         """
         # Given
-        insuree = create_test_insuree(with_family=True, is_head=True)
+        insuree = create_test_insuree()
         self.assertIsNotNone(insuree)
         service = create_test_service("A", custom_props={"name": "test_review_reject_delete_dedrem"})
-        item = create_test_item("A", valid=True, custom_props={"name": "test_review_reject_delete_dedrem", "care_type": "B"})
+        item = create_test_item("A", custom_props={"name": "test_review_reject_delete_dedrem"})
 
         product = create_test_product("BCUL0001", custom_props={
             "name": "Basic Cover Ultha deldedrem",
             "lump_sum": 10_000,
         })
         product_service = create_test_product_service(product, service)
-        product_item = create_test_product_item(product=product, item=item, valid=True)
+        product_item = create_test_product_item(product, item)
         policy = create_test_policy(product, insuree, link=True)
         pricelist_detail1 = add_service_to_hf_pricelist(service, hf_id=self.test_hf.id)
         pricelist_detail2 = add_item_to_hf_pricelist(item, hf_id=self.test_hf.id)
 
         claim1 = create_test_claim({"insuree_id": insuree.id, "health_facility_id": self.test_hf.id})
-        target_date = claim1.date_from
-        
-        (policy, insuree_policy) = create_test_policy2(
-            product,
-            insuree,
-            custom_props={
-                "value": 1000,
-                "status": 2,
-                "effective_date": target_date.replace(day=1)
-            }
-        )
-
         service1 = create_test_claimservice(
             claim1, custom_props={"service_id": service.id, "qty_provided": 2, "product": product, "policy": policy})
         item1 = create_test_claimitem(
-            claim1, "A", custom_props={"item_id": item.id, "qty_provided": 3, "product": product, "policy": policy}, valid=True)
-
+            claim1, "A", custom_props={"item_id": item.id, "qty_provided": 3, "product": product, "policy": policy})
         errors = validate_claim(claim1, True)
         errors += validate_assign_prod_to_claimitems_and_services(claim1)
         errors += process_dedrem(claim1, -1, False)
-        print("tot errors ", errors)
 
         self.assertEqual(len(errors), 0)
         # Make sure that the dedrem was generated
         dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
         self.assertIsNotNone(dedrem)
-        print("Count claim1 items ", claim1.items.count())
-        print("Count claim1 services ", claim1.services.count())
-        for d in claim1.items.all():
-            print("Statu1: ", d.rejection_reason, d.qty_provided)
-
-        for d in claim1.services.all():
-            print("Statut2: ", d.status, d.qty_provided)
-        self.assertEquals(dedrem.rem_g, 200)  # 100*2 + 100*3
+        self.assertEquals(dedrem.rem_g, 500)  # 100*2 + 100*3
 
         # Review the claim and reject all of it
         # A partial rejection would still trigger the process_dedrem and be fine
@@ -1021,7 +953,7 @@ class ValidationTest(TestCase):
         # Then dedrem should have been updated
         dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
         self.assertIsNotNone(dedrem)
-        self.assertEquals(dedrem.rem_g, 100)  # 100*1 + 100*1
+        self.assertEquals(dedrem.rem_g, 200)  # 100*1 + 100*1
         # tearDown
         # dedrem.delete() # already done if the test passed
         delete_claim_with_itemsvc_dedrem_and_history(claim1)
@@ -1070,7 +1002,7 @@ class ValidationTest(TestCase):
         # Make sure that the dedrem was generated
         dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
         self.assertIsNotNone(dedrem)
-        self.assertEquals(dedrem.rem_g, 200)  # 100*2 + 100*3
+        self.assertEquals(dedrem.rem_g, 500)  # 100*2 + 100*3
 
         # Review the claim and reject all of it
         # A partial rejection would still trigger the process_dedrem and be fine
@@ -1166,12 +1098,12 @@ class ValidationTest(TestCase):
         item1.refresh_from_db()
         service1.refresh_from_db()
         self.assertEqual(len(errors), 0)
-        self.assertEqual(service1.price_adjusted, 100)
-        self.assertEqual(service1.price_valuated, 700)
-        self.assertEqual(service1.deductable_amount, 0)
-        self.assertEqual(service1.exceed_ceiling_amount, 0)
-        self.assertIsNone(service1.exceed_ceiling_amount_category)
-        self.assertEqual(service1.remunerated_amount, 700)
+        self.assertEqual(item1.price_adjusted, 100)
+        self.assertEqual(item1.price_valuated, 700)
+        self.assertEqual(item1.deductable_amount, 0)
+        self.assertEqual(item1.exceed_ceiling_amount, 0)
+        self.assertIsNone(item1.exceed_ceiling_amount_category)
+        self.assertEqual(item1.remunerated_amount, 700)
         self.assertEqual(claim1.status, Claim.STATUS_VALUATED)
         self.assertEqual(claim1.audit_user_id_process, -1)
         self.assertIsNotNone(claim1.process_stamp)
@@ -1180,12 +1112,12 @@ class ValidationTest(TestCase):
         dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
         self.assertEqual(dedrem_qs.count(), 1)
         dedrem1 = dedrem_qs.first()
-        self.assertEqual(dedrem1.policy_id, service1.policy_id)
+        self.assertEqual(dedrem1.policy_id, item1.policy_id)
         self.assertEqual(dedrem1.insuree_id, claim1.insuree_id)
         self.assertEqual(dedrem1.audit_user_id, -1)
         self.assertEqual(dedrem1.ded_g, 0)
-        self.assertEqual(dedrem1.rem_g, 700)
-        self.assertEqual(dedrem1.rem_op, 700)
+        self.assertEqual(dedrem1.rem_g, 1400)
+        self.assertEqual(dedrem1.rem_op, 1400)
         self.assertIsNone(dedrem1.rem_ip)
         self.assertEqual(dedrem1.rem_surgery, 0)
         self.assertEqual(dedrem1.rem_consult, 0)
@@ -1220,6 +1152,7 @@ class ValidationTest(TestCase):
         self.assertEqual(claim.feedback_status, Claim.FEEDBACK_SELECTED)
     
     def test_submit_claim_with_different_packatypes(self):
+        from claim.apps import ClaimConfig
         ClaimConfig.native_code_for_services=False
         insuree = create_test_insuree()
         self.assertIsNotNone(insuree)
@@ -1304,7 +1237,6 @@ class ValidationTest(TestCase):
         )
         # set the service price to 1000 lower than the price_adjusted
         errors = validate_claim(claim1, True)
-        ClaimConfig.native_code_for_services = False
 
         errors = validate_assign_prod_to_claimitems_and_services(claim1)
         errors += process_dedrem(claim1, -1, True)
