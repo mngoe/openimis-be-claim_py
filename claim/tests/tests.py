@@ -952,7 +952,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             audit_user_id=limited_user.i_user.id,
             validity_from="2025-01-02 10:10:00"
         )
-        print("claim_allowed ", claim_allowed.uuid)
+        print("claim_allowed ", claim_allowed.uuid, " family ", claim_allowed.insuree.family.id)
 
         product = create_test_product("TProd1", valid=True)
         create_test_product_item(product, item, valid=True, custom_props={"limitation_type": "C"})
@@ -990,6 +990,9 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
 
         qs = qs.filter(product__policies__status__in=[Policy.STATUS_ACTIVE, Policy.STATUS_EXPIRED])
         print("7", qs.count())
+
+        qs = qs.filter(**{limitation_field: limitation_type})
+        print("8", qs.count())
 
         # Send an explicit list of uuids (as SubmitClaimsMutation receives)
         # containing both an authorized claim and one the user must not submit.

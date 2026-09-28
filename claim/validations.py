@@ -864,6 +864,7 @@ def validate_assign_prod_to_claimitems_and_services(claim):
 def _query_product_item_service_limit(target_date, family_id, elt_qs,
                                       limitation_field, limitation_type,
                                       limit_ordering):
+    print("family_id", family_id, " for ", limitation_field, " fetch ", limitation_type)
     return elt_qs \
         .filter(validity_to__isnull=True,
                 product__validity_to__isnull=True,
