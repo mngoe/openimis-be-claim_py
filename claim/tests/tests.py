@@ -933,7 +933,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         claim_item = create_test_claimitem(
             claim_allowed,
             valid=True,
-            custom_props={"item": item}
+            custom_props={"item": item, "visit_type": "C"}
         )
         print("claim_item is ", claim_item)
         pricelist = ItemsPricelist.objects.create(
