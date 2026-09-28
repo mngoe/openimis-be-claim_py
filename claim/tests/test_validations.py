@@ -668,11 +668,11 @@ class ValidationTest(TestCase):
         service1.refresh_from_db()
         self.assertEqual(len(errors), 0)
         self.assertEqual(service1.price_adjusted, 100)
-        self.assertEqual(item1.price_valuated, 700)
-        self.assertEqual(item1.deductable_amount, 0)
-        self.assertEqual(item1.exceed_ceiling_amount, 0)
+        self.assertEqual(service1.price_valuated, 700)
+        self.assertEqual(service1.deductable_amount, 0)
+        self.assertEqual(service1.exceed_ceiling_amount, 0)
         self.assertIsNone(item1.exceed_ceiling_amount_category)
-        self.assertEqual(item1.remunerated_amount, 700)
+        self.assertEqual(service1.remunerated_amount, 700)
         self.assertEqual(claim1.status, Claim.STATUS_VALUATED)
         self.assertEqual(claim1.audit_user_id_process, -1)
         self.assertIsNotNone(claim1.process_stamp)
@@ -742,8 +742,23 @@ class ValidationTest(TestCase):
         claim1.refresh_from_db()
         item1.refresh_from_db()
         service1.refresh_from_db()
+        print(
+            "verif2:",
+            claim1.services.filter(validity_to__isnull=True)
+            .values(
+                "id",
+                "status",
+                "price_origin",
+                "price_adjusted",
+                "price_valuated",
+                "deductable_amount",
+                "exceed_ceiling_amount",
+                "exceed_ceiling_amount_category",
+                "remunerated_amount"
+            )
+        )
         self.assertEqual(len(errors), 0)
-        self.assertEqual(item1.price_adjusted, 100)
+        self.assertEqual(service1.price_adjusted, 100)
         self.assertEqual(item1.price_valuated, 55)
         self.assertEqual(item1.deductable_amount, 0)
         self.assertEqual(item1.exceed_ceiling_amount, 0)
@@ -814,7 +829,7 @@ class ValidationTest(TestCase):
         item1.refresh_from_db()
         service1.refresh_from_db()
         self.assertEqual(len(errors), 0)
-        self.assertEqual(item1.price_adjusted, 100)
+        self.assertEqual(service1.price_adjusted, 100)
         self.assertEqual(item1.price_valuated, 55)
         self.assertEqual(item1.deductable_amount, 0)
         self.assertEqual(item1.exceed_ceiling_amount, 0)
