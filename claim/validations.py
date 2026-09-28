@@ -420,7 +420,7 @@ def validate_item_product_family(claimitem, target_date, item, insuree_id, adult
             errors += check_service_item_max_provision(adult, product_item, item, insuree_policy_effective_date,
                                                        expiry_date, insuree_id, claimitem)
         if not found:
-            claimitem.rejection_reason = 66
+            claimitem.rejection_reason = REJECTION_REASON_NO_PRODUCT_FOUND
             errors += [{'code': REJECTION_REASON_NO_PRODUCT_FOUND,
                         'message': _("claim.validation.product_family.no_product_found") % {
                             'code': claimitem.claim.code,

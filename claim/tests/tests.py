@@ -955,7 +955,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         print("claim_allowed ", claim_allowed.uuid)
 
         product = create_test_product("TProd1", valid=True)
-        create_test_product_item(product, item)
+        create_test_product_item(product, item, valid=True)
 
         target_date = claim_allowed.date_from
 
