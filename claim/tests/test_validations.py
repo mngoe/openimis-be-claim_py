@@ -631,7 +631,7 @@ class ValidationTest(TestCase):
         errors += process_dedrem(claim1, -1, True)
         print(
             "verif:",
-            claim1.items.filter(validity_to__isnull=True)
+            claim1.services.filter(validity_to__isnull=True)
             .values(
                 "id",
                 "status",
