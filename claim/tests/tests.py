@@ -1018,6 +1018,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
                 s.validity_to
             )
         print("claim rejection reason::", claim_allowed.rejection_reason)
+        print("Status ", claim_allowed.status)
         self.assertEqual(claim_allowed.status, Claim.STATUS_CHECKED)
         self.assertEqual(claim_forbidden.status, Claim.STATUS_ENTERED)
 
