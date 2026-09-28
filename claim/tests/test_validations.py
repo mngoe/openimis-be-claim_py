@@ -635,7 +635,8 @@ class ValidationTest(TestCase):
                 i.id,
                 i.status,
                 i.price_origin,
-                i.price_adjusted
+                i.price_adjusted,
+                i.rejection_reason
             )
         self.assertEqual(len(errors), 0)
 
