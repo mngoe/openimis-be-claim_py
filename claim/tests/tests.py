@@ -9,7 +9,7 @@ from graphql_jwt.shortcuts import get_token
 from claim import schema as claim_schema
 from graphene.test import Client
 from graphene import Schema
-
+from product.models import ProductItem
 from claim.models import Claim, ClaimItem, ClaimService
 from medical_pricelist.models import ItemsPricelistDetail, ItemsPricelist
 from claim.test_helpers import create_test_claim_admin, create_test_claim, create_test_item
@@ -965,9 +965,31 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             custom_props={
                 "value": 1000,
                 "status": Policy.STATUS_ACTIVE,
-                "effective_date": target_date.replace(day=1)
+                "effective_date": target_date.replace(day=1),
+                "expiry_date": target_date
             }
         )
+        qs = ProductItem.objects.all()
+
+        print("1", qs.count())
+
+        qs = qs.filter(validity_to__isnull=True)
+        print("2", qs.count())
+
+        qs = qs.filter(product__validity_to__isnull=True)
+        print("3", qs.count())
+
+        qs = qs.filter(product__policies__family_id=policy.family_id)
+        print("4", qs.count())
+
+        qs = qs.filter(product__policies__effective_date__lte=target_date)
+        print("5", qs.count())
+
+        qs = qs.filter(product__policies__expiry_date__gte=target_date)
+        print("6", qs.count())
+
+        qs = qs.filter(product__policies__status__in=[Policy.STATUS_ACTIVE, Policy.STATUS_EXPIRED])
+        print("7", qs.count())
 
         # Send an explicit list of uuids (as SubmitClaimsMutation receives)
         # containing both an authorized claim and one the user must not submit.
