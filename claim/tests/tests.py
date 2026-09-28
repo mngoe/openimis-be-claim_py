@@ -933,7 +933,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         claim_item = create_test_claimitem(
             claim_allowed,
             valid=True,
-            custom_props={"item": item, "visit_type": "C"}
+            custom_props={"item": item}
         )
         print("claim_item is ", claim_item)
         pricelist = ItemsPricelist.objects.create(
@@ -955,7 +955,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         print("claim_allowed ", claim_allowed.uuid)
 
         product = create_test_product("TProd1", valid=True)
-        create_test_product_item(product, item, valid=True)
+        create_test_product_item(product, item, valid=True, custom_props={"limitation_type": "C"})
 
         target_date = claim_allowed.date_from
 
