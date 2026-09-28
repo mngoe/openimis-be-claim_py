@@ -464,7 +464,7 @@ def validate_service_product_family(claimservice, target_date, service, insuree_
                     break
 
         if not found:
-            claimservice.rejection_reason = REJECTION_REASON_NO_PRODUCT_FOUND
+            claimservice.rejection_reason = 55
             errors += [{'code': REJECTION_REASON_NO_PRODUCT_FOUND,
                         'message': _("claim.validation.product_family.no_product_found") % {
                             'code': claimservice.claim.code,
