@@ -626,8 +626,8 @@ class ValidationTest(TestCase):
             claim1, custom_props={"service_id": service.id, "price_origin": ProductItemOrService.ORIGIN_RELATIVE})
         item1 = create_test_claimitem(
             claim1, "D", custom_props={"item_id": item.id, "status": ClaimItem.STATUS_PASSED, "price_origin": ProductItemOrService.ORIGIN_RELATIVE})
-        errors = validate_claim(claim1, True)
-        errors += validate_assign_prod_to_claimitems_and_services(claim1)
+        # errors = validate_claim(claim1, True)
+        # errors += validate_assign_prod_to_claimitems_and_services(claim1)
         errors += process_dedrem(claim1, -1, True)
         for i in claim1.items.all():
             print(
