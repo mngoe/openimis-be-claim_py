@@ -992,7 +992,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         print("7", qs.count())
 
         qs = qs.filter(limitation_type="C")
-        print("8", qs.count())
+        print("8::", qs.count())
 
         # Send an explicit list of uuids (as SubmitClaimsMutation receives)
         # containing both an authorized claim and one the user must not submit.
