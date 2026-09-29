@@ -1022,10 +1022,10 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # first in the queryset iteration), submit it on its own so we can
         # assert that submit works for claims the user *is* allowed to touch.
         if claim_allowed.status == Claim.STATUS_ENTERED:
-            with mock.patch("claim.services.submit_claim", return_value=[]), \
-                mock.patch("claim.validations.validate_claim", return_value=[]), \
-                mock.patch("claim.validations.process_dedrem", return_value=[]), \
-                mock.patch("claim.validations.validate_assign_prod_to_claimitems_and_services", return_value=[]), \
+            with mock.patch("claim.gql_mutations.submit_claim", return_value=[]), \
+                mock.patch("claim.services.validate_claim", return_value=[]), \
+                mock.patch("claim.services.process_dedrem", return_value=[]), \
+                mock.patch("claim.services.validate_assign_prod_to_claimitems_and_services", return_value=[]), \
                 mock.patch.object(SubmitClaimsMutation, "add_submission_stats_to_mutation_log"):
                 SubmitClaimsMutation.async_mutate(
                     limited_user, uuids=[str(claim_allowed.uuid)]
