@@ -1127,7 +1127,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             service = ClaimSubmitService(user)
 
             # Real location enforcement must still happen per claim
-            with mock.patch("claim.services._validate_claim", return_value=[]):
+            with mock.patch("claim.services.ClaimSubmitService._validate_claim", return_value=[]):
                 for claim in target_qs.filter(validity_to__isnull=True):
                     try:
                         service.submit_claim(claim, user)
