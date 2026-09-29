@@ -11,6 +11,7 @@ from django.db.models import OuterRef, Subquery, Avg, Q
 import graphene_django_optimizer as gql_optimizer
 from core.schema import OrderedDjangoFilterConnectionField, OfficerGQLType
 from core import filter_validity
+from core.apps import CLAIM_ADMIN_UBA_LINK_TYPE
 from django.db.models.functions import Cast
 
 from .models import ClaimMutation
@@ -199,7 +200,9 @@ class Query(graphene.ObjectType):
         elif region_uuid is not None:
             hf_filters += [Q(location__parent__uuid=region_uuid)]
         if settings.ROW_SECURITY:
-            q = LocationManager().build_user_location_filter_query( info.context.user._u, prefix='location', loc_types=['D'])
+            q = LocationManager().build_user_location_filter_query(
+                info.context.user._u, prefix='location', loc_types=['D'],
+                link_types=CLAIM_ADMIN_UBA_LINK_TYPE)
             if q:
                 hf_filters += [q]
 
