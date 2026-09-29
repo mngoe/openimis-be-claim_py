@@ -991,7 +991,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         qs = qs.filter(product__policies__status__in=[Policy.STATUS_ACTIVE, Policy.STATUS_EXPIRED])
         print("7", qs.count())
 
-        qs = qs.filter(**{"limitation_type": "C"})
+        qs = qs.filter(limitation_type="C")
         print("8", qs.count())
 
         # Send an explicit list of uuids (as SubmitClaimsMutation receives)
