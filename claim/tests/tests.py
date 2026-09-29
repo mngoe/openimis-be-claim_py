@@ -1002,7 +1002,10 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # reach CHECKED status. The location authorization check still runs.
         # Also neutralize stats logging (no real MutationLog in this test).
         with mock.patch("claim.services.submit_claim", return_value=[]), \
-             mock.patch.object(SubmitClaimsMutation, "add_submission_stats_to_mutation_log"):
+            mock.patch("claim.validations.validate_claim", return_value=[]), \
+            mock.patch("claim.validations.process_dedrem", return_value=[]), \
+            mock.patch("claim.validations.validate_assign_prod_to_claimitems_and_services", return_value=[]), \
+            mock.patch.object(SubmitClaimsMutation, "add_submission_stats_to_mutation_log"):
             try:
                 SubmitClaimsMutation.async_mutate(
                     user=limited_user, uuids=target_uuids
