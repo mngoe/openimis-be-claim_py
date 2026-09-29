@@ -169,13 +169,11 @@ def validate_claimservices(claim):
                     claim=claim,
                 )
             if claimservice.rejection_reason:
-                print("Fail...", claimservice.rejection_reason)
                 claimservice.status = ClaimService.STATUS_REJECTED
             else:
                 claimservice.rejection_reason = 0
                 claimservice.status = ClaimService.STATUS_PASSED
             claimservice.save()
-    print("errors found ", errors)
     return errors
 
 
@@ -246,7 +244,6 @@ def validate_claimitem_in_price_list(claim, claimitem):
                 items_pricelist__validity_to__isnull=True
                 )
     pricelist_detail = get_queryset_valid_at_date(pricelist_detail_qs, target_date).first()
-    print("found ", pricelist_detail, " for ", claim.uuid)
     if not pricelist_detail:
         claimitem.rejection_reason = REJECTION_REASON_NOT_IN_PRICE_LIST
         errors += [{'code': REJECTION_REASON_NOT_IN_PRICE_LIST,
@@ -760,7 +757,6 @@ def validate_assign_prod_elt(claim, elt, elt_ref, elt_qs):
         limit_adult if adult else limit_child
     )
     logger.debug("[claim: %s] F found: %s", claim.uuid, product_elt_f is not None)
-    print("product_elt_c ", product_elt_c, " and ", product_elt_f, " for ", claim.uuid)
     if not product_elt_c and not product_elt_f:
         elt.rejection_reason = REJECTION_REASON_NO_PRODUCT_FOUND
         elt.save()
@@ -864,7 +860,6 @@ def validate_assign_prod_to_claimitems_and_services(claim):
 def _query_product_item_service_limit(target_date, family_id, elt_qs,
                                       limitation_field, limitation_type,
                                       limit_ordering):
-    print("family_id", family_id, " for ", limitation_field, " fetch ", limitation_type)
     return elt_qs \
         .filter(validity_to__isnull=True,
                 product__validity_to__isnull=True,

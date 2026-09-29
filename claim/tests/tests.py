@@ -216,49 +216,6 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         claim = Claim.objects.filter(code = 'm-c-claim').first()
         self.assertIsNotNone(claim)
         self.assertEqual(claim.status, Claim.STATUS_ENTERED)
-        # response = self.query(
-        #     f'''
-        #     mutation {{
-        #         updateClaim(
-        #             input: {{
-        #             clientMutationId: "3a90436b-d5ea-48e7-bde4-0bcff0240260"
-        #             clientMutationLabel: "Update Claim - m-c-claim" 
-        #             code: "m-c-claim"
-        #         autogenerate: false
-        #         uuid: "{str(claim.uuid)}"
-        #         insureeId: {self.insuree.id}
-        #         adminId: {self.claim_admin.id}
-        #         dateFrom: "2023-11-06"  
-        #         icdId: 2 
-        #         jsonExt: "{{}}"
-        #         feedbackStatus: 1
-        #         reviewStatus: 1
-        #         dateClaimed: "2023-12-06"
-        #         healthFacilityId: {self.hf.id}
-        #         visitType: "O"
-        #         program: {self.program.idProgram}
-        #         services: [
-        #         {{
-                
-        #         serviceId: {self.service.id}
-        #         priceAsked: "10.00"
-        #         qtyProvided: "1.00"
-        #         status: 1,
-        #         serviceItemSet: [],
-        #         serviceServiceSet: []
-        #     }}
-        #         ]
-        #         items: [
-        #         ]
-        #             }}
-        #         ) {{
-        #             clientMutationId
-        #             internalId
-        #         }}
-        #     }}
-        #         ''',
-        #     headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
-        # self.get_mutation_result('3a90436b-d5ea-48e7-bde4-0bcff0240260', self.admin_token )
 
         #submit claim 
         response = self.query(f'''
@@ -603,7 +560,6 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         assign_user_districts(limited_user, [district_allowed.code])
         # incoming_qs = Claim.get_queryset(Claim.objects, limited_user)
         incoming_qs = Claim.objects.filter(validity_to__isnull=True)
-        print("limited user: ", limited_user.i_user, "get_queryset count:", incoming_qs.count(), "Test manuel status=4:", incoming_qs.filter(status=Claim.STATUS_CHECKED).count(), "Test manuel status='4':", incoming_qs.filter(status="4").count())
         # Test direct sans passer par q_filter
         # print("q_filter children:", q_filter.children)
 
@@ -935,7 +891,6 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             valid=True,
             custom_props={"item": item}
         )
-        print("claim_item is ", claim_item)
         pricelist = ItemsPricelist.objects.create(
             name="Test Price List",
             audit_user_id=limited_user.i_user.id,
@@ -952,8 +907,6 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             audit_user_id=limited_user.i_user.id,
             validity_from="2025-01-02 10:10:00"
         )
-        print("claim_allowed ", claim_allowed.uuid, " family ", claim_allowed.insuree.family.id)
-
         product = create_test_product("TProd1", valid=True)
         create_test_product_item(product, item, valid=True, custom_props={"limitation_type": "C"})
 
@@ -969,30 +922,6 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
                 "expiry_date": target_date
             }
         )
-        qs = ProductItem.objects.all()
-
-        print("1", qs.count())
-
-        qs = qs.filter(validity_to__isnull=True)
-        print("2", qs.count())
-
-        qs = qs.filter(product__validity_to__isnull=True)
-        print("3", qs.count())
-
-        qs = qs.filter(product__policies__family_id=policy.family_id)
-        print("4", qs.count())
-
-        qs = qs.filter(product__policies__effective_date__lte=target_date)
-        print("5", qs.count())
-
-        qs = qs.filter(product__policies__expiry_date__gte=target_date)
-        print("6", qs.count())
-
-        qs = qs.filter(product__policies__status__in=[Policy.STATUS_ACTIVE, Policy.STATUS_EXPIRED])
-        print("7", qs.count())
-
-        qs = qs.filter(limitation_type="C")
-        print("8::", qs.count())
 
         # Send an explicit list of uuids (as SubmitClaimsMutation receives)
         # containing both an authorized claim and one the user must not submit.
@@ -1033,19 +962,6 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
 
         # The authorized claim must have had submit applied (status changed).
         # The unauthorized claim must not have been submitted.
-        claim = Claim.objects.filter(id=claim_allowed.id).first()
-        print("rejection reason: ", claim.rejection_reason)
-        print("Services count: ", claim.items.count())
-        for s in claim.items.all():
-            print(
-                "checks::",
-                s.id,
-                s.status,
-                s.rejection_reason,
-                s.validity_to
-            )
-        print("claim rejection reason::", claim_allowed.rejection_reason)
-        print("Status ", claim_allowed.status)
         self.assertEqual(claim_allowed.status, Claim.STATUS_CHECKED)
         self.assertEqual(claim_forbidden.status, Claim.STATUS_ENTERED)
 
@@ -1171,7 +1087,6 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # Only the claim belonging to an allowed location for the user
         # should have been submitted.
         claim = Claim.objects.filter(id=claim_allowed.id).first()
-        print("rejection reason 2: ", claim.rejection_reason)
         self.assertEqual(claim_allowed.status, Claim.STATUS_CHECKED)
         self.assertEqual(claim_forbidden.status, Claim.STATUS_ENTERED)
 
