@@ -10,7 +10,6 @@ from core.models import Officer
 from core.utils import filter_validity
 from django.db import connection, transaction
 from gettext import gettext as _
-
 from core.signals import register_service_signal
 from .apps import ClaimConfig
 from medical_controller.apps import MedicalControllerConfig
@@ -536,9 +535,9 @@ def claim_update(claim, data, user):
                                 qty_audited=qty_audited
                             )
     from core.utils import TimeUtils
+    claim_create_items_and_services(claim, data, user)
     claim.items.update(validity_to=TimeUtils.now())
     claim.services.update(validity_to=TimeUtils.now())
-    claim_create_items_and_services(claim, data, user)
     return claim
 
 
@@ -554,6 +553,8 @@ def claim_create_items_and_services(claim, data, user):
     claimed = 0
     claimed += process_items_relations(user, claim, items)
     claimed += process_services_relations(user, claim, services)
+    if claimed < 0:
+        raise ValidationError(_("mutation.negative_amount_not_allowed"))
     if claimed == 0:
         claimed = 0.00
     claim.claimed = claimed

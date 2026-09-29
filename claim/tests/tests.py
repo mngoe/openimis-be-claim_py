@@ -9,12 +9,13 @@ from graphql_jwt.shortcuts import get_token
 from claim import schema as claim_schema
 from graphene.test import Client
 from graphene import Schema
-
 from claim.models import Claim, ClaimItem, ClaimService
-from claim.test_helpers import create_test_claim_admin, create_test_claim
+from medical_pricelist.models import ItemsPricelistDetail, ItemsPricelist
+from claim.test_helpers import create_test_claim_admin, create_test_claim, create_test_item
 from claim.services import REJECTION_REASON_MANUAL_REJECTION, ClaimSubmitService, ClaimSubmitError
 import datetime
 from unittest import mock
+from unittest.mock import patch
 from django.core.cache import caches
 from django.test import TestCase
 from core.utils import clear_current_user
@@ -25,11 +26,11 @@ from location.test_helpers import (
     create_test_health_facility,
 )
 from claim.gql_queries import ClaimGQLType
-from claim.gql_mutations import SubmitClaimsMutation
+from claim.gql_mutations import SubmitClaimsMutation, SaveClaimReviewMutation
 from core.gql.gql_mutations.mutation_by_filter import mutation_on_queryset_from_filter
 from policy.models import Policy
 from policy.test_helpers import create_test_policy2
-from product.test_helpers import create_test_product, create_test_product_service
+from product.test_helpers import create_test_product, create_test_product_service, create_test_product_item
 from core.test_helpers import create_test_officer
 from insuree.test_helpers import create_test_insuree
 from location.models import Location
@@ -39,6 +40,8 @@ from medical_pricelist.test_helpers import add_service_to_hf_pricelist, \
 from program.test_helpers import create_test_program
 from location.test_helpers import create_test_health_facility, create_test_village
 from claim.test_helpers import create_test_claimitem, create_test_claimservice
+from django.core.exceptions import ValidationError
+from claim.services import claim_create_items_and_services
 
 
 def _make_async_mutate_spy():
@@ -212,49 +215,6 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         claim = Claim.objects.filter(code = 'm-c-claim').first()
         self.assertIsNotNone(claim)
         self.assertEqual(claim.status, Claim.STATUS_ENTERED)
-        response = self.query(
-            f'''
-            mutation {{
-                updateClaim(
-                    input: {{
-                    clientMutationId: "3a90436b-d5ea-48e7-bde4-0bcff0240260"
-                    clientMutationLabel: "Update Claim - m-c-claim" 
-                    code: "m-c-claim"
-                autogenerate: false
-                uuid: "{str(claim.uuid)}"
-                insureeId: {self.insuree.id}
-                adminId: {self.claim_admin.id}
-                dateFrom: "2023-11-06"  
-                icdId: 2 
-                jsonExt: "{{}}"
-                feedbackStatus: 1
-                reviewStatus: 1
-                dateClaimed: "2023-12-06"
-                healthFacilityId: {self.hf.id}
-                visitType: "O"
-                program: {self.program.idProgram}
-                services: [
-                {{
-                
-                serviceId: {self.service.id}
-                priceAsked: "10.00"
-                qtyProvided: "1.00"
-                status: 1,
-                serviceItemSet: [],
-                serviceServiceSet: []
-            }}
-                ]
-                items: [
-                ]
-                    }}
-                ) {{
-                    clientMutationId
-                    internalId
-                }}
-            }}
-                ''',
-            headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
-        self.get_mutation_result('3a90436b-d5ea-48e7-bde4-0bcff0240260', self.admin_token )
 
         #submit claim 
         response = self.query(f'''
@@ -274,6 +234,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
             ''',
             headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
         self.assertResponseNoErrors(response)
+        claim.refresh_from_db()
 
         self.get_mutation_result('d02fff0a-dd95-4413-a2f4-4cf2189dc0d6', self.admin_token )
         # select for feeback
@@ -598,7 +559,6 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         assign_user_districts(limited_user, [district_allowed.code])
         # incoming_qs = Claim.get_queryset(Claim.objects, limited_user)
         incoming_qs = Claim.objects.filter(validity_to__isnull=True)
-        print("limited user: ", limited_user.i_user, "get_queryset count:", incoming_qs.count(), "Test manuel status=4:", incoming_qs.filter(status=Claim.STATUS_CHECKED).count(), "Test manuel status='4':", incoming_qs.filter(status="4").count())
         # Test direct sans passer par q_filter
         # print("q_filter children:", q_filter.children)
 
@@ -703,11 +663,11 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         final_uuids = set(final_qs.values_list("uuid", flat=True))
 
         # Only claims from the allowed location + matching filter should be present
-        self.assertIn(str(claim_allowed1.uuid).upper(), final_uuids)
-        self.assertIn(str(claim_allowed2.uuid).upper(), final_uuids)
-        self.assertNotIn(str(claim_allowed_entered.uuid).upper(), final_uuids)  # filtered out by status
-        self.assertNotIn(str(claim_forbidden1.uuid).upper(), final_uuids)
-        self.assertNotIn(str(claim_forbidden2.uuid).upper(), final_uuids)
+        self.assertIn(str(claim_allowed1.uuid), final_uuids)
+        self.assertIn(str(claim_allowed2.uuid), final_uuids)
+        self.assertNotIn(str(claim_allowed_entered.uuid), final_uuids)  # filtered out by status
+        self.assertNotIn(str(claim_forbidden1.uuid), final_uuids)
+        self.assertNotIn(str(claim_forbidden2.uuid), final_uuids)
 
         # All returned must be CHECKED (the filter) and from allowed hf
         for c in final_qs:
@@ -773,8 +733,8 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         final_qs = calls[0]["data"]["queryset"]
         final_uuids = set(final_qs.values_list("uuid", flat=True))
 
-        self.assertIn(str(claim_ok.uuid).upper(), final_uuids)
-        self.assertNotIn(str(claim_bad.uuid).upper(), final_uuids)
+        self.assertIn(str(claim_ok.uuid), final_uuids)
+        self.assertNotIn(str(claim_bad.uuid), final_uuids)
 
         for c in final_qs:
             self.assertEqual(c.health_facility_id, hf_allowed.id)
@@ -902,12 +862,19 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         )
         assign_user_districts(limited_user, [district_allowed.code])
 
+        insuree = create_test_insuree(
+            with_family=True,
+            is_head=True 
+        )
+
         # Two claims ready to be submitted
         claim_allowed = create_test_claim(
             custom_props={
                 "health_facility_id": hf_allowed.id,
                 "status": Claim.STATUS_ENTERED,
                 "code": "MIXED-UUID-OK",
+                "date_to": "2026-01-01 00:00:00",
+                "insuree": insuree
             }
         )
         claim_forbidden = create_test_claim(
@@ -917,7 +884,43 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
                 "code": "MIXED-UUID-BAD",
             }
         )
-        claim_item = create_test_claimitem(claim_allowed, valid=True)
+        item = create_test_item(valid=True, item_type="D", custom_props={"care_type": "B"})
+        claim_item = create_test_claimitem(
+            claim_allowed,
+            valid=True,
+            custom_props={"item": item}
+        )
+        pricelist = ItemsPricelist.objects.create(
+            name="Test Price List",
+            audit_user_id=limited_user.i_user.id,
+            pricelist_date=claim_allowed.date_from,
+            location=claim_allowed.health_facility.location
+        )
+
+        claim_allowed.health_facility.items_pricelist = pricelist
+        claim_allowed.health_facility.save()
+
+        ItemsPricelistDetail.objects.create(
+            items_pricelist=pricelist,
+            item=claim_item.item,
+            audit_user_id=limited_user.i_user.id,
+            validity_from="2025-01-02 10:10:00"
+        )
+        product = create_test_product("TProd1", valid=True)
+        create_test_product_item(product, item, valid=True, custom_props={"limitation_type": "C"})
+
+        target_date = claim_allowed.date_from
+
+        (policy, insuree_policy) = create_test_policy2(
+            product,
+            insuree,
+            custom_props={
+                "value": 1000,
+                "status": Policy.STATUS_ACTIVE,
+                "effective_date": target_date.replace(day=1),
+                "expiry_date": target_date
+            }
+        )
 
         # Send an explicit list of uuids (as SubmitClaimsMutation receives)
         # containing both an authorized claim and one the user must not submit.
@@ -927,7 +930,10 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # reach CHECKED status. The location authorization check still runs.
         # Also neutralize stats logging (no real MutationLog in this test).
         with mock.patch("claim.services.submit_claim", return_value=[]), \
-             mock.patch.object(SubmitClaimsMutation, "add_submission_stats_to_mutation_log"):
+            mock.patch("claim.validations.validate_claim", return_value=[]), \
+            mock.patch("claim.validations.process_dedrem", return_value=[]), \
+            mock.patch("claim.validations.validate_assign_prod_to_claimitems_and_services", return_value=[]), \
+            mock.patch.object(SubmitClaimsMutation, "add_submission_stats_to_mutation_log"):
             try:
                 SubmitClaimsMutation.async_mutate(
                     user=limited_user, uuids=target_uuids
@@ -944,8 +950,10 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # first in the queryset iteration), submit it on its own so we can
         # assert that submit works for claims the user *is* allowed to touch.
         if claim_allowed.status == Claim.STATUS_ENTERED:
-            with mock.patch("claim.services.submit_claim", return_value=[]), \
-                 mock.patch.object(SubmitClaimsMutation, "add_submission_stats_to_mutation_log"):
+            with mock.patch("claim.services.validate_claim", return_value=[]), \
+                mock.patch("claim.services.process_dedrem", return_value=[]), \
+                mock.patch("claim.services.validate_assign_prod_to_claimitems_and_services", return_value=[]), \
+                mock.patch.object(SubmitClaimsMutation, "add_submission_stats_to_mutation_log"):
                 SubmitClaimsMutation.async_mutate(
                     limited_user, uuids=[str(claim_allowed.uuid)]
                 )
@@ -953,8 +961,6 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
 
         # The authorized claim must have had submit applied (status changed).
         # The unauthorized claim must not have been submitted.
-        claim = Claim.objects.filter(id=claim_allowed.id).first()
-        print("rejection reason: ", claim.rejection_reason)
         self.assertEqual(claim_allowed.status, Claim.STATUS_CHECKED)
         self.assertEqual(claim_forbidden.status, Claim.STATUS_ENTERED)
 
@@ -1036,7 +1042,7 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
             service = ClaimSubmitService(user)
 
             # Real location enforcement must still happen per claim
-            with mock.patch("claim.services.submit_claim", return_value=[]):
+            with mock.patch("claim.services.ClaimSubmitService._validate_claim", return_value=[]):
                 for claim in target_qs.filter(validity_to__isnull=True):
                     try:
                         service.submit_claim(claim, user)
@@ -1080,6 +1086,103 @@ class SubmitClaimsWithFilterDecoratorRowSecurityTest(TestCase):
         # Only the claim belonging to an allowed location for the user
         # should have been submitted.
         claim = Claim.objects.filter(id=claim_allowed.id).first()
-        print("rejection reason 2: ", claim.rejection_reason)
         self.assertEqual(claim_allowed.status, Claim.STATUS_CHECKED)
         self.assertEqual(claim_forbidden.status, Claim.STATUS_ENTERED)
+
+
+class ClaimCreateItemsAndServicesTest(TestCase):
+    def setUp(self):
+        # super().setUpClass()
+        self.admin_user = create_test_interactive_user(username="testLocationAdmin")
+        # self.program = create_test_program(code="CCS", name="Chêque Santé")
+        self.claim = create_test_claim()
+        self.claim_item = create_test_claimitem(self.claim)
+        self.claim_service= create_test_claimservice(self.claim)
+
+    @patch("claim.services.process_services_relations")
+    @patch("claim.services.process_items_relations")
+    def test_should_raise_validation_error_when_claimed_amount_is_negative_from_items(
+        self,
+        mock_process_items,
+        mock_process_services,
+    ):
+        mock_process_items.return_value = -100
+        mock_process_services.return_value = 0
+
+        data = {
+            "items": [],
+            "services": [],
+        }
+
+        with self.assertRaises(ValidationError) as context:
+            claim_create_items_and_services(
+                self.claim,
+                data,
+                self.admin_user,
+            )
+
+        self.assertEqual(
+            str(context.exception),
+            "['mutation.negative_amount_not_allowed']"
+        )
+
+    @patch("claim.services.process_services_relations")
+    @patch("claim.services.process_items_relations")
+    def test_should_raise_validation_error_when_claimed_amount_is_negative_from_services(
+        self,
+        mock_process_items,
+        mock_process_services,
+    ):
+        mock_process_items.return_value = 0
+        mock_process_services.return_value = -200
+
+
+        data = {
+            "items": [],
+            "services": [],
+        }
+
+        with self.assertRaises(ValidationError):
+            claim_create_items_and_services(
+                self.claim,
+                data,
+                self.admin_user,
+            )
+
+    @patch("claim.services.process_services_relations")
+    @patch("claim.services.process_items_relations")
+    def test_should_raise_validation_error_when_total_claimed_amount_is_negative(
+        self,
+        mock_process_items,
+        mock_process_services,
+    ):
+        mock_process_items.return_value = -100
+        mock_process_services.return_value = 50
+
+        data = {
+            "items": [],
+            "services": [],
+        }
+
+        with self.assertRaises(ValidationError):
+            claim_create_items_and_services(
+                self.claim,
+                data,
+                self.admin_user,
+            )
+
+    @patch("claim.gql_mutations.approved_amount")
+    def test_should_raise_validation_error_when_approved_amount_is_negative(
+        self,
+        mock_approved_amount,
+    ):
+        mock_approved_amount.return_value = -1
+        claim = create_test_claim()
+
+        result = SaveClaimReviewMutation.async_mutate(
+            self.admin_user,
+            claim_uuid=str(claim.uuid),
+            items=[],
+            services=[],
+        )
+        self.assertEqual(result[0]["detail"], "['mutation.negative_amount_not_allowed']")
