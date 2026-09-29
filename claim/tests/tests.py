@@ -9,14 +9,13 @@ from graphql_jwt.shortcuts import get_token
 from claim import schema as claim_schema
 from graphene.test import Client
 from graphene import Schema
-from product.models import ProductItem
 from claim.models import Claim, ClaimItem, ClaimService
 from medical_pricelist.models import ItemsPricelistDetail, ItemsPricelist
 from claim.test_helpers import create_test_claim_admin, create_test_claim, create_test_item
 from claim.services import REJECTION_REASON_MANUAL_REJECTION, ClaimSubmitService, ClaimSubmitError
 import datetime
 from unittest import mock
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from django.core.cache import caches
 from django.test import TestCase
 from core.utils import clear_current_user
