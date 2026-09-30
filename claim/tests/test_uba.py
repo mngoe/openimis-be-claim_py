@@ -264,6 +264,17 @@ class ClaimAdminUbaRowSecurityTest(TestCase):
         self.assertEqual(set(), self._claims_for(user))
         self.assertNotIn(far_claim.code, self._claims_for(self.plain_user))
 
+    def test_the_claim_list_is_open_to_a_linked_claim_admin(self):
+        # the search right only sits in the UBA bag: the list names no facility, so the
+        # CLAIM_ADMIN link is what opens it, get_queryset then scoping the rows
+        from claim.schema import _can_search_claims
+        self.assertTrue(_can_search_claims(self.linked_user))
+
+    def test_the_claim_list_is_closed_without_a_link(self):
+        # without a link get_queryset would fall back on the whole district
+        from claim.schema import _can_search_claims
+        self.assertFalse(_can_search_claims(self.plain_user))
+
     def test_the_claim_admin_table_is_narrowed_the_same_way(self):
         # ClaimAdmin hangs off the health facility too, and its GQL type now routes
         # through the model, so the same credential narrows the picker
