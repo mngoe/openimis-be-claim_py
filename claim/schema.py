@@ -22,6 +22,7 @@ import ast
 # We do need all queries and mutations in the namespace here.
 from .gql_queries import *  # lgtm [py/polluting-import]
 from .gql_mutations import *  # lgtm [py/polluting-import]
+from core.uba_filters import has_perms_somewhere
 
 
 def _can_search_claims(user):
@@ -29,19 +30,7 @@ def _can_search_claims(user):
     The claim search right held globally, or held in the UBA bag by a user with a
     CLAIM_ADMIN link: `Claim.get_queryset` then scopes the rows to the linked facilities.
     """
-    if user.has_perms(ClaimConfig.gql_query_claims_perms):
-        return True
-    from core.models import InteractiveUser
-    from core.uba_filters import has_business_access_links
-
-    i_user = InteractiveUser.is_interactive_user(user)
-    if i_user is None:
-        return False
-    uba_rights = [str(r) for r in i_user.uba_rights]
-    return (
-        all(perm in uba_rights for perm in ClaimConfig.gql_query_claims_perms)
-        and has_business_access_links(user, CLAIM_ADMIN_UBA_LINK_TYPE)
-    )
+    return has_perms_somewhere(user, ClaimConfig.gql_query_claims_perms, CLAIM_ADMIN_UBA_LINK_TYPE)
 
 
 class Query(graphene.ObjectType):
