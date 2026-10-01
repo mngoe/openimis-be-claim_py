@@ -42,8 +42,9 @@ class ClaimAdminGQLType(DjangoObjectType):
 
     @classmethod
     def get_queryset(cls, queryset, info):
-        queryset = queryset.filter(*filter_validity())
-        return queryset
+        # route through the model so the row security (UBA links, then the district
+        # location filter) applies to GraphQL exactly as it does to the REST/FHIR API
+        return ClaimAdmin.get_queryset(queryset.filter(*filter_validity()), info)
 
 
 class ClaimGQLType(DjangoObjectType):
@@ -142,8 +143,10 @@ class ClaimAttachmentGQLType(DjangoObjectType):
 
     @classmethod
     def get_queryset(cls, queryset, info):
+        # an attachment is only as visible as its claim: reuse the claim row security
+        # rather than restating it, so the UBA narrowing reaches the attachments too
         queryset = queryset.filter(*filter_validity())
-        return queryset
+        return queryset.filter(claim__in=Claim.get_queryset(Claim.objects.all(), info))
 
 
 class ClaimAttachmentTypeGQLType(DjangoObjectType):

@@ -11,6 +11,7 @@ from django.db.models import OuterRef, Subquery, Avg, Q
 import graphene_django_optimizer as gql_optimizer
 from core.schema import OrderedDjangoFilterConnectionField, OfficerGQLType
 from core import filter_validity
+from core.apps import CLAIM_ADMIN_UBA_LINK_TYPE
 from django.db.models.functions import Cast
 
 from .models import ClaimMutation
@@ -21,6 +22,15 @@ import ast
 # We do need all queries and mutations in the namespace here.
 from .gql_queries import *  # lgtm [py/polluting-import]
 from .gql_mutations import *  # lgtm [py/polluting-import]
+from core.uba_filters import has_perms_somewhere
+
+
+def _can_search_claims(user):
+    """
+    The claim search right held globally, or held in the UBA bag by a user with a
+    CLAIM_ADMIN link: `Claim.get_queryset` then scopes the rows to the linked facilities.
+    """
+    return has_perms_somewhere(user, ClaimConfig.gql_query_claims_perms, CLAIM_ADMIN_UBA_LINK_TYPE)
 
 
 class Query(graphene.ObjectType):
@@ -49,7 +59,9 @@ class Query(graphene.ObjectType):
     claim_admins = DjangoFilterConnectionField(
         ClaimAdminGQLType,
         search=graphene.String(),
-        user_health_facility=graphene.String()
+        user_health_facility=graphene.String(),
+        region_uuid=graphene.String(),
+        district_uuid=graphene.String()
     )
     claim_officers = DjangoFilterConnectionField(
         OfficerGQLType, search=graphene.String()
@@ -101,10 +113,7 @@ class Query(graphene.ObjectType):
             NONE = 0
             WITH = 1
             WITHOUT = 2
-        if (
-            not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms)
-            and settings.ROW_SECURITY
-        ):
+        if not _can_search_claims(info.context.user) and settings.ROW_SECURITY:
             raise PermissionDenied(_("unauthorized"))
         query = Claim.objects
         filters = []
@@ -177,7 +186,7 @@ class Query(graphene.ObjectType):
         return gql_optimizer.query(query, info)
 
     def resolve_claim_attachments(self, info, **kwargs):
-        if not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms):
+        if not _can_search_claims(info.context.user):
             raise PermissionDenied(_("unauthorized"))
 
     def resolve_claim_admins(
@@ -192,6 +201,7 @@ class Query(graphene.ObjectType):
             raise PermissionDenied(_("unauthorized"))
 
         hf_filters = [*filter_validity(**kwargs)]
+        base_hf_filters_count = len(hf_filters)
         district_uuid = kwargs.get('district_uuid', None)
         region_uuid = kwargs.get('region_uuid', None)
         if district_uuid is not None:
@@ -199,14 +209,15 @@ class Query(graphene.ObjectType):
         elif region_uuid is not None:
             hf_filters += [Q(location__parent__uuid=region_uuid)]
         if settings.ROW_SECURITY:
-            q = LocationManager().build_user_location_filter_query( info.context.user._u, prefix='location', loc_types=['D'])
+            q = LocationManager().build_user_location_filter_query(
+                info.context.user._u, prefix='location', loc_types=['D'],
+                link_types=CLAIM_ADMIN_UBA_LINK_TYPE)
             if q:
                 hf_filters += [q]
 
-        user_health_facility = HealthFacility.objects.filter(*hf_filters)
-
         filters = [*filter_validity(**kwargs)]
-        if user_health_facility:
+        if len(hf_filters) > base_hf_filters_count:
+            user_health_facility = HealthFacility.objects.filter(*hf_filters)
             filters += [Q(health_facility__in=user_health_facility)]
         if search:
             filters += [Q(code__icontains=search) |

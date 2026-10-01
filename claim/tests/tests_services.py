@@ -2,7 +2,7 @@ from django.test import TestCase
 from unittest import mock
 from location.test_helpers import create_test_location, create_test_health_facility,create_test_village
 from insuree.test_helpers import create_test_insuree
-from claim.test_helpers import create_test_claim_admin, create_test_claim
+from claim.test_helpers import create_test_claim_admin, create_test_claim, get_test_program
 from claim.models import Claim, ClaimItem, ClaimService,ClaimDetail
 from medical.models import  Diagnosis, Item, Service
 from medical.test_helpers import create_test_item, create_test_service
@@ -62,6 +62,7 @@ class ClaimSubmitServiceTestCase(TestCase):
             admin=cls.test_claim_admin,
             insuree=cls.test_insuree,
             health_facility=cls.test_hf,
+            program=get_test_program(),
             status=Claim.STATUS_ENTERED,
             audit_user_id=-1
         )
@@ -342,7 +343,8 @@ class ClaimSubmitServiceTestCase(TestCase):
             "date_claimed": self.test_claim.date_claimed, 
             "date_to": self.test_claim.date_to,
             "audit_user_id": self.test_claim.audit_user_id, 
-            "insuree_id": self.test_claim.insuree_id, 
+            "insuree_id": self.test_claim.insuree_id,
+            "program": self.test_claim.program, 
             "status": self.test_claim.status, 
             "validity_from": self.test_claim.validity_from,
             "items": [{

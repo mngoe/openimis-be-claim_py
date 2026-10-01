@@ -8,10 +8,26 @@ class DummyUser:
     def __init__(self):
       self.id_for_audit = 1  
 
+def get_test_program():
+    """
+    Claims are mandatorily attached to a program: reuse the program created along
+    with the test products, if any, rather than creating one per claim.
+    """
+    from program.models import Program
+    from program.test_helpers import create_test_program
+    program = Program.objects.filter(validityDateTo__isnull=True).first()
+    return program if program else create_test_program(code="CCS", name="Chêque Santé")
+
+
 def create_test_claim(custom_props={}, user = DummyUser() ):
     from core import datetime
+    # never mutate the default dict: it is shared between the calls and would keep
+    # objects of an already rolled back test transaction
+    custom_props = dict(custom_props) if custom_props else {}
     if 'insuree' not in custom_props and 'insuree_id' not in custom_props:
         custom_props["insuree_id"]= 2
+    if 'program' not in custom_props and 'program_id' not in custom_props:
+        custom_props["program"] = get_test_program()
 
     return claim_create(
         {

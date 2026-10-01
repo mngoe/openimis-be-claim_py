@@ -4,6 +4,7 @@ from claim_batch import models as claim_batch_models
 import datetime
 from core import fields, TimeUtils
 from core import models as core_models
+from core.apps import CLAIM_ADMIN_UBA_LINK_TYPE
 from django import dispatch
 from django.conf import settings
 from django.db import models
@@ -54,7 +55,8 @@ class ClaimAdmin(core_models.VersionedModel):
         if settings.ROW_SECURITY:
             from location.schema import LocationManager
             queryset = LocationManager().build_user_location_filter_query(
-                user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
+                user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'],
+                link_types=CLAIM_ADMIN_UBA_LINK_TYPE)
         return queryset
 
     @property
@@ -137,7 +139,8 @@ class Feedback(core_models.VersionedModel):
             return queryset.filter(id=-1)
         if settings.ROW_SECURITY:
             queryset = LocationManager().build_user_location_filter_query(
-                user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
+                user._u, prefix='claim__health_facility__location', queryset=queryset, loc_types=['D'],
+                link_types=CLAIM_ADMIN_UBA_LINK_TYPE)
         return queryset
 
 
@@ -325,16 +328,15 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
                 queryset = queryset.filter(program_id__in=programs)
         else:
             print("Id non existing")
-        if settings.ROW_SECURITY:
-            # TechnicalUsers don't have health_facility_id attribute
-            if hasattr(user._u, 'health_facility_id') and user._u.health_facility_id:
-                queryset = queryset.filter(
-                    health_facility_id=user._u.health_facility_id
-                )
-            else:
-                if not isinstance(user._u, core_models.TechnicalUser):
-                    queryset = LocationManager().build_user_location_filter_query(
-                        user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
+        if settings.ROW_SECURITY and not isinstance(user._u, core_models.TechnicalUser):
+            # `user._u.health_facility_id` used to narrow here, which pinned the scope to
+            # the single facility carried by the interactive user and to the dedicated
+            # ClaimAdmin row. The narrowing is now the CLAIM_ADMIN UBA links the module
+            # asks the location filter for: it reads the credential's registry params and
+            # turns 'health_facility__location' into the path to the facility.
+            queryset = LocationManager().build_user_location_filter_query(
+                user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'],
+                link_types=CLAIM_ADMIN_UBA_LINK_TYPE)
         return queryset
 
 
@@ -366,7 +368,8 @@ class FeedbackPrompt(core_models.VersionedModel):
             return queryset.filter(id=-1)
         if settings.ROW_SECURITY:
             queryset = LocationManager().build_user_location_filter_query(
-                user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
+                user._u, prefix='claim__health_facility__location', queryset=queryset, loc_types=['D'],
+                link_types=CLAIM_ADMIN_UBA_LINK_TYPE)
 
         return queryset
 
