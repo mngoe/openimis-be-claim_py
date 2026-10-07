@@ -45,6 +45,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
     service= None
     product_service= None
     claim_admin = None
+    program = None
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -59,6 +60,10 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         cls.officer = create_test_officer(custom_props={"code": "TSTSIMP1"})
         cls.insuree = create_test_insuree(custom_props={"chf_id": "paysimp"})
         cls.product = create_test_product("ELI1")
+        # claims are mandatorily attached to a program, and are only visible to the
+        # users having access to that program (see Claim.get_queryset)
+        cls.program = cls.product.program
+        cls.program.user.add(cls.admin_user.i_user)
         (policy, insuree_policy) = create_test_policy2(cls.product, cls.insuree, custom_props={
             "value": 1000, "status": Policy.STATUS_ACTIVE})
         cls.service = create_test_service("A")
@@ -145,6 +150,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
                 dateFrom: "2023-12-06"  
                 icdId: 2 
                 jsonExt: "{{}}"
+                program: {self.program.idProgram}
                 feedbackStatus: 1
                 reviewStatus: 1
                 dateClaimed: "2023-12-06"
@@ -171,7 +177,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
             }}
                 ''',
             headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
-        self.get_mutation_result('3a90436a-d5ea-48e7-bde4-0bcff0240260', self.admin_token )
+        self.get_mutation_result('3a90436a-d5ea-48e7-bde4-0bcff0240260', self.admin_token, response=response)
         claim = Claim.objects.filter(code = 'm-c-claim').first()
         self.assertIsNotNone(claim)
         self.assertEqual(claim.status, Claim.STATUS_ENTERED)
@@ -190,6 +196,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
                 dateFrom: "2023-11-06"  
                 icdId: 2 
                 jsonExt: "{{}}"
+                program: {self.program.idProgram}
                 feedbackStatus: 1
                 reviewStatus: 1
                 dateClaimed: "2023-12-06"
@@ -216,7 +223,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
             }}
                 ''',
             headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
-        self.get_mutation_result('3a90436b-d5ea-48e7-bde4-0bcff0240260', self.admin_token )
+        self.get_mutation_result('3a90436b-d5ea-48e7-bde4-0bcff0240260', self.admin_token, response=response)
 
         #submit claim 
         response = self.query(f'''
@@ -237,7 +244,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
             headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
         self.assertResponseNoErrors(response)
 
-        self.get_mutation_result('d02fff0a-dd95-4413-a2f4-4cf2189dc0d6', self.admin_token )
+        self.get_mutation_result('d02fff0a-dd95-4413-a2f4-4cf2189dc0d6', self.admin_token, response=response)
         # select for feeback
         claim = Claim.objects.filter(code = 'm-c-claim').first()
         create_test_officer(villages=[claim.insuree.family.location])
@@ -259,7 +266,7 @@ class ClaimGraphQLTestCase(openIMISGraphQLTestCase):
         ''' ,
             headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"})
         self.assertResponseNoErrors(response)
-        self.get_mutation_result('f0585e2b-d72d-4001-915a-1cf10e9f1722', self.admin_token )
+        self.get_mutation_result('f0585e2b-d72d-4001-915a-1cf10e9f1722', self.admin_token, response=response)
         ## check the mutation answer
         claim = Claim.objects.filter(code = 'm-c-claim').first()
         self.assertEqual(claim.feedback_status, Claim.FEEDBACK_SELECTED)

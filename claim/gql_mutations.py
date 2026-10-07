@@ -12,6 +12,7 @@ import graphene_django_optimizer
 from django.db.models import Count, Case, When, IntegerField, Q, Prefetch
 
 from core.models import MutationLog, Officer
+from core.apps import CLAIM_ADMIN_UBA_LINK_TYPE
 from .apps import ClaimConfig
 from claim.validations import validate_claim, get_claim_category, validate_assign_prod_to_claimitems_and_services, \
     process_dedrem, approved_amount
@@ -455,7 +456,9 @@ class CreateAttachmentMutation(OpenIMISMutation):
             queryset = Claim.objects.filter(*filter_validity())
             if settings.ROW_SECURITY:
                 from location.schema import LocationManager
-                queryset = LocationManager().build_user_location_filter_query( user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])           
+                queryset = LocationManager().build_user_location_filter_query(
+                    user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'],
+                    link_types=CLAIM_ADMIN_UBA_LINK_TYPE)
             claim = queryset.filter(uuid=claim_uuid).first()
             if not claim:
                 raise PermissionDenied(_("unauthorized"))
@@ -482,7 +485,10 @@ class UpdateAttachmentMutation(OpenIMISMutation):
             queryset = ClaimAttachment.objects.filter(*filter_validity())
             if settings.ROW_SECURITY:
                 from location.schema import LocationManager
-                queryset = LocationManager().build_user_location_filter_query( user._u, prefix='claim__health_facility__location', queryset = queryset.select_related("claim"), loc_types=['D'])
+                queryset = LocationManager().build_user_location_filter_query(
+                    user._u, prefix='claim__health_facility__location',
+                    queryset=queryset.select_related("claim"), loc_types=['D'],
+                    link_types=CLAIM_ADMIN_UBA_LINK_TYPE)
 
             attachment = queryset \
                 .filter(id=data['id']) \
@@ -540,7 +546,9 @@ class DeleteAttachmentMutation(OpenIMISMutation):
             queryset = ClaimAttachment.objects.filter(*filter_validity())
             if settings.ROW_SECURITY:
                 from location.schema import LocationManager
-                queryset = LocationManager().build_user_location_filter_query( user._u, prefix='health_facility__location', queryset = queryset, loc_types=['D'])     
+                queryset = LocationManager().build_user_location_filter_query(
+                    user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'],
+                    link_types=CLAIM_ADMIN_UBA_LINK_TYPE)
             attachment = queryset \
                 .filter(id=data['id']) \
                 .first()
