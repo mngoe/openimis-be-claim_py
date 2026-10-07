@@ -19,6 +19,7 @@ from claim.test_helpers import create_test_claim
 from core import datetime, datetimedelta
 from core.apps import CLAIM_ADMIN_UBA_LINK_TYPE, HEALTH_FACILITY_MODEL
 from core.models import UserBusinessAccess
+from core.services.userServices import create_or_update_user_districts
 from core.test_helpers import (
     create_test_interactive_user,
     create_test_role,
@@ -191,8 +192,6 @@ class ClaimAdminUbaRowSecurityTest(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        from core.services.userServices import create_or_update_user_districts
-
         cls.village = create_test_village({"name": "ClaimUbaRows"})
         cls.district = cls.village.parent.parent
         cls.linked_hf = create_test_health_facility(
@@ -257,7 +256,6 @@ class ClaimAdminUbaRowSecurityTest(TestCase):
         far_claim = create_test_claim(
             {"health_facility_id": far_hf.id, "code": "UBACLM3"})
         user = create_test_interactive_user(username="ubarowsfar", roles=[self.role.id])
-        from core.services.userServices import create_or_update_user_districts
         create_or_update_user_districts(user.i_user, [self.district.id], -1)
         create_test_user_business_access(
             user=user, business_object=far_hf, link_type=CLAIM_ADMIN_UBA_LINK_TYPE)

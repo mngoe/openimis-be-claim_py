@@ -19,20 +19,32 @@ def get_test_program():
     return program if program else create_test_program(code="CCS", name="Chêque Santé")
 
 
+def get_test_health_facility():
+    """A health facility in a test district, created along with its locations."""
+    from location.test_helpers import create_test_health_facility, create_test_village
+    village = create_test_village({"name": "Claim test"})
+    return create_test_health_facility("CLHF", village.parent.parent.id)
+
+
 def create_test_claim(custom_props={}, user = DummyUser() ):
     from core import datetime
     # never mutate the default dict: it is shared between the calls and would keep
     # objects of an already rolled back test transaction
     custom_props = dict(custom_props) if custom_props else {}
+    # build what the claim refers to rather than relying on the ids of a seeded database
     if 'insuree' not in custom_props and 'insuree_id' not in custom_props:
-        custom_props["insuree_id"]= 2
+        from insuree.test_helpers import create_test_insuree
+        custom_props["insuree_id"] = create_test_insuree().id
     if 'program' not in custom_props and 'program_id' not in custom_props:
         custom_props["program"] = get_test_program()
+    if 'health_facility' not in custom_props and 'health_facility_id' not in custom_props:
+        custom_props["health_facility_id"] = get_test_health_facility().id
+    if 'icd' not in custom_props and 'icd_id' not in custom_props:
+        from medical.test_helpers import create_test_diagnosis
+        custom_props["icd_id"] = create_test_diagnosis().id
 
     return claim_create(
         {
-            "health_facility_id": 18,
-            "icd_id": 116,
             "date_from": datetime.datetime(2019, 6, 1),
             "date_claimed": datetime.datetime(2019, 6, 1),
             "date_to": datetime.datetime(2019, 6, 1),
