@@ -660,6 +660,74 @@ class ValidationTest(TestCase):
         item.delete()
         product.delete()
 
+    # product.threshold is nullable in the DB: a product with a policy ceiling but no
+    # threshold used to crash process_dedrem with
+    # "'>' not supported between instances of 'int' and 'NoneType'"
+    def _test_dedrem_null_threshold(self, product_props):
+        # Given
+        insuree = create_test_insuree()
+        self.assertIsNotNone(insuree)
+        product = create_test_product(
+            "VISIT", custom_props={"threshold": None, **product_props})
+        policy = create_test_policy(product, insuree, link=True)
+        item = create_test_item("D", custom_props={})
+        product_item = create_test_product_item(product, item)
+        pricelist_detail1 = add_item_to_hf_pricelist(item)
+
+        claim1 = create_test_claim(
+            {"insuree_id": insuree.id, "program": product.program})
+        # rejection_reason is normally set to 0 by validate_claim
+        # 20 * 100 = 2000, i.e. above the 1000 policy ceiling
+        item1 = create_test_claimitem(
+            claim1, "D", custom_props={
+                "item_id": item.id, "qty_provided": 20, "rejection_reason": 0})
+
+        # When
+        errors = validate_assign_prod_to_claimitems_and_services(claim1)
+        errors += process_dedrem(claim1, -1, True)
+
+        # Then
+        self.assertEqual(len(errors), 0)
+        claim1.refresh_from_db()
+        item1.refresh_from_db()
+        self.assertEqual(claim1.status, Claim.STATUS_VALUATED)
+        # the ceiling is the plain 1000, the extra member amount is not added
+        # and the max ceiling is not applied when the threshold is null
+        self.assertEqual(item1.price_valuated, 1000)
+        self.assertEqual(item1.exceed_ceiling_amount, 1000)
+
+        dedrem_qs = ClaimDedRem.objects.filter(claim=claim1)
+        self.assertEqual(dedrem_qs.count(), 1)
+        dedrem1 = dedrem_qs.first()
+        self.assertEqual(dedrem1.rem_g, 1000)
+        self.assertEqual(dedrem1.rem_op, 1000)
+
+        # tearDown
+        dedrem_qs.delete()
+        item1.delete()
+        claim1.delete()
+        policy.insuree_policies.first().delete()
+        policy.delete()
+        product_item.delete()
+        pricelist_detail1.delete()
+        item.delete()
+        product.delete()
+
+    def test_submit_claim_dedrem_null_threshold(self):
+        self._test_dedrem_null_threshold({
+            "max_policy": 1000,
+            "max_policy_extra_member": 100,
+            "max_ceiling_policy": 500,
+        })
+
+    def test_submit_claim_dedrem_null_threshold_op(self):
+        # the ceiling is defined on the outpatient level only
+        self._test_dedrem_null_threshold({
+            "max_op_policy": 1000,
+            "max_policy_extra_member_op": 100,
+            "max_ceiling_policy_op": 500,
+        })
+
     def test_submit_claim_dedrem_limit_delivery(self):
         # Given
         insuree = create_test_insuree()
