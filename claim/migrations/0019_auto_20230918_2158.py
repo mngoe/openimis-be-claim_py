@@ -8,12 +8,31 @@ import uuid
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
+        ('claim', '0018_auto_20230918_2140'),
+    ]
+    replaces = [
         ('claim', '0019_auto_20230615_1055'),
     ]
-
-    operations = [
+    operations = []
+    try:
+        Claim.objects.filter(pk__lt=10).aggregate(sum=models.Count('refer_from'))
+    except:
+        operations.append(migrations.AddField(
+            model_name='claim',
+            name='refer_from',
+            field=models.ForeignKey(blank=True, db_column='ReferFrom', null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='referFromHF', to='location.healthfacility'),
+        ))
+    try:
+        Claim.objects.filter(pk__lt=10).aggregate(sum=models.Count('refer_to'))
+    except:    
+        operations.append(migrations.AddField(
+            model_name='claim',
+            name='refer_to',
+            field=models.ForeignKey(blank=True, db_column='ReferTo', null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='referToHF', to='location.healthfacility'),
+        ))
+    
+    operations += [
         migrations.AddField(
             model_name='feedback',
             name='age',

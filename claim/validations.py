@@ -52,22 +52,25 @@ def validate_claim(claim, check_max):
     if ClaimConfig.default_validations_disabled:
         return []
     errors = []
+    # errors raised by the items/services of the claim: they are only reported when
+    # the whole claim is rejected, but they drive the check_max rejection below
+    detail_errors = []
     errors += validate_target_date(claim)
     if len(errors) == 0:
         errors += validate_family(claim, claim.insuree)
     if len(errors) == 0:
-        validate_claimitems(claim)
-        validate_claimservices(claim)
+        detail_errors += validate_claimitems(claim)
+        detail_errors += validate_claimservices(claim)
 
     if check_max:
         # we went over the maximum for a category, all items and services in the claim are rejected
         over_category_errors = [
-            x for x in errors if x['code'] in [REJECTION_REASON_MAX_HOSPITAL_ADMISSIONS,
-                                               REJECTION_REASON_MAX_VISITS,
-                                               REJECTION_REASON_MAX_CONSULTATIONS,
-                                               REJECTION_REASON_MAX_SURGERIES,
-                                               REJECTION_REASON_MAX_DELIVERIES,
-                                               REJECTION_REASON_MAX_ANTENATAL]]
+            x for x in detail_errors if x.get('code') in [REJECTION_REASON_MAX_HOSPITAL_ADMISSIONS,
+                                                          REJECTION_REASON_MAX_VISITS,
+                                                          REJECTION_REASON_MAX_CONSULTATIONS,
+                                                          REJECTION_REASON_MAX_SURGERIES,
+                                                          REJECTION_REASON_MAX_DELIVERIES,
+                                                          REJECTION_REASON_MAX_ANTENATAL]]
         if len(over_category_errors) > 0:
             rtn_items_rejected = claim.items.filter(validity_to__isnull=True) \
                 .update(status=ClaimItem.STATUS_REJECTED,
@@ -173,7 +176,7 @@ def validate_claimservices(claim):
     return errors
 
 
-def validate_claimitem_validity(claimitem):
+def validate_claimitem_validity(claim, claimitem):
     # In the stored procedure, this check used a complex query to get the latest item but the latest item seems to
     # always be updated.
     # select *
@@ -181,14 +184,26 @@ def validate_claimitem_validity(claimitem):
     # where ti.ValidityTo is not null and tI.LegacyID is not null;
     # gives no result, so no claimitem is pointing to an old item and the complex query always fetched the last one.
     # Here, claimitem.item.legacy_id is always None
+    errors = []
     if claimitem.validity_to is None and claimitem.item.validity_to is not None:
         claimitem.rejection_reason = REJECTION_REASON_INVALID_ITEM_OR_SERVICE
+        errors += [{'code': REJECTION_REASON_INVALID_ITEM_OR_SERVICE,
+                    'message': _("claim.validation.claimitem_validity") % {
+                        'code': claim.code},
+                    'detail': claim.uuid}]
+    return errors
 
 
-def validate_claimservice_validity(claimservice):
+def validate_claimservice_validity(claim, claimservice):
     # See note in validate_claimitem_validity
+    errors = []
     if claimservice.validity_to is None and claimservice.service.validity_to is not None:
         claimservice.rejection_reason = REJECTION_REASON_INVALID_ITEM_OR_SERVICE
+        errors += [{'code': REJECTION_REASON_INVALID_ITEM_OR_SERVICE,
+                    'message': _("claim.validation.claimservice_validity") % {
+                        'code': claim.code},
+                    'detail': claim.uuid}]
+    return errors
 
 
 def __get_claim_target_date(claim):
@@ -207,6 +222,11 @@ def validate_claimitem_in_price_list(claim, claimitem):
     pricelist_detail = get_queryset_valid_at_date(pricelist_detail_qs, target_date).first()
     if not pricelist_detail:
         claimitem.rejection_reason = REJECTION_REASON_NOT_IN_PRICE_LIST
+        errors += [{'code': REJECTION_REASON_NOT_IN_PRICE_LIST,
+                    'message': _("claim.validation.claimitem_in_price_list_validity") % {
+                        'code': claim.code},
+                    'detail': claim.uuid}]
+    return errors
 
 
 def validate_claimservice_in_price_list(claim, claimservice):
@@ -220,9 +240,15 @@ def validate_claimservice_in_price_list(claim, claimservice):
     pricelist_detail = get_queryset_valid_at_date(pricelist_detail_qs, target_date).first()
     if not pricelist_detail:
         claimservice.rejection_reason = REJECTION_REASON_NOT_IN_PRICE_LIST
+        errors += [{'code': REJECTION_REASON_NOT_IN_PRICE_LIST,
+                    'message': _("claim.validation.claimservice_in_price_list_validity") % {
+                        'code': claim.code},
+                    'detail': claim.uuid}]
+    return errors
 
 
 def validate_claimdetail_care_type(claim, claimdetail):
+    errors = []
     care_type = claimdetail.itemsvc.care_type
     hf_care_type = claim.health_facility.care_type if claim.health_facility.care_type else 'B'
     target_date = __get_claim_target_date(claim)
@@ -237,6 +263,11 @@ def validate_claimdetail_care_type(claim, claimdetail):
             or target_date != claim.date_from)
     ):
         claimdetail.rejection_reason = REJECTION_REASON_CARE_TYPE
+        errors += [{'code': REJECTION_REASON_CARE_TYPE,
+                    'message': _("claim.validation.claimdetail_care_type_validity") % {
+                        'code': claim.code},
+                    'detail': claim.uuid}]
+    return errors
 
 
 def validate_claimdetail_limitation_fail(claim, claimdetail):
@@ -250,6 +281,11 @@ def validate_claimdetail_limitation_fail(claim, claimdetail):
 
     if claimdetail.itemsvc.patient_category & patient_category_mask != patient_category_mask:
         claimdetail.rejection_reason = REJECTION_REASON_CATEGORY_LIMITATION
+        errors += [{'code': REJECTION_REASON_CATEGORY_LIMITATION,
+                    'message': _("claim.validation.claimdetail_limitation_validity") % {
+                        'code': claim.code},
+                    'detail': claim.uuid}]
+    return errors
 
 
 def frequency_check(qs, claim, elt):
@@ -269,15 +305,27 @@ def frequency_check(qs, claim, elt):
 
 
 def validate_claimitem_frequency(claim, claimitem):
+    errors = []
     if claimitem.item.frequency and \
             frequency_check(ClaimItem.objects.filter(item=claimitem.item), claim, claimitem.item):
         claimitem.rejection_reason = REJECTION_REASON_FREQUENCY_FAILURE
+        errors += [{'code': REJECTION_REASON_FREQUENCY_FAILURE,
+                    'message': _("claim.validation.claimitem_frequency_validity") % {
+                        'code': claim.code},
+                    'detail': claim.uuid}]
+    return errors
 
 
 def validate_claimservice_frequency(claim, claimservice):
+    errors = []
     if claimservice.service.frequency and \
             frequency_check(ClaimService.objects.filter(service=claimservice.service), claim, claimservice.service):
         claimservice.rejection_reason = REJECTION_REASON_FREQUENCY_FAILURE
+        errors += [{'code': REJECTION_REASON_FREQUENCY_FAILURE,
+                    'message': _("claim.validation.claimservice_frequency_validity") % {
+                        'code': claim.code},
+                    'detail': claim.uuid}]
+    return errors
 
 
 def validate_target_date(claim):
@@ -388,7 +436,8 @@ def validate_item_product_family(claimitem, target_date, item, insuree_id, adult
 
 
 # noinspection DuplicatedCode
-def validate_service_product_family(claimservice, target_date, service, insuree_id, adult, base_category):
+def validate_service_product_family(claimservice, target_date, service, insuree_id, adult, base_category,
+                                    claim=None):
     errors = []
     found = False
     with get_products(target_date, service.id, insuree_id, adult, 'Service') as cursor:

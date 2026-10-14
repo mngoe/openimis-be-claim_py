@@ -11,12 +11,13 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('program', '0001_initial'),
-        ('insuree', '0013_auto_20211103_1023'),
-        ('core', '0016_add_last_login_on_interactive_user'),
-        ('location', '0008_add_enrollment_officer_gql_query_location_right'),
-        ('medical', '0003_mutations'),
-        ('claim', '0015_prohibit_interaction_for_enrolment_officer'),
+        ('claim', '0015_alter_claim_options'),
     ]
+
+    # 0015_prohibit_interaction_for_enrolment_officer removed two claim rights
+    # from the enrolment officer role. It is dropped here (its reverse_func was
+    # broken anyway), so the rights are left in place on a fresh database.
+    replaces = [('claim', '0015_prohibit_interaction_for_enrolment_officer')]
 
     operations = [
         migrations.AddField(
