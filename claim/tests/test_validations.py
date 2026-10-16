@@ -25,6 +25,7 @@ from policy.test_helpers import create_test_policy
 # default arguments should not pass a list or a dict because they're mutable but we don't risk mutating them here:
 # noinspection PyDefaultArgument,DuplicatedCode
 from product.test_helpers import create_test_product, create_test_product_service, create_test_product_item
+from contribution_plan.tests.helpers import create_test_contribution_plan
 
 
 class ValidationTest(TestCase):
@@ -908,7 +909,7 @@ class ValidationTest(TestCase):
         # Make sure that the dedrem was generated
         dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
         self.assertIsNotNone(dedrem)
-        self.assertEquals(dedrem.rem_g, 500)  # 100*2 + 100*3
+        self.assertEqual(dedrem.rem_g, 500)  # 100*2 + 100*3
 
         # Review the claim and reject all of it
         # A partial rejection would still trigger the process_dedrem and be fine
@@ -933,12 +934,103 @@ class ValidationTest(TestCase):
         set_claims_status([claim1.uuid], "review_status", Claim.REVIEW_DELIVERED)
         update_claims_dedrems([claim1.uuid], self.user)
 
-        # Then dedrem should have been updated
+        # Then dedrem should have been updated, using the prices approved during the review
+        # (37 * 1 + 53 * 1) and not the pricelist price (ticket #38283 / OICI-310)
         dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
         self.assertIsNotNone(dedrem)
-        self.assertEquals(dedrem.rem_g, 200)  # 100*1 + 100*1
+        self.assertEqual(dedrem.rem_g, 90)  # 37*1 + 53*1
         # tearDown
         # dedrem.delete() # already done if the test passed
+        delete_claim_with_itemsvc_dedrem_and_history(claim1)
+        policy.insuree_policies.first().delete()
+        policy.delete()
+        product_item.delete()
+        product_service.delete()
+        pricelist_detail1.delete()
+        pricelist_detail2.delete()
+        service.delete()
+        item.delete()
+        product.delete()
+
+    def test_review_approved_prices_are_used_for_valuation(self):
+        """
+        Ticket #38283 / OICI-310: the prices approved by the medical officer during the claim review
+        (e.g. "Consultation de specialiste" raised from 1000 to 2000) must be applied to the
+        valuation/adjudication of the claim, instead of the price list price.
+        """
+        # Given
+        insuree = create_test_insuree()
+        self.assertIsNotNone(insuree)
+        service = create_test_service("A", custom_props={"name": "test_review_approved_prices_svc"})
+        item = create_test_item("A", custom_props={"name": "test_review_approved_prices_item"})
+
+        product = create_test_product("BCUL0001", custom_props={
+            "name": "Basic Cover Ultha approved prices",
+            "lump_sum": 10_000,
+        })
+        product_service = create_test_product_service(product, service)
+        product_item = create_test_product_item(product, item)
+        contribution_plan = create_test_contribution_plan()
+        policy = create_test_policy(product, insuree, link=True, contribution_plan=contribution_plan)
+        pricelist_detail1 = add_service_to_hf_pricelist(service)  # pricelist price = 100
+        pricelist_detail2 = add_item_to_hf_pricelist(item)  # pricelist price = 100
+
+        claim1 = create_test_claim({"insuree_id": insuree.id})
+        service1 = create_test_claimservice(
+            claim1, custom_props={"service_id": service.id, "qty_provided": 1, "price_asked": 100})
+        item1 = create_test_claimitem(
+            claim1, "A", custom_props={"item_id": item.id, "qty_provided": 1, "price_asked": 100})
+        errors = validate_claim(claim1, True)
+        errors += validate_assign_prod_to_claimitems_and_services(claim1)
+        errors += process_dedrem(claim1, -1, False)
+        self.assertEqual(len(errors), 0)
+
+        # Before the review, the dedrem is based on the pricelist price
+        dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
+        self.assertIsNotNone(dedrem)
+        self.assertEqual(dedrem.rem_g, 200)  # 100*1 + 100*1
+
+        # The medical officer approves 1 unit and adjusts the prices from 100 to 2000
+        item1.qty_approved = 1
+        item1.price_approved = 2000
+        item1.status = ClaimItem.STATUS_PASSED
+        item1.audit_user_id_review = -1
+        item1.justification = "Review adjusted price item"
+        item1.save()
+
+        service1.qty_approved = 1
+        service1.price_approved = 2000
+        service1.status = ClaimService.STATUS_PASSED
+        service1.audit_user_id_review = -1
+        service1.justification = "Review adjusted price svc"
+        service1.save()
+
+        claim1.refresh_from_db()
+        item1.refresh_from_db()
+        service1.refresh_from_db()
+
+        # When the review is delivered, the dedrem is recomputed with the approved prices
+        set_claims_status([claim1.uuid], "review_status", Claim.REVIEW_DELIVERED)
+        update_claims_dedrems([claim1.uuid], self.user)
+        dedrem = ClaimDedRem.objects.filter(claim=claim1).first()
+        self.assertIsNotNone(dedrem)
+        self.assertEqual(dedrem.rem_g, 4000)  # 2000*1 + 2000*1
+
+        # Then the claim is processed: the approved prices drive the valuation as well
+        errors = validate_claim(claim1, False)
+        errors += validate_assign_prod_to_claimitems_and_services(claim1)
+        errors += process_dedrem(claim1, -1, True)
+        self.assertEqual(len(errors), 0)
+        item1.refresh_from_db()
+        service1.refresh_from_db()
+        self.assertEqual(item1.price_adjusted, 2000)
+        self.assertEqual(item1.price_valuated, 2000)
+        self.assertEqual(item1.remunerated_amount, 2000)
+        self.assertEqual(service1.price_adjusted, 2000)
+        self.assertEqual(service1.price_valuated, 2000)
+        self.assertEqual(service1.remunerated_amount, 2000)
+
+        # tearDown
         delete_claim_with_itemsvc_dedrem_and_history(claim1)
         policy.insuree_policies.first().delete()
         policy.delete()
