@@ -1167,9 +1167,13 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
             pl_price = itemsvc_pricelist_detail.price_overrule if itemsvc_pricelist_detail.price_overrule \
                 else claim_detail.itemsvc.price
 
+            # The price approved during the claim review (medical officer) is the reference for the
+            # valuation: it must not be overridden by the pricelist price nor by the price asked by the
+            # health facility (ticket #38283 / OICI-310). This is the behaviour of the openIMIS upstream
+            # implementation (calculate_price_adjusted returns price_approved first).
             if claim_detail.price_approved is not None:
                 set_price_adjusted = claim_detail.price_approved
-            if claim_detail.price_origin == ProductItemOrService.ORIGIN_CLAIM:
+            elif claim_detail.price_origin == ProductItemOrService.ORIGIN_CLAIM:
                 set_price_adjusted = claim_detail.price_asked
                 if ClaimConfig.verify_quantities:
                     try:
