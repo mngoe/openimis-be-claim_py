@@ -217,6 +217,12 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     admin = models.ForeignKey(
         ClaimAdmin, models.DO_NOTHING, db_column='ClaimAdminId',
         blank=True, null=True)
+    refer_from = models.ForeignKey(
+        location_models.HealthFacility, models.DO_NOTHING, related_name='referFromHF',
+        db_column='ReferFrom', blank=True, null=True)
+    refer_to = models.ForeignKey(
+        location_models.HealthFacility, models.DO_NOTHING, related_name='referToHF',
+        db_column='ReferTo', blank=True, null=True)
     icd = models.ForeignKey(
         medical_models.Diagnosis, models.DO_NOTHING, db_column='ICDID',
         related_name="claim_icds")
@@ -255,7 +261,65 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     test_number = models.CharField(
         db_column='TestNumber', max_length=255, blank=True, null=True)
     tdr = models.BooleanField(db_column='TDRResult', blank=True, null=True)
+    audited = models.BooleanField(db_column='Audited', blank=True, null=True)
+    audit_explanation = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        db_column='AuditExplanation'
+    )
+    from_rejected_to_valuated = models.BooleanField(
+        db_column='RejectedToValuated',
+        blank=True,
+        null=True
+    )
+    claim_category = models.CharField(
+        max_length=1,
+        blank=True,
+        null=True,
+        db_column='ClaimCategoryAudit'
+    )
+    amount_audited = models.DecimalField(
+        db_column='amountAudited',
+        max_digits=18,
+        decimal_places=2,
+        blank=True,
+        null=True
+    )
+    rejection_motive = models.SmallIntegerField(
+        blank=True,
+        null=True,
+        db_column='rejectionMotive'
+    )
+    rejection_reason_after_audit = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        db_column='rejectionReasonAfterAudit'
+    )
+    audit_status = models.CharField(
+        max_length=10,
+        blank=True,
+        null=True,
+        db_column='auditStatus'
+    )
     care_type = models.CharField(db_column='CareType', max_length=4, blank=True, null=True)
+    pregnancy_age = models.PositiveSmallIntegerField(db_column='PregnancyAge', blank=True, null=True)
+    SOURCE_WEB = "WEB"
+    SOURCE_MOBILE = "MOB"
+    SOURCE_XML = "XML"
+    CLAIM_SOURCE_CHOICES = (
+        (SOURCE_WEB, "Web"),
+        (SOURCE_MOBILE, "Mobile"),
+        (SOURCE_XML, "Import XML"),
+    )
+    source = models.CharField(
+        max_length=10,
+        choices=CLAIM_SOURCE_CHOICES,
+        blank=True,
+        null=True,
+        default=None,
+    )
 
     # row_id = models.BinaryField(db_column='RowID', blank=True, null=True)
 
@@ -263,7 +327,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         managed = True
         db_table = 'tblClaim'
         indexes = [
-            models.Index(fields=['code', 'uuid', 'status'])
+            models.Index(fields=['code', 'status'])
         ]
 
     STATUS_REJECTED = 1
@@ -271,6 +335,7 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
     STATUS_CHECKED = 4
     STATUS_PROCESSED = 8
     STATUS_VALUATED = 16
+    STATUS_REINITIALIZED = 32
 
     FEEDBACK_IDLE = 1
     FEEDBACK_NOT_SELECTED = 2
@@ -377,7 +442,7 @@ class ClaimAttachmentsCount(models.Model):
     value = models.IntegerField(db_column='attachments_count')
 
     class Meta:
-        managed = False
+        managed = True
         db_table = 'claim_ClaimAttachmentsCountView'
 
 
@@ -478,7 +543,7 @@ class ClaimItem(core_models.VersionedModel, ClaimDetail, core_models.ExtendableM
     objects = ClaimDetailManager()
 
     class Meta:
-        managed = False
+        managed = True
         db_table = 'tblClaimItems'
 
 
@@ -580,7 +645,7 @@ class ClaimService(core_models.VersionedModel, ClaimDetail, core_models.Extendab
     objects = ClaimDetailManager()
 
     class Meta:
-        managed = False
+        managed = True
         db_table = 'tblClaimServices'
 
 class ClaimServiceItem(models.Model):
@@ -598,6 +663,8 @@ class ClaimServiceItem(models.Model):
                                    blank=True, null=True)
     price_asked = models.DecimalField(db_column="price",
                                    max_digits=18, decimal_places=2, blank=True, null=True)
+    qty_audited = models.DecimalField(db_column="qtyAudided",
+                                        max_digits=18, decimal_places=2, blank=True, null=True)
                                    
     class Meta:
         managed = True
@@ -619,6 +686,8 @@ class ClaimServiceService(models.Model):
                                    blank=True, null=True)
     price_asked = models.DecimalField(db_column="price",
                                    max_digits=18, decimal_places=2, blank=True, null=True)
+    qty_audited = models.DecimalField(db_column="qtyAudided",
+                                       max_digits=18, decimal_places=2, blank=True, null=True)
     
     class Meta:
         managed = True
@@ -650,5 +719,5 @@ class ClaimDedRem(core_models.VersionedModel):
     audit_user_id = models.IntegerField(db_column='AuditUserID')
 
     class Meta:
-        managed = False
+        managed = True
         db_table = 'tblClaimDedRem'

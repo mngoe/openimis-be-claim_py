@@ -2,7 +2,7 @@ import graphene
 from enum import Enum
 
 from core.models import Officer, MutationLog
-from insuree.models import Insuree
+from insuree.models import Insuree, Family
 from location.models import HealthFacility, Location, LocationManager
 from .services import check_unique_claim_code
 import django
@@ -21,6 +21,10 @@ import ast
 # We do need all queries and mutations in the namespace here.
 from .gql_queries import *  # lgtm [py/polluting-import]
 from .gql_mutations import *  # lgtm [py/polluting-import]
+from policy.apps import PolicyConfig
+from product.models import Product
+from policy.models import Policy
+from datetime import timedelta
 
 
 class Query(graphene.ObjectType):
@@ -34,7 +38,8 @@ class Query(graphene.ObjectType):
         json_ext=graphene.JSONString(),
         attachment_status=graphene.Int(required=False),
         care_type=graphene.String(required=False),
-        show_restored=graphene.Boolean(required=False)
+        show_restored=graphene.Boolean(required=False),
+        rejection_code=graphene.Int(required=False)
     )
 
     claim = graphene.Field(
@@ -49,10 +54,15 @@ class Query(graphene.ObjectType):
     claim_admins = DjangoFilterConnectionField(
         ClaimAdminGQLType,
         search=graphene.String(),
-        user_health_facility=graphene.String()
+        region_uuid=graphene.String(),
+        district_uuid=graphene.String()
     )
     claim_officers = DjangoFilterConnectionField(
         OfficerGQLType, search=graphene.String()
+    )
+
+    insuree_name_by_chfid = graphene.String(
+        chfId=graphene.String(required=True)
     )
 
     validate_claim_code = graphene.Field(
@@ -77,6 +87,43 @@ class Query(graphene.ObjectType):
     claim_attachment_type = DjangoFilterConnectionField(
         ClaimAttachmentTypeGQLType
     )
+    
+    pregnancy_age = graphene.Field(
+        PregnancyAgeGQLType,
+        claim_date_to=graphene.DateTime(required=True),
+        family_id=graphene.Int(required=True),
+        product=graphene.Int(required=True)
+    )
+
+    claim_history = OrderedDjangoFilterConnectionField(
+        ClaimGQLType,
+        claim_uuid=graphene.String(required=True),
+        diagnosisVariance=graphene.Int(),
+        code_is_not=graphene.String(),
+        orderBy=graphene.List(of_type=graphene.String),
+        items=graphene.List(of_type=graphene.String),
+        services=graphene.List(of_type=graphene.String),
+        json_ext=graphene.JSONString(),
+        attachment_status=graphene.Int(required=False),
+        care_type=graphene.String(required=False),
+        show_restored=graphene.Boolean(required=False),
+        rejection_code=graphene.Int(required=False)
+    )
+
+    def resolve_insuree_name_by_chfid(self, info, **kwargs):
+        if not info.context.user.has_perms(ClaimConfig.gql_mutation_create_claims_perms)\
+                and not info.context.user.has_perms(ClaimConfig.gql_mutation_update_claims_perms):
+            raise PermissionDenied(_("unauthorized"))
+        chf_id = kwargs.get('chfId')
+        insuree = Insuree.objects\
+            .filter(validity_to__isnull=True, chf_id=chf_id)\
+            .values('last_name', 'other_names')\
+            .first()
+        if insuree:
+            insuree_name = f"{insuree['other_names']} {insuree['last_name']}"
+        else:
+            insuree_name = ""
+        return insuree_name
 
     def resolve_validate_claim_code(self, info, **kwargs):
         if not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms):
@@ -116,6 +163,9 @@ class Query(graphene.ObjectType):
         items = kwargs.get("items", None)
         services = kwargs.get("services", None)
 
+        show_restored = kwargs.get("show_restored", None)
+        if show_restored:
+            filters.append(Q(restore__isnull=False))
         if items:
             filters.append(Q(items__item__code__in=items))
 
@@ -165,10 +215,15 @@ class Query(graphene.ObjectType):
         #query = query.filter(
         #            LocationManager().build_user_location_filter_query( info.context.user._u, prefix='health_facility__location') 
         #        )
+        rejection_code = kwargs.get("rejection_code", None)
+        if rejection_code:
+            filters.append(Q(services__rejection_reason=rejection_code))
         code_is_not = kwargs.get("code_is_not", None)
         
-        if len(filters):
-            query = query.filter(*filters)   
+        if len(filters): 
+            # Apply DISTINCT to avoid duplicates caused by joins (e.g., multiple services per claim)
+            filtered_query = query.filter(*filters).values('id').distinct()
+            query = query.filter(id__in=filtered_query)
         if code_is_not:
             query = query.exclude(code=code_is_not)
         
@@ -208,10 +263,12 @@ class Query(graphene.ObjectType):
         filters = [*filter_validity(**kwargs)]
         if user_health_facility:
             filters += [Q(health_facility__in=user_health_facility)]
+
         if search:
             filters += [Q(code__icontains=search) |
                         Q(last_name__icontains=search) |
                         Q(other_names__icontains=search)]
+
         return ClaimAdmin.objects.filter(*filters)
 
     def resolve_claim_officers(self, info, search=None, **kwargs):
@@ -246,6 +303,90 @@ class Query(graphene.ObjectType):
                                   validity_to__isnull=True).order_by("date_claimed")
         return qs
 
+    def resolve_pregnancy_age(self, info, claim_date_to, family_id, product, **kwargs):
+        user = info.context.user
+        if not user.has_perms(PolicyConfig.gql_query_policies_perms):
+            raise PermissionDenied(_("unauthorized"))
+
+        family = Family.objects.get(id=family_id)
+
+        product_obj = Product.objects.filter(
+            Q(validity_to__isnull=True),
+            Q(id=product) | Q(legacy_id=product),
+        ).order_by('-validity_from').first()
+        if not product_obj:
+            raise ValidationError("Provided product not available")
+
+        claim_date = claim_date_to.date()
+        policy = Policy.objects.filter(
+            family=family,
+            product=product_obj,
+            start_date__lte=claim_date,
+            expiry_date__gte=claim_date,
+            status=Policy.STATUS_ACTIVE,
+        ).order_by('-start_date').first()
+
+        if not policy or policy.pregnancy_age is None:
+            return PregnancyAgeGQLType(
+                pregnancy_age=None,
+                claim_date_to=claim_date_to,
+                family_id=family_id,
+                product=product,
+                )
+
+        start = policy.start_date
+        end = claim_date
+        monday_start = start - timedelta(days=start.weekday())
+        monday_end = end - timedelta(days=end.weekday())
+        weeks_passed = (monday_end - monday_start).days // 7
+        pregnancy_age = policy.pregnancy_age + weeks_passed
+
+        return PregnancyAgeGQLType(
+            pregnancy_age=pregnancy_age,
+            claim_date_to=claim_date_to,
+            family_id=family_id,
+            product=product,
+        )
+
+    def resolve_claim_history(self, info, **kwargs):
+        claim_uuid = kwargs.get('claim_uuid')
+
+        try:
+            target_claim = Claim.objects.get(uuid=claim_uuid)
+        except Claim.DoesNotExist:
+            return Claim.objects.none()
+
+        if (
+            not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms)
+            and settings.ROW_SECURITY
+        ):
+            raise PermissionDenied(_("unauthorized"))
+
+        query = Claim.objects.filter(
+            code=target_claim.code,
+            validity_to__isnull=False
+        )
+
+        filters = []
+
+        if "care_type" in kwargs and kwargs["care_type"]:
+            filters.append(Q(care_type=kwargs["care_type"]))
+
+        if "attachment_status" in kwargs:
+            status = kwargs["attachment_status"]
+            if status == 1:  # WITH
+                filters.append(Q(attachments__isnull=False))
+            elif status == 2:  # WITHOUT
+                filters.append(Q(attachments__isnull=True))
+
+        if "code_is_not" in kwargs and kwargs["code_is_not"]:
+            filters.append(~Q(code=kwargs["code_is_not"]))
+
+        if filters:
+            query = query.filter(*filters).distinct()
+
+        return gql_optimizer.query(query, info)
+
 
 class Mutation(graphene.ObjectType):
     create_claim = CreateClaimMutation.Field()
@@ -265,6 +406,7 @@ class Mutation(graphene.ObjectType):
     skip_claims_review = SkipClaimsReviewMutation.Field()
     process_claims = ProcessClaimsMutation.Field()
     delete_claims = DeleteClaimsMutation.Field()
+    reject_claims = RejectClaimsMutation.Field()
 
 
 def on_claim_mutation(sender, **kwargs):
