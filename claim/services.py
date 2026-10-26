@@ -10,21 +10,24 @@ from core.models import Officer
 from core.utils import filter_validity
 from django.db import connection, transaction
 from gettext import gettext as _
-
 from core.signals import register_service_signal
 from .apps import ClaimConfig
+from medical_controller.apps import MedicalControllerConfig
 from django.conf import settings
 
-from claim.models import Claim, ClaimItem, ClaimService, ClaimDetail, ClaimDedRem, FeedbackPrompt
+from claim.models import Claim, ClaimItem, ClaimService, ClaimDetail, ClaimDedRem, FeedbackPrompt, ClaimServiceService, ClaimServiceItem
 from product.models import ProductItemOrService
 
 from claim.utils import process_items_relations, process_services_relations
 from .validations import validate_claim, validate_assign_prod_to_claimitems_and_services, process_dedrem, \
-    approved_amount, get_claim_category
+    approved_amount, get_claim_category, REJECTION_REASON_MANUAL_REJECTION
 from django.db.models import Subquery, F, OuterRef, Sum, FloatField
 from django.db.models.functions import Coalesce
 from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import PermissionDenied, ValidationError, ObjectDoesNotExist
+from datetime import timedelta
+from insuree.models import Insuree
+from policy.models import Policy
 logger = logging.getLogger(__name__)
 
 
@@ -431,19 +434,58 @@ def _get_autogenerating_func() -> Callable[[Dict], Callable]:
     return getattr(module, function_name)
 
 
-def claim_create(data, user, autogenerate_code = False):
+def claim_create(data, user, autogenerate_code = False, program=None):
     restore = data.pop('restore', None)
     autogenerate_code = data.pop('autogenerate', None)
+    restored_claim = None
     if restore:
-        data["restore"] = Claim.objects.filter(uuid=restore).first()
-    
+        restored_claim = Claim.objects.filter(uuid=restore).first()
+        if restored_claim:
+            data["restore"] = restored_claim
+
     if autogenerate_code:
         data['code'] = __autogenerate_claim_code()
     data['audit_user_id'] = user.id_for_audit
+    insuree_id = data.get("insuree_id", None)
+    date_to = data.get("date_to", None)
+    pregnancy_age = data.get("pregnancy_age", None)
+    logger.info("current insuree id %s", insuree_id)
+    logger.info("program of the claim to create %s", program)
+    logger.info("date_to of the claim to create %s", date_to)
+    #if we are claiming a cheque sante program via mobile, we set the preganancy age field
+    # if it does not exist
+    if program and program.code == "CCS" and not pregnancy_age:
+        if insuree_id and date_to:
+            family = Insuree.objects.get(id=insuree_id).family
+            logger.info("Claimm for family %s ", family)
+            if family:
+                chequesante_policy = Policy.objects.filter(
+                    validity_to__isnull=True,
+                    family_id=family.id,
+                    product__program__code="CCS"
+                ).first()
+                logger.info("checquesante policy found %s", chequesante_policy)
+                pregnancy_age = chequesante_policy.pregnancy_age
+                logger.info("pregnancy age found on the policy %s", pregnancy_age)
+                logger.info("start date of the policy %s", chequesante_policy.start_date)
+                if pregnancy_age:
+                    start = chequesante_policy.start_date
+                    end = date_to
+                    monday_start = start - timedelta(days=start.weekday())
+                    monday_end = end - timedelta(days=end.weekday())
+                    weeks_passed = (monday_end - monday_start).days // 7
+                    pregnancy_age = pregnancy_age + weeks_passed
+                    logger.info("calculated pregnancy age is %s", pregnancy_age)
+                    data["pregnancy_age"] = pregnancy_age
+
     claim = Claim()
     set_reduced_attr(claim, data, ['items', 'services'])
     claim.save()
     claim_create_items_and_services(claim, data, user)
+
+    if restored_claim and restored_claim.status == Claim.STATUS_REJECTED:
+        restored_claim.status = Claim.STATUS_REINITIALIZED
+        restored_claim.save()
     return claim
 
 
@@ -453,10 +495,49 @@ def claim_update(claim, data, user):
     # (each update is 'complete', necessary to be able to set 'null')
     reset_claim_before_update(claim)
     set_reduced_attr(claim, data, ['items', 'services'])
+    services = data.get("services", {})
+    print("services ", services)
+    for claim_service_service in services:
+        service_service_set = claim_service_service.get('service_service_set', [])
+        for service_service in service_service_set:
+            qty_audited = service_service.get("qty_audited", None)
+            if qty_audited:
+                service = Service.objects.filter(code=service_service["sub_service_code"]).first()
+                print("qty_audited ", qty_audited)
+                claimservices = ClaimService.objects.filter(claim_id=claim.id)
+                print("related claimservice ", claimservices)
+                for claimservice in claimservices:
+                    css = ClaimServiceService.objects.filter(
+                        claim_service=claimservice,
+                        service=service
+                    )
+                    print("css ", css)
+                    css.update(
+                        qty_audited=qty_audited
+                    )
+
+            service_item_set = claim_service_service.get('service_item_set', [])
+            for service_item in service_item_set:
+                qty_audited = service_item.get("qty_audited", None)
+                if qty_audited:
+                    item = Item.objects.filter(code=service_item["sub_item_code"]).first()
+                    if qty_audited:
+                        print("qty_audited item", qty_audited)
+                        claimservices = ClaimService.objects.filter(claim_id=claim.id)
+                        print("related claimservice ", claimservices)
+                        for claimservice in claimservices:
+                            csi = ClaimServiceItem.objects.filter(
+                                claim_service=claimservice,
+                                item=item
+                            )
+                            print("csi : ", csi)
+                            csi.update(
+                                qty_audited=qty_audited
+                            )
     from core.utils import TimeUtils
+    claim_create_items_and_services(claim, data, user)
     claim.items.update(validity_to=TimeUtils.now())
     claim.services.update(validity_to=TimeUtils.now())
-    claim_create_items_and_services(claim, data, user)
     return claim
 
 
@@ -472,11 +553,15 @@ def claim_create_items_and_services(claim, data, user):
     claimed = 0
     claimed += process_items_relations(user, claim, items)
     claimed += process_services_relations(user, claim, services)
+    if claimed < 0:
+        raise ValidationError(_("mutation.negative_amount_not_allowed"))
+    if claimed == 0:
+        claimed = 0.00
     claim.claimed = claimed
     claim.save()
 
 
-def update_or_create_claim(data, user):
+def update_or_create_claim(data, user, program):
          
     validate_claim_data(data, user)
     claim_uuid = data.pop("uuid", None)
@@ -487,7 +572,7 @@ def update_or_create_claim(data, user):
         claim = Claim.objects.get(uuid=claim_uuid)
         claim = claim_update(claim, data, user)
     else:
-        claim = claim_create(data, user)
+        claim = claim_create(data=data, user=user, program=program)
     return claim
 
 
@@ -515,7 +600,8 @@ def validate_claim_data(data, user):
             })
            
     elif current_claim is not None and current_claim.status not in (Claim.STATUS_CHECKED, Claim.STATUS_ENTERED):
-        raise ValidationError(_("mutation.claim_not_editable")) 
+        if not user.has_perms(MedicalControllerConfig.gql_mutation_medical_controller_perms):
+            raise ValidationError(_("mutation.claim_not_editable"))
 
     if not validate_number_of_additional_diagnoses(data):
         raise ValidationError(_("mutation.claim_too_many_additional_diagnoses"))
@@ -543,6 +629,13 @@ def validate_number_of_additional_diagnoses(incoming_data):
 
 def submit_claim(claim, user):
     c_errors = []
+    from location.models import LocationManager, HealthFacility
+    logger.warning("User %s", user._u)
+    hf = LocationManager().build_user_location_filter_query(
+        user._u, queryset = HealthFacility.filter_queryset().filter(code=claim.health_facility.code)
+        )
+    if not hf and settings.ROW_SECURITY:
+        raise ClaimSubmitError("Invalid health facility code or health facility not allowed for user")
     claim.save_history()
     logger.debug("SubmitClaimsMutation: validating claim %s", claim.uuid)
     c_errors += validate_claim(claim, True)
@@ -556,6 +649,36 @@ def submit_claim(claim, user):
     c_errors += set_claim_submitted(claim, c_errors, user)
     logger.debug("SubmitClaimsMutation: claim %s set submitted", claim.uuid)
     return c_errors
+
+
+def reject_claim(claim, user, explanation=None):
+
+    errors = []
+
+    try:
+        claim.save_history()
+        claim.status = Claim.STATUS_REJECTED
+        claim.explanation = explanation
+        claim.audit_user_id_process = user.id_for_audit
+
+        # Update all items and services to rejected status
+        claim.items.filter(validity_to__isnull=True) \
+                .update(status=ClaimItem.STATUS_REJECTED,
+                        qty_approved=0,
+                        rejection_reason=REJECTION_REASON_MANUAL_REJECTION)
+        claim.services.filter(validity_to__isnull=True) \
+                .update(status=ClaimService.STATUS_REJECTED,
+                        qty_approved=0,
+                        rejection_reason=REJECTION_REASON_MANUAL_REJECTION)
+
+        claim.save()
+    except Exception as exc:
+        errors.append({
+            'message': _("claim.mutation.failed_to_reject_claim") % {'code': claim.code},
+            'detail': str(exc)
+        })
+
+    return errors
 
 
 def set_claim_submitted(claim, errors, user):
@@ -578,7 +701,7 @@ def set_claim_submitted(claim, errors, user):
                 'message': _("claim.mutation.failed_to_change_status_of_claim") % {'code': claim.code},
                 'detail': claim.uuid}]
         }
-        
+
 
 def validate_and_process_dedrem_claim(claim, user, is_process):
     errors = validate_claim(claim, False)
@@ -650,6 +773,9 @@ def set_claims_status(uuids, field, status, audit_data=None, user=None):
                     create_feedback_prompt(claim, user)
                 elif status in [Claim.FEEDBACK_NOT_SELECTED, Claim.FEEDBACK_BYPASSED]:
                     set_feedback_prompt_validity_to_to_current_date(claim.uuid)
+            # Set status to PROCESSED if bypassing review
+            if field == 'review_status' and status == Claim.REVIEW_BYPASSED:
+                claim.status = Claim.STATUS_PROCESSED
             if audit_data:
                 for k, v in audit_data.items():
                     setattr(claim, k, v)
@@ -721,7 +847,7 @@ def set_feedback_prompt_validity_to_to_current_date(claim_uuid):
         return "No such feedback prompt exist."
 
 
-def update_claims_dedrems(uuids, user):
+def update_claims_dedrems(uuids, user, field=None, status=None):
     # We could do it in one query with filter(claim__uuid__in=uuids) but we'd loose the logging
     errors = []
     claims = Claim.objects.filter(uuid__in=uuids)
@@ -730,7 +856,19 @@ def update_claims_dedrems(uuids, user):
         remaining_uuid.remove(claim.uuid.upper())       
         logger.debug(f"delivering review on {claim.uuid}, reprocessing dedrem ({user})")
         errors += validate_and_process_dedrem_claim(claim, user, False)
+        # Set status to PROCESSED if delivered review
+        if field == 'review_status' and status == Claim.REVIEW_DELIVERED:
+            set_claims_status_to_be_processed(claim.uuid)
     if len(remaining_uuid):
         errors.append(_(
             "claim.validation.id_does_not_exist") % {'id': ','.join(remaining_uuid)})
     return errors
+
+
+def set_claims_status_to_be_processed(claim_uuid):
+    try:
+        claim = Claim.objects.get(uuid=claim_uuid)
+        claim.status = Claim.STATUS_PROCESSED
+        claim.save()
+    except ObjectDoesNotExist:
+        return "No such claim exist."
