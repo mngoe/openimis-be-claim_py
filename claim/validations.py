@@ -1476,7 +1476,7 @@ def approved_amount(claim):
                 claim_service__validity_to__isnull=True,
                 claim_service__status=ClaimService.STATUS_PASSED,
             ) \
-            .annotate(value=F("qty_displayed") * F("price_asked")) \
+            .annotate(value=Coalesce(F("qty_adjusted"), F("qty_displayed")) * F("price_asked")) \
             .aggregate(total=Sum("value"))["total"] or 0
 
         logger.debug("Total for subservices %s", sub_services_total)
@@ -1487,7 +1487,7 @@ def approved_amount(claim):
                 claim_service__validity_to__isnull=True,
                 claim_service__status=ClaimService.STATUS_PASSED,
             ) \
-            .annotate(value=F("qty_displayed") * F("price_asked")) \
+            .annotate(value=Coalesce(F("qty_adjusted"), F("qty_displayed")) * F("price_asked")) \
             .aggregate(total=Sum("value"))["total"] or 0
 
         logger.debug("Total for subitems %s", sub_items_total)
