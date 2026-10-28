@@ -363,6 +363,13 @@ class ClaimSubmitServiceTestCase(TestCase):
         result = calcul_amount_service(service_items_dict)
         self.assertEqual(result, 51)
 
+        no_service_items_dict = {
+            "qty_provided": 5, "price_asked": 50, "service_id": 23,
+            "status": 1, "validity_from": "2019-06-01", "validity_to": None, "audit_user_id": -1
+        }
+        result = calcul_amount_service(no_service_items_dict)
+        self.assertEqual(result, 250)
+
     def _get_test_dict(self, code=None):
         return {
             "health_facility_id": self.test_claim.health_facility_id, 
