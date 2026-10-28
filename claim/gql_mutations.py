@@ -1078,10 +1078,6 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                     all_rejected = False
             logger.debug("Final amount claimed %s", claimed)
             logger.debug("Claim to be updated %s", claim_to_be_updated)
-            approved = approved_amount(claim)
-            if (approved and approved < 0) or (claimed and claimed < 0):
-                raise ValidationError(_("mutation.negative_amount_not_allowed"))
-            claim.approved = approved
             if ClaimConfig.native_code_for_services == False:
                 # Do not update claimed as approved is already updated
                 # if claim_to_be_updated:
@@ -1091,6 +1087,10 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                         setattr(claimservice, 'price_adjusted', claimed)
                         claimservice.save()
             claim.audit_user_id_review = user.id_for_audit
+            approved = approved_amount(claim)
+            if (approved and approved < 0) or (claimed and claimed < 0):
+                raise ValidationError(_("mutation.negative_amount_not_allowed"))
+            claim.approved = approved
             if all_rejected:
                 claim.status = Claim.STATUS_REJECTED
             claim.save()
