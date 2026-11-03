@@ -572,7 +572,10 @@ def validate_claim_data(data, user):
     if incoming_code_pre_authorization!=None and len(incoming_code_pre_authorization) > ClaimConfig.max_claim_length:
         raise ValidationError(_("mutation.code_name_too_long"))
 
-    if not restore and current_code != incoming_code and check_unique_claim_code(incoming_code):
+    # A restored claim is a new claim: its number must be unique too, otherwise several claims
+    # would share the same number (ticket #38284). Only an update that keeps the claim's own
+    # number is allowed to skip the check.
+    if current_code != incoming_code and check_unique_claim_code(incoming_code):
         raise ValidationError(_("mutation.code_name_duplicated"))
 
 
