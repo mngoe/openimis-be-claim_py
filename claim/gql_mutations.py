@@ -717,6 +717,10 @@ class SubmitClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
             logger.warning("Total claims using uuids %s ", claims.count())
 
         for claim in claims:
+            user_submit_ip_address = data.get("user_submit_ip_address", None)
+            logger.info("Ip adress of the user submitting %s", user_submit_ip_address)
+            if user_submit_ip_address:
+                claim.user_submit_ip_address = user_submit_ip_address
             if remaining_uuid:
                 remaining_uuid.remove(claim.uuid.upper())
             c_errors += submit_claim(claim, user)
@@ -847,9 +851,16 @@ class BypassClaimsFeedbackMutation(OpenIMISMutation):
 
     @classmethod
     def async_mutate(cls, user, **data):
+        logger.info(
+            "BypassClaimsFeedbackMutation with ip %s", data.get("user_processed_ip_address", None))
         if not user.has_perms(ClaimConfig.gql_mutation_bypass_claim_feedback_perms):
             raise PermissionDenied(_("unauthorized"))
-        return set_claims_status(data['uuids'], 'feedback_status', Claim.FEEDBACK_BYPASSED)
+        return set_claims_status(
+            data['uuids'],
+            'feedback_status',
+            Claim.FEEDBACK_BYPASSED,
+            processed_ip_address=data.get("user_processed_ip_address", None)
+        )
 
 
 class SkipClaimsFeedbackMutation(OpenIMISMutation):
@@ -947,9 +958,16 @@ class BypassClaimsReviewMutation(OpenIMISMutation):
 
     @classmethod
     def async_mutate(cls, user, **data):
+        logger.info(
+            "BypassClaimsReviewMutation with ip %s", data.get("user_processed_ip_address", None))
         if not user.has_perms(ClaimConfig.gql_mutation_bypass_claim_review_perms):
             raise PermissionDenied(_("unauthorized"))
-        return set_claims_status(data['uuids'], 'review_status', Claim.REVIEW_BYPASSED)
+        return set_claims_status(
+            data['uuids'],
+            'review_status',
+            Claim.REVIEW_BYPASSED,
+            processed_ip_address=data.get("user_processed_ip_address", None)
+        )
 
 
 class DeliverClaimsReviewMutation(OpenIMISMutation):
@@ -964,13 +982,22 @@ class DeliverClaimsReviewMutation(OpenIMISMutation):
 
     @classmethod
     def async_mutate(cls, user, **data):
-        logger.error("SaveClaimReviewMutation")
+        logger.error("SaveClaimReviewMutation ")
+        logger.info(
+            "DeliverClaimsReviewMutation with ip %s", data.get("user_processed_ip_address", None)
+        )
         if not user.has_perms(ClaimConfig.gql_mutation_deliver_claim_review_perms):
             raise PermissionDenied(_("unauthorized"))
         errors = set_claims_status(data['uuids'], 'review_status', Claim.REVIEW_DELIVERED,
                                    {'audit_user_id_review': user.id_for_audit})
         # OMT-208 update the dedrem for the reviewed claims
-        errors += update_claims_dedrems(data["uuids"], user, 'review_status', Claim.REVIEW_DELIVERED)
+        errors += update_claims_dedrems(
+            data["uuids"],
+            user,
+            'review_status',
+            Claim.REVIEW_DELIVERED,
+            processed_ip_address=data.get("user_processed_ip_address", None)
+        )
 
         return errors
 
@@ -1020,6 +1047,9 @@ class SaveClaimReviewMutation(OpenIMISMutation):
                     "claim.validation.id_does_not_exist") % {'id': data['claim_uuid']}}]
             claim.save_history()
             claim.adjustment = data.get('adjustment', None)
+            last_updater_ip_address = data.get("last_updater_ip_address", None)
+            if last_updater_ip_address:
+                claim.last_updater_ip_address = last_updater_ip_address
             items = data.pop('items') if 'items' in data else []
             all_rejected = True
             for item in items:
@@ -1124,6 +1154,7 @@ class ProcessClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
 
     @classmethod
     def async_mutate(cls, user, **data):
+        logger.info("Process claim with ip %s", data.get("user_processed_ip_address", None))
         if not user.has_perms(ClaimConfig.gql_mutation_process_claims_perms):
             raise PermissionDenied(_("unauthorized"))
         errors = []
@@ -1143,8 +1174,11 @@ class ProcessClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
      
             claim.save_history()
             claim.audit_user_id_process = user.id_for_audit
+            user_processed_ip_address = data.get("user_processed_ip_address", None)
+            if user_processed_ip_address:
+                claim.user_processed_ip_address = user_processed_ip_address
             logger.debug("ProcessClaimsMutation: validating claim %s", claim.uuid)
-            c_errors += validate_and_process_dedrem_claim(claim, user, True)
+            c_errors += validate_and_process_dedrem_claim(claim, user, True, user_processed_ip_address)
 
             logger.debug("ProcessClaimsMutation: claim %s set processed or valuated", claim.uuid)
             if c_errors:
@@ -1219,5 +1253,5 @@ def set_claim_deleted(claim):
 
 
 
-def validate_and_process_dedrem_claim(claim, user, is_process):
-    return service_validate_and_process_dedrem_claim(claim, user, is_process)
+def validate_and_process_dedrem_claim(claim, user, is_process, user_valuated_ip=None):
+    return service_validate_and_process_dedrem_claim(claim, user, is_process, user_valuated_ip)
