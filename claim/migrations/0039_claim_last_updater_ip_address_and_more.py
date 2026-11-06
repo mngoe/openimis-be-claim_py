@@ -5,7 +5,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0036_add_field_source'),
+        ('claim', '0038_alter_claimattachmentscount_options_and_more'),
     ]
 
     operations = [
@@ -23,11 +23,6 @@ class Migration(migrations.Migration):
             model_name='claim',
             name='user_processed_ip_address',
             field=models.CharField(blank=True, db_column='UserProcessedIpAddress', max_length=50, null=True),
-        ),
-        migrations.AddField(
-            model_name='claim',
-            name='user_reviewed_ip_address',
-            field=models.CharField(blank=True, db_column='UserReviewedIpAddress', max_length=50, null=True),
         ),
         migrations.AddField(
             model_name='claim',

@@ -332,12 +332,6 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         blank=True,
         null=True
     )
-    user_reviewed_ip_address = models.CharField(
-        db_column='UserReviewedIpAddress',
-        max_length=50,
-        blank=True,
-        null=True
-    )
     user_submit_ip_address = models.CharField(
         db_column='UserSubmitIpAddress',
         max_length=50,
