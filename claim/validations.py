@@ -97,6 +97,7 @@ def validate_claim(claim, check_max):
         .update(status=ClaimService.STATUS_PASSED)
 
     if rtn_items_passed + rtn_services_passed == 0:
+        print("Rejet ici...")
         errors += [{'code': REJECTION_REASON_INVALID_ITEM_OR_SERVICE,
                     'message': _("claim.validation.all_items_and_services_rejected") % {
                         'code': claim.code},
@@ -952,6 +953,12 @@ def process_dedrem(claim, audit_user_id=-1, is_process=False):
     for policy_product in items_query.union(services_query, all=True):
         product = Product.objects.filter(*filter_validity(validity=target_date),
             Q(Q(id=policy_product["product_id"])|Q(legacy_id=policy_product["product_id"]))).order_by('-date_from').first()
+        if not product:
+            raise ValueError(
+                _(
+                    "Product with id %s not in target date %s"
+                ) % (policy_product["product_id"], target_date)
+            )
         policy_members = InsureePolicy.objects.filter(
             policy_id=policy_product["policy_id"],
             effective_date__isnull=False,
@@ -1469,7 +1476,7 @@ def approved_amount(claim):
                 claim_service__validity_to__isnull=True,
                 claim_service__status=ClaimService.STATUS_PASSED,
             ) \
-            .annotate(value=F("qty_displayed") * F("price_asked")) \
+            .annotate(value=Coalesce(F("qty_adjusted"), F("qty_displayed")) * F("price_asked")) \
             .aggregate(total=Sum("value"))["total"] or 0
 
         logger.debug("Total for subservices %s", sub_services_total)
@@ -1480,7 +1487,7 @@ def approved_amount(claim):
                 claim_service__validity_to__isnull=True,
                 claim_service__status=ClaimService.STATUS_PASSED,
             ) \
-            .annotate(value=F("qty_displayed") * F("price_asked")) \
+            .annotate(value=Coalesce(F("qty_adjusted"), F("qty_displayed")) * F("price_asked")) \
             .aggregate(total=Sum("value"))["total"] or 0
 
         logger.debug("Total for subitems %s", sub_items_total)

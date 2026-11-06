@@ -5,12 +5,10 @@ from claim.test_helpers import create_test_claim, create_test_claimservice, crea
     mark_test_claim_as_processed, delete_claim_with_itemsvc_dedrem_and_history
 from core.test_helpers import create_test_officer, create_test_interactive_user
 from datetime import date, timedelta, datetime
-
-
 from claim.validations import get_claim_category, validate_claim,\
     validate_assign_prod_to_claimitems_and_services, process_dedrem,\
     REJECTION_REASON_WAITING_PERIOD_FAIL, REJECTION_REASON_INVALID_ITEM_OR_SERVICE,\
-        REJECTION_REASON_TARGET_DATE
+        REJECTION_REASON_TARGET_DATE, approved_amount
 from core.models import InteractiveUser
 from django.test import TestCase
 from insuree.models import Family, Insuree
@@ -1394,3 +1392,68 @@ class ValidationTest(TestCase):
         claim_service.delete()
         claim.delete()
         service_future.delete()
+
+    def test_approved_amount_with_package(self):
+        # Given: Create an insuree and a service package
+        insuree = create_test_insuree()
+        sub_item = create_test_item("D", custom_props={"price": 50})
+        sub_service = create_test_service("D", custom_props={"price": 200})
+        package_service = create_test_service("A", custom_props={"packagetype": "P", "price": 1000})
+
+        # Link sub-item and sub-service to the package
+        ServiceItem.objects.create(
+            servicelinkedItem=package_service,
+            item=sub_item,
+            qty_provided=2
+        )
+        ServiceService.objects.create(
+            servicelinkedService=package_service,
+            service=sub_service,
+            qty_provided=1
+        )
+
+        # Create a claim with the service package
+        claim = create_test_claim({"insuree_id": insuree.id})
+        claim_service = create_test_claimservice(
+            claim,
+            custom_props={"service_id": package_service.id, "qty_provided": 1, "price_asked": 200}
+        )
+
+        # Add sub-item WITH qty_adjusted (should use qty_adjusted instead of qty_displayed)
+        ClaimServiceItem.objects.create(
+            claim_service=claim_service,
+            item=sub_item,
+            qty_provided=2,
+            qty_displayed=2,
+            qty_adjusted=3,  # ← qty_adjusted > qty_displayed → Coalesce prend qty_adjusted
+            price_asked=50
+        )
+
+        # Add sub-service WITHOUT qty_adjusted (should fallback to qty_displayed)
+        ClaimServiceService.objects.create(
+            claim_service=claim_service,
+            service=sub_service,
+            qty_provided=1,
+            qty_displayed=1,
+            qty_adjusted=None,  # ← qty_adjusted est None → Coalesce prend qty_displayed
+            price_asked=200
+        )
+
+        # Simulate a PASSED status for calculation
+        claim_service.status = ClaimService.STATUS_PASSED
+        claim_service.save()
+
+        # When: Calculate approved_amount
+        approved = approved_amount(claim)
+
+        # Then: sub_item → Coalesce(qty_adjusted, qty_displayed) = 3 → 3 * 50 = 150
+        #       sub_service → Coalesce(None, qty_displayed) = 1 → 1 * 200 = 200
+        #       expected_total = 150 + 200 = 350
+        expected_total = (3 * 50) + (1 * 200)  # 150 + 200 = 350
+        self.assertEqual(
+            approved, expected_total,
+            "Coalesce must use qty_adjusted when set, fallback to qty_displayed when None"
+        )
+
+        # tearDown
+        delete_claim_with_itemsvc_dedrem_and_history(claim)
