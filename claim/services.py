@@ -703,7 +703,7 @@ def set_claim_submitted(claim, errors, user):
         }
 
 
-def validate_and_process_dedrem_claim(claim, user, is_process):
+def validate_and_process_dedrem_claim(claim, user, is_process, user_valuated_ip=None):
     errors = validate_claim(claim, False)
     logger.debug("ProcessClaimsMutation: claim %s validated, nb of errors: %s", claim.uuid, len(errors))
     if len(errors) == 0:
@@ -718,16 +718,19 @@ def validate_and_process_dedrem_claim(claim, user, is_process):
         if deleted_dedrems:
             logger.debug(f"Claim {claim.uuid} is invalid, we deleted its dedrem ({deleted_dedrems})")
     if is_process:
-        errors += set_claim_processed_or_valuated(claim, errors, user)
+        errors += set_claim_processed_or_valuated(claim, errors, user, user_valuated_ip)
     return errors
 
 
-def set_claim_processed_or_valuated(claim, errors, user):
+def set_claim_processed_or_valuated(claim, errors, user, user_valuated_ip=None):
     try:
         if errors:
             claim.status = Claim.STATUS_REJECTED
         else:
             claim.status = Claim.STATUS_PROCESSED if with_relative_prices(claim) else Claim.STATUS_VALUATED
+            if not with_relative_prices(claim):
+                if user_valuated_ip:
+                    claim.user_valuated_ip_address = user_valuated_ip
             claim.audit_user_id_process = user.id_for_audit
             from core.utils import TimeUtils
             claim.process_stamp = TimeUtils.now()
@@ -756,7 +759,7 @@ def with_relative_prices(claim):
     return details_with_relative_prices(claim.items) or details_with_relative_prices(claim.services)
 
 
-def set_claims_status(uuids, field, status, audit_data=None, user=None):
+def set_claims_status(uuids, field, status, audit_data=None, user=None, processed_ip_address=None):
     errors = []
     claims = Claim.objects \
             .filter(uuid__in=uuids,
@@ -775,6 +778,9 @@ def set_claims_status(uuids, field, status, audit_data=None, user=None):
                     set_feedback_prompt_validity_to_to_current_date(claim.uuid)
             # Set status to PROCESSED if bypassing review
             if field == 'review_status' and status == Claim.REVIEW_BYPASSED:
+                if processed_ip_address:
+                    claim.user_processed_ip_address = processed_ip_address
+                print("Ok with ", processed_ip_address)
                 claim.status = Claim.STATUS_PROCESSED
             if audit_data:
                 for k, v in audit_data.items():
@@ -847,7 +853,7 @@ def set_feedback_prompt_validity_to_to_current_date(claim_uuid):
         return "No such feedback prompt exist."
 
 
-def update_claims_dedrems(uuids, user, field=None, status=None):
+def update_claims_dedrems(uuids, user, field=None, status=None, processed_ip_address=None):
     # We could do it in one query with filter(claim__uuid__in=uuids) but we'd loose the logging
     errors = []
     claims = Claim.objects.filter(uuid__in=uuids)
@@ -858,17 +864,19 @@ def update_claims_dedrems(uuids, user, field=None, status=None):
         errors += validate_and_process_dedrem_claim(claim, user, False)
         # Set status to PROCESSED if delivered review
         if field == 'review_status' and status == Claim.REVIEW_DELIVERED:
-            set_claims_status_to_be_processed(claim.uuid)
+            set_claims_status_to_be_processed(claim.uuid, processed_ip_address)
     if len(remaining_uuid):
         errors.append(_(
             "claim.validation.id_does_not_exist") % {'id': ','.join(remaining_uuid)})
     return errors
 
 
-def set_claims_status_to_be_processed(claim_uuid):
+def set_claims_status_to_be_processed(claim_uuid, processed_ip_address=None):
     try:
         claim = Claim.objects.get(uuid=claim_uuid)
         claim.status = Claim.STATUS_PROCESSED
+        if processed_ip_address:
+            claim.user_processed_ip_address = processed_ip_address
         claim.save()
     except ObjectDoesNotExist:
         return "No such claim exist."
