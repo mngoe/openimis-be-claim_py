@@ -1,6 +1,7 @@
 import importlib
 import xml.etree.ElementTree as ET
 import logging
+import unicodedata
 from typing import Callable, Dict
 
 from medical.models import Item, Service
@@ -332,6 +333,7 @@ class ClaimCreateService:
             raise ValidationError("Invalid health facility code or health facility not allowed for user")
 
     @register_service_signal('claim.enter_claim')
+    @transaction.atomic
     def enter_claim(self, claim: dict):
         """
         Implementation based on the GQL CreateClaimMutation.async_mutate
@@ -351,6 +353,7 @@ class ClaimCreateService:
             raise PermissionDenied(_("unauthorized"))
 
     def _validate_claim_fields(self, claim):
+        assign_claim_code(claim, should_autogenerate_claim_code(claim))
         if not claim.get('code'):
             raise ValidationError("Provided claim without code.")
 
@@ -364,6 +367,7 @@ class ClaimCreateService:
         claim_submit_data['validity_from'] = TimeUtils.now()
 
     def _create_claim_from_dict(self, claim_submit_data):
+        claim_submit_data.pop('autogenerate', None)
         items = claim_submit_data.pop('items', [])
         services = claim_submit_data.pop('services', [])
         claim_submit_data.pop('service_item_set', [])
@@ -428,23 +432,111 @@ def __autogenerate_claim_code():
         raise e
 
 
+def is_cheque_sante_program(program):
+    """Return whether a program uses manually entered Chèque Santé claim codes."""
+    if not program:
+        return False
+    if not hasattr(program, "code"):
+        from program.models import Program
+        program = Program.objects.filter(idProgram=program).first()
+        if not program:
+            return False
+    if (getattr(program, "code", "") or "").strip().upper() == "CS":
+        return True
+    normalized_name = unicodedata.normalize(
+        "NFKD", getattr(program, "nameProgram", "") or ""
+    )
+    normalized_name = "".join(char for char in normalized_name if not unicodedata.combining(char))
+    return normalized_name.strip().casefold() == "cheque sante"
+
+
+def should_autogenerate_claim_code(data):
+    """Auto-generate codes only for explicitly flagged, non-restored WEB claims outside CS."""
+    source = (data.get("source") or "").strip().upper()
+    program = data.get("program") or data.get("program_id")
+    return (
+        bool(data.get("autogenerate"))
+        and source == Claim.SOURCE_WEB
+        and not data.get("restore")
+        and not is_cheque_sante_program(program)
+    )
+
+
+def assign_claim_code(data, autogenerate):
+    """
+    Apply the claim numbering rules to the data of a new claim, in place:
+    Chèque Santé claims must carry a manually entered code, other claims get a generated one when requested.
+    """
+    program = data.get("program") or data.get("program_id")
+    if is_cheque_sante_program(program):
+        if not data.get("code"):
+            raise ValidationError(_("A claim code must be entered for Chèque Santé claims."))
+    elif autogenerate:
+        health_facility = data.get("health_facility") or data.get("health_facility_id")
+        data["code"] = generate_claim_code(health_facility, program)
+
+
+def generate_claim_code(health_facility, program):
+    """Generate the next HF/program claim number with a six-digit sequence."""
+    from location.models import HealthFacility
+
+    health_facility_id = getattr(health_facility, "pk", health_facility)
+    if not hasattr(program, "code"):
+        from program.models import Program
+        program_obj = Program.objects.get(idProgram=program)
+    else:
+        program_obj = program
+
+    # Lock the facility row so concurrent creates for the same facility serialize,
+    # including the first claim where there is no prior claim row to lock.
+    locked_health_facility = HealthFacility.objects.select_for_update().get(pk=health_facility_id)
+    health_facility_code = (locked_health_facility.code or "").strip()
+    program_code = (program_obj.code or "").strip()
+    if not health_facility_code or not program_code:
+        raise ValidationError("Health facility and program codes are required to generate a claim code.")
+
+    prefix = f"{health_facility_code}.{program_code}."
+    existing_codes = Claim.objects.filter(
+        validity_to__isnull=True,
+        code__startswith=prefix,
+    ).values_list("code", flat=True)
+    highest_sequence = 0
+    for existing_code in existing_codes:
+        suffix = existing_code[len(prefix):]
+        if len(suffix) == 6 and suffix.isdigit():
+            highest_sequence = max(highest_sequence, int(suffix))
+
+    sequence = highest_sequence + 1
+    while sequence <= 999999:
+        candidate = f"{prefix}{sequence:06d}"
+        if not check_unique_claim_code(candidate):
+            if ClaimConfig.max_claim_length and len(candidate) > ClaimConfig.max_claim_length:
+                raise ValidationError("Generated claim code exceeds the configured maximum length.")
+            return candidate
+        sequence += 1
+    raise ValidationError("No claim numbers remain for this health facility and program.")
+
+
 def _get_autogenerating_func() -> Callable[[Dict], Callable]:
     module_name, function_name = ClaimConfig.autogenerate_func.rsplit('.', 1)
     module = importlib.import_module(module_name)
     return getattr(module, function_name)
 
 
+@transaction.atomic
 def claim_create(data, user, autogenerate_code = False, program=None):
+    # update_or_create_claim already applied the numbering rules and popped the flag; direct callers
+    # (test helpers, imports, other modules) can still request a generated code with the flag or the argument.
+    autogenerate_code = data.pop('autogenerate', None) or autogenerate_code
+    if autogenerate_code and not data.get('restore'):
+        assign_claim_code(data, autogenerate=True)
     restore = data.pop('restore', None)
-    autogenerate_code = data.pop('autogenerate', None)
     restored_claim = None
     if restore:
         restored_claim = Claim.objects.filter(uuid=restore).first()
         if restored_claim:
             data["restore"] = restored_claim
 
-    if autogenerate_code:
-        data['code'] = __autogenerate_claim_code()
     data['audit_user_id'] = user.id_for_audit
     insuree_id = data.get("insuree_id", None)
     date_to = data.get("date_to", None)
@@ -561,8 +653,12 @@ def claim_create_items_and_services(claim, data, user):
     claim.save()
 
 
-def update_or_create_claim(data, user, program):
-         
+@transaction.atomic
+def update_or_create_claim(data, user, program=None):
+    autogenerate = data.pop("autogenerate", False)
+    if not data.get("uuid"):
+        assign_claim_code(data, should_autogenerate_claim_code({**data, "autogenerate": autogenerate}))
+
     validate_claim_data(data, user)
     claim_uuid = data.pop("uuid", None)
     # update_or_create(uuid=claim_uuid, ...)

@@ -4,7 +4,7 @@ from enum import Enum
 from core.models import Officer, MutationLog
 from insuree.models import Insuree, Family
 from location.models import HealthFacility, Location, LocationManager
-from .services import check_unique_claim_code
+from .services import check_unique_claim_code, should_autogenerate_claim_code
 import django
 from core.schema import signal_mutation_module_validate, signal_mutation_module_after_mutating
 from django.db.models import OuterRef, Subquery, Avg, Q
@@ -13,7 +13,7 @@ from core.schema import OrderedDjangoFilterConnectionField, OfficerGQLType
 from core import filter_validity
 from django.db.models.functions import Cast
 
-from .models import ClaimMutation
+from .models import Claim, ClaimMutation
 from django.utils.translation import gettext as _
 from graphene_django.filter import DjangoFilterConnectionField
 import ast
@@ -428,7 +428,7 @@ def on_claim_after_mutation(sender, **kwargs):
         return []
     elif kwargs.get('mutation_class', None) != 'CreateClaimMutation':
         return []
-    if 'data' in kwargs and kwargs['data'].get('autogenerate'):
+    if 'data' in kwargs and should_autogenerate_claim_code(kwargs['data']):
         try:
             mutation_client_id = kwargs.get('data')['client_mutation_id']
             mutation_log = MutationLog.objects.filter(client_mutation_id=mutation_client_id).first()
