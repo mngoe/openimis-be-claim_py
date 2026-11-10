@@ -1,40 +1,89 @@
-from claim.models import Claim, ClaimService, ClaimItem, ClaimDedRem, ClaimAdmin
-from claim.validations import get_claim_category, approved_amount
+from claim.validations import get_claim_category, approved_amount 
+from program.test_helpers import create_test_program
+from claim.models import Claim, ClaimService, ClaimItem, ClaimDedRem, ClaimAdmin, ClaimServiceItem, ClaimServiceService 
 from claim.services import claim_create, update_sum_claims
-from medical.test_helpers import get_item_of_type, get_service_of_category
+from medical.test_helpers import get_item_of_type, get_service_of_category, create_test_diagnosis
 from uuid import uuid4
+from location.models import HealthFacility, Location
+from product.models import ProductItem, ProductService, ProductItemOrService, Product
+from product.test_helpers import create_test_product_service, create_test_product_item, create_test_product
+from medical_pricelist.test_helpers import add_service_to_hf_pricelist, add_item_to_hf_pricelist
+from insuree.test_helpers import create_test_insuree
+from policy.test_helpers import create_test_policy2
+from insuree.models import Insuree
+from location.test_helpers import create_test_health_facility, create_test_location
+from medical.test_helpers import create_test_item, create_test_service
 
 class DummyUser:
     def __init__(self):
       self.id_for_audit = 1  
 
-def create_test_claim(custom_props={}, user = DummyUser() ):
-    from core import datetime
-    if 'insuree' not in custom_props and 'insuree_id' not in custom_props:
-        custom_props["insuree_id"]= 2
-
-    return claim_create(
+def create_test_claim(custom_props=None, user=DummyUser(), product=None):
+    test_program = create_test_program(code="CCS", name="Chêque Santé")
+    location = create_test_location('D')
+    if custom_props is None:
+        custom_props = {}
+    else:
+        custom_props = {k: v for k, v in custom_props.items() if hasattr(Claim, k)} 
+    from datetime import datetime, timedelta
+    insuree = None
+    if 'insuree' in custom_props:
+        insuree = custom_props['insuree']
+    elif 'insuree_id' in custom_props:
+        insuree = Insuree.objects.filter(id=custom_props['insuree_id']).first()
+    else:
+        insuree = create_test_insuree()
+    custom_props["insuree"] = insuree
+        
+    test_hf = None
+    if 'health_facility_id' in custom_props:
+        test_hf = HealthFacility.objects.filter(id=custom_props['health_facility_id']).first()
+    else:
+        test_hf = create_test_health_facility('HF1', location.id)
+        custom_props["health_facility"] = test_hf
+        
+    _to = datetime.now() - timedelta(days=1)
+    if product:
+        create_test_policy2(product, insuree)
+    
+    if 'icd' not in custom_props and 'icd_id' not in custom_props:
+        custom_props['icd'] = create_test_diagnosis()
+    elif 'icd' in custom_props and isinstance(custom_props['icd'], dict):
+        custom_props['icd'] = create_test_diagnosis(
+            custom_props=custom_props['icd']
+        )
+    claim = claim_create(
         {
-            "health_facility_id": 18,
-            "icd_id": 116,
-            "date_from": datetime.datetime(2019, 6, 1),
-            "date_claimed": datetime.datetime(2019, 6, 1),
-            "date_to": datetime.datetime(2019, 6, 1),
+            "date_from": datetime.now() - timedelta(days=2),
+            "date_claimed": _to,
+            "date_to": None,
             "status": 2,
-            "validity_from": datetime.datetime(2019, 6, 1),
-            "code":  str(uuid4()),
+            "validity_from": _to,
+            "code": str(uuid4()),
+            "program": test_program,
             **custom_props
         }, user
     )
 
+    return claim
 
-def create_test_claimitem(claim, item_type, valid=True, custom_props={}):
-    item =  ClaimItem.objects.create(
+def create_test_claimitem(claim, item_type='D', valid=True, custom_props=None, product=None):
+    if custom_props is None:
+        custom_props = {}
+    item = None
+    if 'item' not in custom_props and 'item_id' not in custom_props:
+        if item_type:
+            item = get_item_of_type(item_type)
+        if not item:
+            item = create_test_item(item_type, custom_props=custom_props)
+        custom_props['item'] = item
+    
+    custom_props = {k: v for k, v in custom_props.items() if hasattr(ClaimItem, k)} 
+    item = ClaimItem.objects.create(
         **{
             "claim": claim,
             "qty_provided": 7,
             "price_asked": 11,
-            "item_id": get_item_of_type(item_type).id if item_type else 23,  # Atropine
             "status": 1,
             "availability": True,
             "validity_from": "2019-06-01",
@@ -48,13 +97,23 @@ def create_test_claimitem(claim, item_type, valid=True, custom_props={}):
 
 
 
-def create_test_claimservice(claim, category=None, valid=True, custom_props={}):
-    service =  ClaimService.objects.create(
+def create_test_claimservice(claim, category='V', valid=True, custom_props=None, product=None):
+    if custom_props is None:
+        custom_props = {}
+    service = None
+    if 'service' not in custom_props and 'service_id' not in custom_props:
+        if category:
+            service = get_service_of_category(category)
+        if not service:
+            service = create_test_service(category, custom_props=custom_props)
+        custom_props['service'] = service
+    
+    custom_props = {k: v for k, v in custom_props.items() if hasattr(ClaimService, k)}
+    service = ClaimService.objects.create(
         **{
             "claim": claim,
             "qty_provided": 7,
             "price_asked": 11,
-            "service_id": get_service_of_category(category).id if category else 23,  # Skin graft, no cat
             "status": 1,
             "validity_from": "2019-06-01",
             "validity_to": None if valid else "2019-06-01",
@@ -81,6 +140,8 @@ def delete_claim_with_itemsvc_dedrem_and_history(claim):
     # first delete old versions of the claim
     ClaimDedRem.objects.filter(claim=claim).delete()
     old_claims = Claim.objects.filter(legacy_id=claim.id)
+    ClaimServiceItem.objects.filter(claim_service__claim=claim).delete()
+    ClaimServiceService.objects.filter(claim_service__claim=claim).delete()
     ClaimItem.objects.filter(claim__in=old_claims).delete()
     ClaimService.objects.filter(claim__in=old_claims).delete()
     old_claims.delete()
@@ -91,6 +152,7 @@ def delete_claim_with_itemsvc_dedrem_and_history(claim):
 
 def create_test_claim_admin(custom_props={}):
     from core import datetime
+    location = create_test_location('D') 
     code = custom_props.pop('code','TST-CA')
     uuid = custom_props.pop('uuid',None)
     ca = None
@@ -101,8 +163,7 @@ def create_test_claim_admin(custom_props={}):
         "last_name": "LastAdmin",
         "other_names": "JoeAdmin",
         "email_id": "joeadmin@lastadmin.com",
-        "phone": "+12027621401",
-        "health_facility_id": 1,
+        "phone": "+12027621401", 
         "has_login": False,
         "audit_user_id": 1,
         "validity_from": datetime.datetime(2019, 6, 1),

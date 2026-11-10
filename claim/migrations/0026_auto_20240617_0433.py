@@ -6,12 +6,12 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('claim', '0026_add_sequences'),
+        ('claim', '0025_auto_20240617_0433'),
     ]
 
     operations = [
-        migrations.AddIndex(
-            model_name='claim',
-            index=models.Index(fields=['code', 'status'], name='IX_tblClaim_code_insuree_uuid_status'),
-        )
+        #migrations.AddIndex(
+        #    model_name='claim',
+        #    index=models.Index(fields=['code', 'status'], name='IX_tblClaim_code_insuree_uuid_status'),
+        #)
     ]
