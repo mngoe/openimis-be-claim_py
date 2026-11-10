@@ -435,7 +435,7 @@ def claim_create(data, user, autogenerate_code = False):
     restore = data.pop('restore', None)
     autogenerate_code = data.pop('autogenerate', None)
     if restore:
-        data["restore"] = Claim.objects.filter(uuid=restore).first()
+        data["restore"] = scoped_claims(user).filter(uuid=restore).first()
     
     if autogenerate_code:
         data['code'] = __autogenerate_claim_code()
@@ -476,15 +476,34 @@ def claim_create_items_and_services(claim, data, user):
     claim.save()
 
 
+def scoped_claims(user):
+    """The claims ``user`` may read -- and therefore act on (row security)."""
+    return Claim.get_queryset(Claim.objects.all(), user)
+
+
+def check_user_health_facility(user, hf_id):
+    """A claim may only be entered on a health facility of the user's districts."""
+    if not settings.ROW_SECURITY or hf_id is None:
+        return
+    from location.models import LocationManager, HealthFacility
+    allowed = LocationManager().build_user_location_filter_query(
+        user._u, prefix='location', loc_types=['D'],
+        queryset=HealthFacility.filter_queryset().filter(id=hf_id))
+    if not allowed.exists():
+        raise PermissionDenied(_("Invalid health facility code or health facility not allowed for user"))
+
+
 def update_or_create_claim(data, user):
          
     validate_claim_data(data, user)
     claim_uuid = data.pop("uuid", None)
     # update_or_create(uuid=claim_uuid, ...)
     # doesn't work because of explicit attempt to set null to uuid!
-   
+    hf_id = data.get("health_facility_id", None) or getattr(data.get("health_facility", None), "id", None)
+    check_user_health_facility(user, hf_id)
     if claim_uuid:
-        claim = Claim.objects.get(uuid=claim_uuid)
+        # scoped: a claim outside the user's scope does not exist for them
+        claim = scoped_claims(user).get(uuid=claim_uuid)
         claim = claim_update(claim, data, user)
     else:
         claim = claim_create(data, user)
@@ -500,7 +519,8 @@ def validate_claim_data(data, user):
     current_code = current_claim.code if current_claim else None
 
     if restore:
-        restored_qs = Claim.objects.filter(uuid=restore)
+        # only a claim the user may read can be restored
+        restored_qs = scoped_claims(user).filter(uuid=restore)
         restored_from_claim = restored_qs.first()
         restored_count = Claim.objects.filter(restore=restored_from_claim).count()
         if not restored_qs.exists():
@@ -635,7 +655,8 @@ def with_relative_prices(claim):
 
 def set_claims_status(uuids, field, status, audit_data=None, user=None):
     errors = []
-    claims = Claim.objects \
+    # row security: only the claims the user may read (None = internal call)
+    claims = (scoped_claims(user) if user is not None else Claim.objects) \
             .filter(uuid__in=uuids,
                     *filter_validity()) 
     remaining_uuid = list(map(str.upper,uuids))

@@ -3,6 +3,7 @@ import graphene
 from core import prefix_filterset, ExtendedConnection, filter_validity
 from graphene.utils.deduplicator import deflate
 from graphene_django import DjangoObjectType
+from core.gql import ScopedQuerysetMixin
 from insuree.schema import InsureeGQLType
 from location.schema import HealthFacilityGQLType
 from medical.schema import DiagnosisGQLType
@@ -14,7 +15,7 @@ from django.utils.translation import gettext as _
 from django.core.exceptions import PermissionDenied
 
 
-class ClaimDedRemGQLType(DjangoObjectType):
+class ClaimDedRemGQLType(ScopedQuerysetMixin, DjangoObjectType):
     """
     Details about Claim demands and remunerated amounts
     """
@@ -23,7 +24,7 @@ class ClaimDedRemGQLType(DjangoObjectType):
         interfaces = (graphene.relay.Node,)
 
 
-class ClaimAdminGQLType(DjangoObjectType):
+class ClaimAdminGQLType(ScopedQuerysetMixin, DjangoObjectType):
     """
     Details about a Claim Administrator
     """
@@ -41,12 +42,11 @@ class ClaimAdminGQLType(DjangoObjectType):
         connection_class = ExtendedConnection
 
     @classmethod
-    def get_queryset(cls, queryset, info):
-        queryset = queryset.filter(*filter_validity())
-        return queryset
+    def refine_queryset(cls, queryset, info):
+        return queryset.filter(*filter_validity())
 
 
-class ClaimGQLType(DjangoObjectType):
+class ClaimGQLType(ScopedQuerysetMixin, DjangoObjectType):
     """
     Main element for a Claim. It can contain items and/or services.
     The filters are possible on BatchRun, Insuree, HealthFacility, Admin and ICD in addition to the Claim fields
@@ -117,11 +117,11 @@ class ClaimGQLType(DjangoObjectType):
         return claim_mutation.mutation.client_mutation_id if claim_mutation else None
 
     @classmethod
-    def get_queryset(cls, queryset, info):
-        return Claim.get_queryset(queryset, info).all()
+    def refine_queryset(cls, queryset, info):
+        return queryset.all()
 
 
-class ClaimAttachmentGQLType(DjangoObjectType):
+class ClaimAttachmentGQLType(ScopedQuerysetMixin, DjangoObjectType):
     doc = graphene.String()
 
     class Meta:
@@ -141,9 +141,8 @@ class ClaimAttachmentGQLType(DjangoObjectType):
         connection_class = ExtendedConnection
 
     @classmethod
-    def get_queryset(cls, queryset, info):
-        queryset = queryset.filter(*filter_validity())
-        return queryset
+    def refine_queryset(cls, queryset, info):
+        return queryset.filter(*filter_validity())
 
 
 class ClaimAttachmentTypeGQLType(DjangoObjectType):
@@ -157,12 +156,12 @@ class ClaimAttachmentTypeGQLType(DjangoObjectType):
         connection_class = ExtendedConnection
 
 
-class FeedbackGQLType(DjangoObjectType):
+class FeedbackGQLType(ScopedQuerysetMixin, DjangoObjectType):
     class Meta:
         model = Feedback
 
 
-class ClaimItemGQLType(DjangoObjectType):
+class ClaimItemGQLType(ScopedQuerysetMixin, DjangoObjectType):
     """
     Contains the items within a specific Claim
     """
@@ -171,7 +170,7 @@ class ClaimItemGQLType(DjangoObjectType):
         model = ClaimItem
 
 
-class ClaimServiceGQLType(DjangoObjectType):
+class ClaimServiceGQLType(ScopedQuerysetMixin, DjangoObjectType):
     """
     Contains the services within a specific Claim
     """

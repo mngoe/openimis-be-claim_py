@@ -85,26 +85,22 @@ class Query(graphene.ObjectType):
         return False if errors else True
 
     def resolve_claim(self, info, id=None, uuid=None, **kwargs):
-        if (
-            not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms)
-            and settings.ROW_SECURITY
-        ):
+        # the right is required whatever ROW_SECURITY says (reference H05)
+        if not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms):
             raise PermissionDenied(_("unauthorized"))
-
+        # scoped lookup: a claim outside the user's scope reads as null (was an IDOR)
+        claims = Claim.get_queryset(Claim.objects.all(), info.context.user)
         if id is not None:
-            return Claim.objects.get(id=id)
+            return claims.filter(id=id).first()
         if uuid is not None:
-            return Claim.objects.get(uuid=uuid)
+            return claims.filter(uuid=uuid).first()
 
     def resolve_claims(self, info, **kwargs):
         class AttachmentStatusEnum(Enum):
             NONE = 0
             WITH = 1
             WITHOUT = 2
-        if (
-            not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms)
-            and settings.ROW_SECURITY
-        ):
+        if not info.context.user.has_perms(ClaimConfig.gql_query_claims_perms):
             raise PermissionDenied(_("unauthorized"))
         query = Claim.objects
         filters = []
@@ -218,7 +214,11 @@ class Query(graphene.ObjectType):
         if not info.context.user.has_perms(ClaimConfig.gql_query_claim_officers_perms):
             raise PermissionDenied(_("unauthorized"))
 
-        qs = Officer.objects
+        qs = Officer.objects.filter(validity_to__isnull=True)
+        if settings.ROW_SECURITY:
+            # only the officers of the user's districts (an officer's location is a district)
+            qs = qs.filter(LocationManager().build_user_location_filter_query(
+                info.context.user._u, prefix='location', loc_types=['D']))
 
         if search is not None:
             qs = qs.filter(
@@ -231,17 +231,18 @@ class Query(graphene.ObjectType):
     def resolve_fsp_from_claim(self, info, **kwargs):
         if not info.context.user.has_perms(ClaimConfig.gql_query_claim_officers_perms):
             raise PermissionDenied(_("unauthorized"))
-        result = Insuree.objects.filter(
+        insuree = Insuree.get_queryset(Insuree.objects.all(), info.context.user).filter(
             chf_id=kwargs['insuree_code'],
             *filter_validity(validity=kwargs['date_claimed']),
-        ).first().health_facility
-        return result
+        ).first()
+        # an insuree outside the user's scope reads as unknown
+        return insuree.health_facility if insuree else None
 
     def resolve_claim_with_same_diagnosis(self, info, **kwargs):
         if not info.context.user.has_perms(ClaimConfig.gql_query_claim_officers_perms):
             raise PermissionDenied(_("unauthorized"))
 
-        qs = Claim.objects.filter(icd__code=kwargs['icd'], icd__validity_to__isnull=True,
+        qs = Claim.get_queryset(Claim.objects.all(), info.context.user).filter(icd__code=kwargs['icd'], icd__validity_to__isnull=True,
                                   insuree__chf_id=kwargs['chfid'], insuree__validity_to__isnull=True,
                                   validity_to__isnull=True).order_by("date_claimed")
         return qs
