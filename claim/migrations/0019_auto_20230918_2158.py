@@ -68,10 +68,17 @@ class Migration(migrations.Migration):
         #     name='uuid',
         #     field=models.CharField(db_column='FeedbackUUID', default=uuid.uuid4, max_length=36, unique=True),
         # ),
-        migrations.AlterField(
-            model_name='feedback',
-            name='asessment',
-            field=models.IntegerField(blank=True, db_column='Asessment', null=True),
+        # State only: the legacy column is a smallint read by the view
+        # uvwOverallAssessment, and PostgreSQL refuses to change the type of a
+        # column a view depends on. A smallint holds the assessment codes.
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AlterField(
+                    model_name='feedback',
+                    name='asessment',
+                    field=models.IntegerField(blank=True, db_column='Asessment', null=True),
+                ),
+            ],
         ),
         # migrations.AlterField(
         #     model_name='feedback',
