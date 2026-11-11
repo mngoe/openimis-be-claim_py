@@ -54,14 +54,16 @@ class Query(graphene.ObjectType):
     claim_attachments = DjangoFilterConnectionField(
         ClaimAttachmentGQLType
     )
-    claim_admins = DjangoFilterConnectionField(
+    claim_admins = OrderedDjangoFilterConnectionField(
         ClaimAdminGQLType,
         search=graphene.String(),
         region_uuid=graphene.String(),
-        district_uuid=graphene.String()
+        district_uuid=graphene.String(),
+        **row_filter_arguments(),
     )
-    claim_officers = DjangoFilterConnectionField(
-        OfficerGQLType, search=graphene.String()
+    claim_officers = OrderedDjangoFilterConnectionField(
+        OfficerGQLType, search=graphene.String(),
+        **row_filter_arguments(),
     )
 
     insuree_name_by_chfid = graphene.String(
@@ -261,7 +263,10 @@ class Query(graphene.ObjectType):
 
         user_health_facility = HealthFacility.objects.filter(*hf_filters)
 
-        filters = [*filter_validity(**kwargs)]
+        # the claim admins' own validity is applied by ClaimAdmin.get_queryset (OP-2029):
+        # live ones unless isDeleted / showHistory say otherwise
+        legacy_row_filters(info, kwargs, validity=Validity.NOW)
+        filters = []
         if user_health_facility:
             filters += [Q(health_facility__in=user_health_facility)]
 
@@ -276,7 +281,10 @@ class Query(graphene.ObjectType):
         if not info.context.user.has_perms(ClaimConfig.gql_query_claim_officers_perms):
             raise PermissionDenied(_("unauthorized"))
 
-        qs = Officer.objects.filter(validity_to__isnull=True)
+        # live officers unless isDeleted / showHistory say otherwise: Officer.get_queryset
+        # (OP-2029), through OfficerGQLType
+        legacy_row_filters(info, kwargs, validity=Validity.NOW)
+        qs = Officer.objects.all()
         if settings.ROW_SECURITY:
             # only the officers of the user's districts (an officer's location is a district)
             qs = qs.filter(LocationManager().build_user_location_filter_query(

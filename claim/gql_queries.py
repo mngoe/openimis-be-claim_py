@@ -42,10 +42,6 @@ class ClaimAdminGQLType(ScopedQuerysetMixin, DjangoObjectType):
         }
         connection_class = ExtendedConnection
 
-    @classmethod
-    def refine_queryset(cls, queryset, info):
-        return queryset.filter(*filter_validity())
-
 
 class ClaimGQLType(ScopedQuerysetMixin, DjangoObjectType):
     """
