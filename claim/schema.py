@@ -11,6 +11,8 @@ from django.db.models import OuterRef, Subquery, Avg, Q
 import graphene_django_optimizer as gql_optimizer
 from core.schema import OrderedDjangoFilterConnectionField, OfficerGQLType
 from core import filter_validity
+from core.gql import legacy_row_filters, row_filter_arguments
+from core.models import Audits, Validity
 from django.db.models.functions import Cast
 
 from .models import ClaimMutation
@@ -39,7 +41,8 @@ class Query(graphene.ObjectType):
         attachment_status=graphene.Int(required=False),
         care_type=graphene.String(required=False),
         show_restored=graphene.Boolean(required=False),
-        rejection_code=graphene.Int(required=False)
+        rejection_code=graphene.Int(required=False),
+        **row_filter_arguments(),
     )
 
     claim = graphene.Field(
@@ -81,7 +84,8 @@ class Query(graphene.ObjectType):
         ClaimGQLType,
         icd=graphene.String(required=True),
         chfid=graphene.String(required=True),
-        description="Return last claim (date claimed) with identical diagnosis for given insuree."
+        description="Return last claim (date claimed) with identical diagnosis for given insuree.",
+        **row_filter_arguments(),
     )
 
     claim_attachment_type = DjangoFilterConnectionField(
@@ -107,7 +111,8 @@ class Query(graphene.ObjectType):
         attachment_status=graphene.Int(required=False),
         care_type=graphene.String(required=False),
         show_restored=graphene.Boolean(required=False),
-        rejection_code=graphene.Int(required=False)
+        rejection_code=graphene.Int(required=False),
+        **row_filter_arguments(),
     )
 
     def resolve_insuree_name_by_chfid(self, info, **kwargs):
@@ -299,9 +304,12 @@ class Query(graphene.ObjectType):
         if not info.context.user.has_perms(ClaimConfig.gql_query_claim_officers_perms):
             raise PermissionDenied(_("unauthorized"))
 
-        qs = Claim.get_queryset(Claim.objects.all(), info.context.user).filter(icd__code=kwargs['icd'], icd__validity_to__isnull=True,
+        # row security and the claim's own validity are applied by ClaimGQLType ->
+        # Claim.get_queryset (OP-2029): live claims unless isDeleted / showHistory say otherwise
+        legacy_row_filters(info, kwargs, validity=Validity.NOW)
+        qs = Claim.objects.filter(icd__code=kwargs['icd'], icd__validity_to__isnull=True,
                                   insuree__chf_id=kwargs['chfid'], insuree__validity_to__isnull=True,
-                                  validity_to__isnull=True).order_by("date_claimed")
+                                  ).order_by("date_claimed")
         return qs
 
     def resolve_pregnancy_age(self, info, claim_date_to, family_id, product, **kwargs):
@@ -363,10 +371,10 @@ class Query(graphene.ObjectType):
         ):
             raise PermissionDenied(_("unauthorized"))
 
-        query = Claim.objects.filter(
-            code=target_claim.code,
-            validity_to__isnull=False
-        )
+        # the history of a claim is every non-live row with its code: the audit copies
+        # and the claim itself once deleted -- applied by Claim.get_queryset (OP-2029)
+        legacy_row_filters(info, kwargs, validity=Validity.DELETED_NOW, audits=Audits.ALL)
+        query = Claim.objects.filter(code=target_claim.code)
 
         filters = []
 

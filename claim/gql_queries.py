@@ -133,14 +133,6 @@ class ClaimGQLType(ScopedQuerysetMixin, DjangoObjectType):
         return claim_mutation.mutation.client_mutation_id if claim_mutation else None
 
     @classmethod
-    def get_queryset(cls, queryset, info):
-        if info.field_name == "claimHistory":
-            # history rows are audit rows (validity_to set): keep row security, include audits
-            from core.models.row_filters import Audits
-            return Claim.get_queryset(queryset, info.context.user, audits=Audits.ALL)
-        return super().get_queryset(queryset, info)
-
-    @classmethod
     def refine_queryset(cls, queryset, info):
         return queryset.all()
 
