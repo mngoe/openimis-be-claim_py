@@ -122,7 +122,7 @@ def update_claim_remunerated(claims_qs, ratio=1, updates={}):
             ratio * elm_approved_exp(), output_field=DecimalField()
         )
     )
-    ClaimService.objects.filter(claim__in=claims_qs, *ClaimItem.filter_validity()).filter(
+    ClaimService.objects.filter(claim__in=claims_qs, *ClaimService.filter_validity()).filter(
         Q(Q(rejection_reason__isnull=True) | Q(rejection_reason=0))
     ).update(
         remunerated_amount=ExpressionWrapper(
