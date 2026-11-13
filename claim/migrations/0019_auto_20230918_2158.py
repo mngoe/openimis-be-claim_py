@@ -2,18 +2,52 @@
 
 import core.fields
 import datetime
+from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion
 import uuid
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('claim', '0018_auto_20230918_2140'),
     ]
-
+    replaces = [
+        ('claim', '0019_auto_20230615_1055'),
+    ]
+    # Claim is unmanaged between 0018 and 0020, so a plain AddField here changes
+    # the state only and the legacy tblClaim never got ReferFrom / ReferTo on a
+    # fresh database. Add the columns with idempotent SQL; declare them in state.
     operations = [
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunSQL(
+                    """
+                    IF COL_LENGTH('tblClaim', 'ReferFrom') IS NULL ALTER TABLE [tblClaim] ADD [ReferFrom] int NULL;
+                    IF COL_LENGTH('tblClaim', 'ReferTo') IS NULL ALTER TABLE [tblClaim] ADD [ReferTo] int NULL;
+                    """ if settings.MSSQL else
+                    """
+                    ALTER TABLE "tblClaim" ADD COLUMN IF NOT EXISTS "ReferFrom" integer NULL;
+                    ALTER TABLE "tblClaim" ADD COLUMN IF NOT EXISTS "ReferTo" integer NULL;
+                    """,
+                    migrations.RunSQL.noop),
+            ],
+            state_operations=[
+                migrations.AddField(
+                    model_name='claim',
+                    name='refer_from',
+                    field=models.ForeignKey(blank=True, db_column='ReferFrom', null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='referFromHF', to='location.healthfacility'),
+                ),
+                migrations.AddField(
+                    model_name='claim',
+                    name='refer_to',
+                    field=models.ForeignKey(blank=True, db_column='ReferTo', null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='referToHF', to='location.healthfacility'),
+                ),
+            ],
+        ),
+    ]
+
+    operations += [
         migrations.AddField(
             model_name='feedback',
             name='age',
@@ -49,10 +83,17 @@ class Migration(migrations.Migration):
         #     name='uuid',
         #     field=models.CharField(db_column='FeedbackUUID', default=uuid.uuid4, max_length=36, unique=True),
         # ),
-        migrations.AlterField(
-            model_name='feedback',
-            name='asessment',
-            field=models.IntegerField(blank=True, db_column='Asessment', null=True),
+        # State only: the legacy column is a smallint read by the view
+        # uvwOverallAssessment, and PostgreSQL refuses to change the type of a
+        # column a view depends on. A smallint holds the assessment codes.
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AlterField(
+                    model_name='feedback',
+                    name='asessment',
+                    field=models.IntegerField(blank=True, db_column='Asessment', null=True),
+                ),
+            ],
         ),
         # migrations.AlterField(
         #     model_name='feedback',

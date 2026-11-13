@@ -470,10 +470,8 @@ class CreateAttachmentMutation(OpenIMISMutation):
             if "client_mutation_label" in data:
                 data.pop('client_mutation_label')
             claim_uuid = data.pop("claim_uuid")
-            queryset = Claim.objects.filter(*filter_validity())
-            if settings.ROW_SECURITY:
-                from location.schema import LocationManager
-                queryset = LocationManager().build_user_location_filter_query( user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])           
+            # row security: only a claim the user may read can get an attachment
+            queryset = Claim.get_queryset(Claim.objects.filter(*filter_validity()), user)
             claim = queryset.filter(uuid=claim_uuid).first()
             if not claim:
                 raise PermissionDenied(_("unauthorized"))
@@ -497,10 +495,9 @@ class UpdateAttachmentMutation(OpenIMISMutation):
         try:
             if not user.has_perms(ClaimConfig.gql_mutation_update_claims_perms):
                 raise PermissionDenied(_("unauthorized"))
-            queryset = ClaimAttachment.objects.filter(*filter_validity())
-            if settings.ROW_SECURITY:
-                from location.schema import LocationManager
-                queryset = LocationManager().build_user_location_filter_query( user._u, prefix='claim__health_facility__location', queryset = queryset.select_related("claim"), loc_types=['D'])
+            # row security: ClaimAttachment follows its claim (ParentScope("claim"))
+            queryset = ClaimAttachment.get_queryset(
+                ClaimAttachment.objects.filter(*filter_validity()), user).select_related("claim")
 
             attachment = queryset \
                 .filter(id=data['id']) \
@@ -552,13 +549,12 @@ class DeleteAttachmentMutation(OpenIMISMutation):
 
     @classmethod
     def async_mutate(cls, user, **data):
+        attachment = None
         try:
             if not user.has_perms(ClaimConfig.gql_mutation_update_claims_perms):
                 raise PermissionDenied(_("unauthorized"))
-            queryset = ClaimAttachment.objects.filter(*filter_validity())
-            if settings.ROW_SECURITY:
-                from location.schema import LocationManager
-                queryset = LocationManager().build_user_location_filter_query( user._u, prefix='health_facility__location', queryset = queryset, loc_types=['D'])     
+            # row security: ClaimAttachment follows its claim (was a wrong prefix -> FieldError)
+            queryset = ClaimAttachment.get_queryset(ClaimAttachment.objects.filter(*filter_validity()), user)
             attachment = queryset \
                 .filter(id=data['id']) \
                 .first()
@@ -569,8 +565,8 @@ class DeleteAttachmentMutation(OpenIMISMutation):
         except Exception as exc:
             return [{
                 'message': _("claim.mutation.failed_to_delete_claim_attachment") % {
-                    'code': attachment.claim.code,
-                    'filename': attachment.filename
+                    'code': attachment.claim.code if attachment else None,
+                    'filename': attachment.filename if attachment else None
                 },
                 'detail': str(exc)}]
 
@@ -692,8 +688,10 @@ class SubmitClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
         else:
             # Direct uuids path (backward compat): caller supplied explicit uuids.
             uuids = uuids or []
+            # row security: only the claims the user may read
             claims = (
-                Claim.objects.filter(uuid__in=uuids, validity_to__isnull=True)
+                Claim.get_queryset(Claim.objects.all(), user)
+                .filter(uuid__in=uuids, validity_to__isnull=True)
                 .prefetch_related(
                     Prefetch(
                         "items",
@@ -817,7 +815,7 @@ class RejectClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
 
 
 def create_feedback_prompt(claim_uuid, user):
-    current_claim = Claim.objects.get(uuid=claim_uuid)
+    current_claim = Claim.get_queryset(Claim.objects.all(), user).get(uuid=claim_uuid)
     return service_create_feedback_prompt(current_claim, user)
     
 
@@ -859,7 +857,8 @@ class BypassClaimsFeedbackMutation(OpenIMISMutation):
             data['uuids'],
             'feedback_status',
             Claim.FEEDBACK_BYPASSED,
-            processed_ip_address=data.get("user_processed_ip_address", None)
+            processed_ip_address=data.get("user_processed_ip_address", None),
+            user=user,
         )
 
 
@@ -878,7 +877,7 @@ class SkipClaimsFeedbackMutation(OpenIMISMutation):
     def async_mutate(cls, user, **data):
         if not user.has_perms(ClaimConfig.gql_mutation_skip_claim_feedback_perms):
             raise PermissionDenied(_("unauthorized"))
-        return set_claims_status(data['uuids'], 'feedback_status', Claim.FEEDBACK_NOT_SELECTED)
+        return set_claims_status(data['uuids'], 'feedback_status', Claim.FEEDBACK_NOT_SELECTED, user=user)
 
 
 class DeliverClaimFeedbackMutation(OpenIMISMutation):
@@ -898,7 +897,7 @@ class DeliverClaimFeedbackMutation(OpenIMISMutation):
         try:
             if not user.has_perms(ClaimConfig.gql_mutation_deliver_claim_feedback_perms):
                 raise PermissionDenied(_("unauthorized"))
-            claim = Claim.objects.select_related('feedback').get(
+            claim = Claim.get_queryset(Claim.objects.all(), user).select_related('feedback').get(
                 uuid=data['claim_uuid'],
                 validity_to__isnull=True)
             prev_feedback = claim.feedback
@@ -942,7 +941,7 @@ class SelectClaimsForReviewMutation(OpenIMISMutation):
     def async_mutate(cls, user, **data):
         if not user.has_perms(ClaimConfig.gql_mutation_select_claim_review_perms):
             raise PermissionDenied(_("unauthorized"))
-        return set_claims_status(data['uuids'], 'review_status', Claim.REVIEW_SELECTED)
+        return set_claims_status(data['uuids'], 'review_status', Claim.REVIEW_SELECTED, user=user)
 
 
 class BypassClaimsReviewMutation(OpenIMISMutation):
@@ -966,7 +965,8 @@ class BypassClaimsReviewMutation(OpenIMISMutation):
             data['uuids'],
             'review_status',
             Claim.REVIEW_BYPASSED,
-            processed_ip_address=data.get("user_processed_ip_address", None)
+            processed_ip_address=data.get("user_processed_ip_address", None),
+            user=user,
         )
 
 
@@ -989,7 +989,7 @@ class DeliverClaimsReviewMutation(OpenIMISMutation):
         if not user.has_perms(ClaimConfig.gql_mutation_deliver_claim_review_perms):
             raise PermissionDenied(_("unauthorized"))
         errors = set_claims_status(data['uuids'], 'review_status', Claim.REVIEW_DELIVERED,
-                                   {'audit_user_id_review': user.id_for_audit})
+                                   {'audit_user_id_review': user.id_for_audit}, user=user)
         # OMT-208 update the dedrem for the reviewed claims
         errors += update_claims_dedrems(
             data["uuids"],
@@ -1017,7 +1017,7 @@ class SkipClaimsReviewMutation(OpenIMISMutation):
     def async_mutate(cls, user, **data):
         if not user.has_perms(ClaimConfig.gql_mutation_skip_claim_review_perms):
             raise PermissionDenied(_("unauthorized"))
-        return set_claims_status(data['uuids'], 'review_status', Claim.REVIEW_NOT_SELECTED)
+        return set_claims_status(data['uuids'], 'review_status', Claim.REVIEW_NOT_SELECTED, user=user)
 
 
 class SaveClaimReviewMutation(OpenIMISMutation):
@@ -1040,8 +1040,8 @@ class SaveClaimReviewMutation(OpenIMISMutation):
             logger.debug("data %s", data)
             if not user.has_perms(ClaimConfig.gql_mutation_deliver_claim_review_perms):
                 raise PermissionDenied(_("unauthorized"))
-            claim = Claim.objects.get(uuid=data['claim_uuid'],
-                                      validity_to__isnull=True)
+            claim = Claim.get_queryset(Claim.objects.all(), user).filter(
+                uuid=data['claim_uuid'], validity_to__isnull=True).first()
             if claim is None:
                 return [{'message': _(
                     "claim.validation.id_does_not_exist") % {'id': data['claim_uuid']}}]
@@ -1160,7 +1160,8 @@ class ProcessClaimsMutation(OpenIMISMutation, ClaimSubmissionStatsMixin):
         errors = []
         uuids = data.get("uuids", None)
         client_mutation_id = data.get("client_mutation_id", None)
-        claims = Claim.objects \
+        # row security: only the claims the user may read
+        claims = Claim.get_queryset(Claim.objects.all(), user) \
                 .filter(uuid__in=uuids) \
                 .prefetch_related(Prefetch('items', queryset=ClaimItem.objects.filter(*filter_validity())))\
                 .prefetch_related(Prefetch('services', queryset=ClaimService.objects.filter(*filter_validity())))
@@ -1217,7 +1218,8 @@ class DeleteClaimsMutation(OpenIMISMutation):
             raise PermissionDenied(_("unauthorized"))
         errors = []
         for claim_uuid in data["uuids"]:
-            claim = Claim.objects \
+            # row security: a claim the user may not read does not exist for them
+            claim = Claim.get_queryset(Claim.objects.all(), user) \
                 .filter(uuid=claim_uuid) \
                 .prefetch_related(Prefetch('items', queryset=ClaimItem.objects.filter(*filter_validity())))\
                 .prefetch_related(Prefetch('services', queryset=ClaimService.objects.filter(*filter_validity())))\

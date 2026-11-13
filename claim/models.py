@@ -44,13 +44,13 @@ class ClaimAdmin(core_models.VersionedModel):
         return self.code + " " + self.last_name + " " + self.other_names
 
     @classmethod
-    def get_queryset(cls, queryset, user):
-        queryset = cls.filter_queryset(queryset)
+    def get_queryset(cls, queryset, user, *, validity=None, audits=None):
+        queryset = cls.apply_row_filters(queryset, validity, audits, default=cls.filter_queryset)
         # GraphQL calls with an info object while Rest calls with the user itself
         if isinstance(user, ResolveInfo):
             user = user.context.user
-        if settings.ROW_SECURITY and user.is_anonymous:
-            return queryset.filter(id=-1)
+        if settings.ROW_SECURITY and (user is None or user.is_anonymous):
+            return cls.no_rows(queryset)
         if settings.ROW_SECURITY:
             from location.schema import LocationManager
             queryset = LocationManager().build_user_location_filter_query(
@@ -128,16 +128,17 @@ class Feedback(core_models.VersionedModel):
         db_table = 'tblFeedback'
 
     @classmethod
-    def get_queryset(cls, queryset, user):
-        queryset = cls.filter_queryset(queryset)
+    def get_queryset(cls, queryset, user, *, validity=None, audits=None):
+        queryset = cls.apply_row_filters(queryset, validity, audits, default=cls.filter_queryset)
         # GraphQL calls with an info object while Rest calls with the user itself
         if isinstance(user, ResolveInfo):
             user = user.context.user
-        if settings.ROW_SECURITY and user.is_anonymous:
-            return queryset.filter(id=-1)
+        if settings.ROW_SECURITY and (user is None or user.is_anonymous):
+            return cls.no_rows(queryset)
         if settings.ROW_SECURITY:
-            queryset = LocationManager().build_user_location_filter_query(
-                user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
+            # Feedback has no health facility of its own: it is visible when its
+            # claim is (was 'health_facility__location' -> FieldError).
+            queryset = queryset.filter(claim__in=Claim.get_queryset(Claim.objects.all(), user))
         return queryset
 
 
@@ -403,23 +404,23 @@ class Claim(core_models.VersionedModel, core_models.ExtendableModel):
         return prev_id
 
     @classmethod
-    def get_queryset(cls, queryset, user):
-        queryset = Claim.filter_queryset(queryset)
+    def get_queryset(cls, queryset, user=None, *, validity=None, audits=None):
+        queryset = cls.apply_row_filters(queryset, validity, audits, default=cls.filter_queryset)
         # GraphQL calls with an info object while Rest calls with the user itself
         if isinstance(user, ResolveInfo):
             user = user.context.user
-        if settings.ROW_SECURITY and user.is_anonymous:
-            return queryset.filter(id=-1)
-        programs = []
+        if user is None or user.is_anonymous:
+            # no user, no claim (was: AttributeError on None, open when ROW_SECURITY off)
+            return cls.no_rows(queryset)
         if hasattr(user._u, 'id'):
-            today = datetime.datetime.now()
-            programs = program_models.Program.objects.filter(user__id=user._u.id).filter(
-                validityDateFrom__lte=today).filter(
-                Q(validityDateTo__isnull=True) | Q(validityDateTo__gte=today))
-            if programs:
-                queryset = queryset.filter(program_id__in=programs)
-        else:
-            print("Id non existing")
+            # Program restriction (Cameroon): claims are linked to a program, so a
+            # user assigned to programs sees the claims of those programs -- expired
+            # programs included (their claims stay the user's). Expiring a program
+            # therefore neither hides its claims nor widens what the user sees.
+            # A user with no program assignment is not restricted by program.
+            assigned = program_models.Program.objects.filter(user__id=user._u.id)
+            if assigned.exists():
+                queryset = queryset.filter(program_id__in=assigned.values("idProgram"))
         if settings.ROW_SECURITY:
             # TechnicalUsers don't have health_facility_id attribute
             if hasattr(user._u, 'health_facility_id') and user._u.health_facility_id:
@@ -452,16 +453,17 @@ class FeedbackPrompt(core_models.VersionedModel):
         db_table = 'tblFeedbackPrompt'
 
     @classmethod
-    def get_queryset(cls, queryset, user):
-        queryset = cls.filter_queryset(queryset)
+    def get_queryset(cls, queryset, user, *, validity=None, audits=None):
+        queryset = cls.apply_row_filters(queryset, validity, audits, default=cls.filter_queryset)
         # GraphQL calls with an info object while Rest calls with the user itself
         if isinstance(user, ResolveInfo):
             user = user.context.user
-        if settings.ROW_SECURITY and user.is_anonymous:
-            return queryset.filter(id=-1)
+        if settings.ROW_SECURITY and (user is None or user.is_anonymous):
+            return cls.no_rows(queryset)
         if settings.ROW_SECURITY:
-            queryset = LocationManager().build_user_location_filter_query(
-                user._u, prefix='health_facility__location', queryset=queryset, loc_types=['D'])
+            # Feedback has no health facility of its own: it is visible when its
+            # claim is (was 'health_facility__location' -> FieldError).
+            queryset = queryset.filter(claim__in=Claim.get_queryset(Claim.objects.all(), user))
 
         return queryset
 
@@ -518,6 +520,7 @@ class ClaimDetail:
 
 class ClaimItem(core_models.VersionedModel, ClaimDetail, core_models.ExtendableModel):
     model_prefix = "item"
+    row_scope = core_models.ParentScope("claim")
     id = models.AutoField(db_column='ClaimItemID', primary_key=True)
     claim = models.ForeignKey(Claim, models.DO_NOTHING,
                               db_column='ClaimID', related_name='items')
@@ -595,6 +598,8 @@ class ClaimAttachmentType(core_models.VersionedModel):
 
 
 class ClaimAttachment(core_models.UUIDModel, core_models.UUIDVersionedModel):
+    #: visible when its claim is (Claim scopes itself in code: subquery)
+    row_scope = core_models.ParentScope("claim")
     claim = models.ForeignKey(
         Claim, models.DO_NOTHING, related_name='attachments')
     general_type = models.CharField(max_length=4, choices=GeneralClaimAttachmentType.choices,
@@ -621,6 +626,7 @@ class ClaimAttachment(core_models.UUIDModel, core_models.UUIDVersionedModel):
 
 class ClaimService(core_models.VersionedModel, ClaimDetail, core_models.ExtendableModel):
     model_prefix = "service"
+    row_scope = core_models.ParentScope("claim")
     id = models.AutoField(db_column='ClaimServiceID', primary_key=True)
     claim = models.ForeignKey(
         Claim, models.DO_NOTHING, db_column='ClaimID', related_name='services')
@@ -724,6 +730,7 @@ class ClaimServiceService(models.Model):
         db_table = 'tblClaimServicesService'
 
 class ClaimDedRem(core_models.VersionedModel):
+    row_scope = core_models.ParentScope("claim")
     id = models.AutoField(db_column='ExpenditureID', primary_key=True)
 
     policy = models.ForeignKey('policy.Policy', models.DO_NOTHING, db_column='PolicyID', blank=True, null=True,

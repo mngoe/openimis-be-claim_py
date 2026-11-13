@@ -23,12 +23,13 @@ def print(request):
     return report_service.process('claim_claim', data, claim.template)
 
 
+@api_view(["GET"])
+@permission_classes([checkUserWithRights(ClaimConfig.gql_query_claims_perms)])
 def attach(request):
-    queryset = ClaimAttachment.objects.filter(*core.filter_validity())
-    if settings.ROW_SECURITY:
-        from location.models import LocationManager
-        queryset = LocationManager().build_user_location_filter_query(request.user._u, prefix='health_facility__location',
-                                                                      queryset=queryset.select_related("claim"), loc_types=['D'])
+    # authenticated + claim query right (DRF), then row security: the attachment
+    # follows its claim (ClaimAttachment.row_scope = ParentScope("claim"))
+    queryset = ClaimAttachment.get_queryset(
+        ClaimAttachment.objects.filter(*core.filter_validity()), request.user).select_related("claim")
     attachment = queryset\
         .filter(id=request.GET['id'])\
         .first()

@@ -9,6 +9,8 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('claim', '0012_item_service_jsonExtField'),
+        # ClaimServiceService / ClaimServiceItem point at medical.Service and medical.Item
+        ('medical', '0001_initial'),
     ]
 
     operations = [
