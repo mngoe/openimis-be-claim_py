@@ -87,6 +87,7 @@ class ClaimGQLType(DjangoObjectType):
         interfaces = (graphene.relay.Node,)
         filter_fields = {
             "uuid": ["exact"],
+            "audited": ["exact"],
             "code": ["exact", "istartswith", "icontains", "iexact"],
             "status": ["exact", "gt"],
             "date_claimed": ["exact", "lt", "lte", "gt", "gte"],
