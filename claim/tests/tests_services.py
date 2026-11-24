@@ -14,7 +14,9 @@ from medical_pricelist.test_helpers import  create_test_service_pricelist, creat
 
 import datetime
 from claim.services import *
+import claim as claim_module
 import core
+from core.test_helpers import create_test_interactive_user
 from medical.test_helpers import create_test_service, create_test_item
 from claim.utils import service_create_hook, calcul_amount_service, service_update_hook
 from claim.test_helpers import create_test_claim
@@ -429,3 +431,125 @@ class ClaimSubmitServiceTestCase(TestCase):
         self.assertEqual(self.test_claim_service.status, ClaimService.STATUS_REJECTED)
         self.assertEqual(self.test_claim_service.qty_approved, 0)
         self.assertEqual(self.test_claim_service.rejection_reason, REJECTION_REASON_MANUAL_REJECTION)
+
+    def test_claim_update(self):
+        """Test of claim_update method"""
+
+        service = create_test_service(self.test_district.id)
+        item = create_test_item("D")
+        claim_service = mock.MagicMock()
+
+        claim_services_qs = mock.MagicMock()
+        claim_services_qs.__iter__.return_value = [claim_service]
+
+        css_qs = mock.MagicMock()
+        csi_qs = mock.MagicMock()
+
+        now = datetime.datetime.now()
+        user = create_test_interactive_user()
+
+        data = {
+            "audit_status": "R",
+            "services": [
+                {
+                    "service_service_set": [
+                        {
+                            "sub_service_code": "CONSULT",
+                            "qty_audited": 2,
+                        }
+                    ],
+                    "service_item_set": [
+                        {
+                            "sub_item_code": "MED001",
+                            "qty_audited": 5,
+                        }
+                    ],
+                }
+            ],
+        }
+
+        claim = create_test_claim()
+
+        with mock.patch.object(
+            claim,
+            "save_history"
+        ) as mock_save_history, \
+            mock.patch.object(
+                claim.items,
+                "update"
+            ) as mock_items_update, \
+            mock.patch.object(
+                claim.services,
+                "update"
+            ) as mock_services_update, \
+            mock.patch.object(
+                claim_module.services.ClaimService.objects,
+                "filter",
+                return_value=claim_services_qs
+            ) as mock_claim_service_filter, \
+            mock.patch.object(
+                claim_module.services.Service.objects,
+                "filter",
+                return_value=mock.MagicMock(
+                    first=mock.MagicMock(return_value=service)
+                )
+            ) as mock_service_filter, \
+            mock.patch.object(
+                claim_module.services.Item.objects,
+                "filter",
+                return_value=mock.MagicMock(
+                    first=mock.MagicMock(return_value=item)
+                )
+            ) as mock_item_filter, \
+            mock.patch.object(
+                claim_module.services.ClaimServiceService.objects,
+                "filter",
+                return_value=css_qs
+            ) as mock_css_filter, \
+            mock.patch.object(
+                claim_module.services.ClaimServiceItem.objects,
+                "filter",
+                return_value=csi_qs
+            ) as mock_csi_filter, \
+            mock.patch.object(
+                claim_module.services,
+                "claim_create_items_and_services"
+            ) as mock_create, \
+            mock.patch(
+                "core.utils.TimeUtils.now",
+                return_value=now
+            ):
+
+            result = claim_module.services.claim_update(
+                claim, data, user
+            )
+
+        assert result == claim
+
+        mock_save_history.assert_called_once()
+
+        mock_claim_service_filter.assert_called_once_with(
+            claim_id=claim.id
+        )
+        claim_services_qs.update.assert_any_call(rejection_reason=-3)
+
+        mock_service_filter.assert_called_once_with(code="CONSULT")
+        mock_css_filter.assert_called_once_with(
+            claim_service=claim_service,
+            service=service
+        )
+        css_qs.update.assert_called_once_with(qty_audited=2)
+
+        mock_item_filter.assert_called_once_with(code="MED001")
+        mock_csi_filter.assert_called_once_with(
+            claim_service=claim_service,
+            item=item
+        )
+        csi_qs.update.assert_called_once_with(qty_audited=5)
+
+        mock_create.assert_called_once_with(
+            claim, data, user
+        )
+
+        mock_items_update.assert_called_once_with(validity_to=now)
+        mock_services_update.assert_called_once_with(validity_to=now)
