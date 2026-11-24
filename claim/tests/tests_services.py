@@ -1,5 +1,8 @@
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from unittest import mock
+from insuree.models import Gender
+from location.models import HealthFacilityLegalForm
 from location.test_helpers import create_test_location, create_test_health_facility,create_test_village
 from insuree.test_helpers import create_test_insuree
 from claim.test_helpers import create_test_claim_admin, create_test_claim
@@ -365,3 +368,73 @@ class ClaimSubmitServiceTestCase(TestCase):
                 "audit_user_id": self.test_claim_service.audit_user_id
             }]
         }
+
+
+class ClaimCodeUniquenessTestCase(TestCase):
+    """
+    Ticket #38284 : rétablir une prestation rejetée ne doit pas permettre de réutiliser un numéro
+    déjà utilisé. L'unicité du numéro de prestation doit bloquer l'enregistrement, y compris pour
+    une prestation rétablie.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = mock.Mock()
+        cls.user.has_perms.return_value = True
+
+        # reference data expected by the test helpers (not created by the migrations)
+        HealthFacilityLegalForm.objects.get_or_create(code="C", defaults={"legal_form": "Company"})
+        Gender.objects.get_or_create(code="M", defaults={"gender": "Male"})
+
+        cls.test_village = create_test_village()
+        cls.test_district = cls.test_village.parent.parent
+        cls.test_hf = create_test_health_facility("9", cls.test_district.id, valid=True)
+        cls.test_insuree = create_test_insuree(
+            is_head=True,
+            custom_props=dict(
+                last_name="name",
+                other_names="surname",
+                dob=core.datetime.date(2000, 1, 13),
+                chf_id="884938284",
+            ),
+            family_custom_props=dict(location=cls.test_village),
+        )
+        cls.test_claim_admin = create_test_claim_admin()
+        cls.test_icd = Diagnosis(code='ICD00U', name='diag test uniqueness', audit_user_id=-1)
+        cls.test_icd.save()
+
+        cls.rejected_claim = cls._create_claim("REJ-0001", Claim.STATUS_REJECTED)
+        cls.entered_claim = cls._create_claim("ENT-0001", Claim.STATUS_ENTERED)
+
+    @classmethod
+    def _create_claim(cls, code, status):
+        return Claim.objects.create(
+            date_claimed=core.datetime.date(2020, 1, 9),
+            code=code,
+            icd=cls.test_icd,
+            claimed=2000,
+            date_from=core.datetime.date(2020, 1, 13),
+            admin=cls.test_claim_admin,
+            insuree=cls.test_insuree,
+            health_facility=cls.test_hf,
+            status=status,
+            audit_user_id=-1,
+        )
+
+    def test_restore_claim_with_code_of_another_claim_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            validate_claim_data({"code": "ENT-0001", "restore": self.rejected_claim.uuid, "services": []}, self.user)
+
+    def test_restore_claim_with_code_of_the_rejected_claim_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            validate_claim_data({"code": "REJ-0001", "restore": self.rejected_claim.uuid, "services": []}, self.user)
+
+    def test_restore_claim_with_free_code_is_allowed(self):
+        validate_claim_data({"code": "NEW-0001", "restore": self.rejected_claim.uuid, "services": []}, self.user)
+
+    def test_update_claim_without_changing_its_code_is_allowed(self):
+        validate_claim_data({"code": "ENT-0001", "uuid": self.entered_claim.uuid, "services": []}, self.user)
+
+    def test_update_claim_with_code_of_another_claim_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            validate_claim_data({"code": "REJ-0001", "uuid": self.entered_claim.uuid, "services": []}, self.user)
