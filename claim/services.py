@@ -496,6 +496,9 @@ def claim_update(claim, data, user):
     reset_claim_before_update(claim)
     set_reduced_attr(claim, data, ['items', 'services'])
     services = data.get("services", {})
+    audit_status = data.get("audit_status", None)
+    if audit_status == "R":
+        ClaimService.objects.filter(claim_id=claim.id).update(rejection_reason=-3)
     print("services ", services)
     for claim_service_service in services:
         service_service_set = claim_service_service.get('service_service_set', [])
